@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+requests
+pandas
+openpyxl
+python-dotenv
+pyarrow
+psycopg[binary]
+firebase-admin

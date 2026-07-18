@@ -1,0 +1,71 @@
+# ─── Secrets & credentials (NEVER commit) ───────────────────
+.env
+.env.local
+.env.*.local
+mobile-app/irizon-mobile-ui/.env
+firebase-service-account.json
+**/GoogleService-Info.plist
+*.pem
+*.key
+*.keystore
+*.jks
+
+# ─── Data / caches (PII & business data) ────────────────────
+*.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm
+src/data/*.parquet
+src/data/clients_cache.json
+
+# ─── Python ─────────────────────────────────────────────────
+__pycache__/
+*.pyc
+venv/
+.venv/
+*.egg-info/
+
+# ─── Node ───────────────────────────────────────────────────
+node_modules
+dist
+dist-ssr
+*.local
+
+# ─── Logs ───────────────────────────────────────────────────
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# ─── Android build artifacts ────────────────────────────────
+mobile-app/android/.gradle/
+mobile-app/android/build/
+mobile-app/android/app/build/
+mobile-app/android/local.properties
+mobile-app/android/.idea/
+mobile-app/android/captures/
+*.apk
+*.aab
+
+# ─── iOS build artifacts ────────────────────────────────────
+mobile-app/ios/App/build/
+mobile-app/ios/App/Pods/
+mobile-app/ios/App/DerivedData/
+mobile-app/ios/App/output/
+mobile-app/ios/App/App/public/
+
+# ─── Capacitor generated web copy ───────────────────────────
+mobile-app/android/app/src/main/assets/public/
+
+# ─── Editor / OS ────────────────────────────────────────────
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?

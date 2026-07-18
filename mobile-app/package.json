@@ -1,0 +1,27 @@
+{
+  "name": "mobile-app",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "start": "npm --prefix irizon-mobile-ui run dev",
+    "dev": "npm --prefix irizon-mobile-ui run dev",
+    "build": "npm --prefix irizon-mobile-ui run build",
+    "preview": "npm --prefix irizon-mobile-ui run preview",
+    "lint": "npm --prefix irizon-mobile-ui run lint",
+    "cap:sync": "npm run build && npx cap sync android",
+    "cap:open:android": "npx cap open android",
+    "cap:run:android": "npm run cap:sync && npx cap run android",
+    "apk:debug": "npm run cap:sync && cd android && gradlew.bat assembleDebug",
+    "apk:release": "npm run cap:sync && cd android && gradlew.bat assembleRelease"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.3.1",
+    "@capacitor/cli": "^8.3.1",
+    "@capacitor/core": "^8.3.1",
+    "@capacitor/ios": "^8.3.1",
+    "@capacitor/push-notifications": "^8.0.3"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.3"
+  }
+}

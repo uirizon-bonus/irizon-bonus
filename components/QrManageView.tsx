@@ -1,0 +1,707 @@
+import React, { useEffect, useMemo, useState } from 'react';
+import { Download, QrCode, RefreshCw, RotateCcw, Search, ShieldBan } from 'lucide-react';
+import LoadingGlass from './LoadingGlass';
+import { Language, Product, ProductQrCode } from '../types';
+
+interface QrManageViewProps {
+  lang: Language;
+}
+
+interface ProductsApiResponse {
+  products: Product[];
+}
+
+interface QrCodesApiResponse {
+  count: number;
+  codes: ProductQrCode[];
+}
+
+interface QrStatsResponse {
+  total: number;
+  used: number;
+  unused: number;
+  revoked: number;
+}
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000';
+const PAGE_SIZE = 100;
+
+const QrManageView: React.FC<QrManageViewProps> = ({ lang }) => {
+  const copy = useMemo(() => (
+    lang === 'RU'
+      ? {
+          title: 'QR управление',
+          subtitle: 'Массовая генерация и контроль одноразовых QR кодов',
+          product: 'Продукт',
+          productSearch: 'Поиск продукта...',
+          productNameCol: 'Название',
+          productPriceCol: 'Цена',
+          productStockCol: 'Остаток',
+          productNoData: 'Продукты не найдены',
+          state: 'Статус',
+          search: 'Поиск по QR или ID клиента...',
+          generate: 'Сгенерировать',
+          amount: 'Количество',
+          all: 'Все',
+          unused: 'Неиспользованные',
+          used: 'Использованные',
+          revoked: 'Отозванные',
+          revokeSelected: 'Отозвать выбранные',
+          restoreSelected: 'Восстановить выбранные',
+          downloadCsv: 'Скачать CSV',
+          downloadZip: 'Скачать ZIP',
+          refresh: 'Обновить',
+          total: 'Всего',
+          selected: 'Выбрано',
+          noData: 'Нет данных',
+          loading: 'Загрузка...',
+          prev: 'Пред.',
+          next: 'След.',
+          qr: 'QR код',
+          created: 'Создан',
+          usedAt: 'Использован',
+          usedBy: 'Клиент',
+          unscan: 'Отменить скан',
+          unscanReason: 'Причина отмены скана',
+        }
+      : {
+          title: 'QR boshqaruv',
+          subtitle: 'Bir martalik QR kodlarni ommaviy yaratish va nazorat',
+          product: 'Mahsulot',
+          productSearch: 'Mahsulot qidirish...',
+          productNameCol: 'Nomi',
+          productPriceCol: 'Narx',
+          productStockCol: 'Qoldiq',
+          productNoData: 'Mahsulot topilmadi',
+          state: 'Holat',
+          search: 'QR yoki mijoz ID bo‘yicha qidirish...',
+          generate: 'Yaratish',
+          amount: 'Soni',
+          all: 'Barchasi',
+          unused: 'Ishlatilmagan',
+          used: 'Ishlatilgan',
+          revoked: 'Bekor qilingan',
+          revokeSelected: 'Tanlanganlarni bekor qilish',
+          restoreSelected: 'Tanlanganlarni tiklash',
+          downloadCsv: 'CSV yuklash',
+          downloadZip: 'ZIP yuklash',
+          refresh: 'Yangilash',
+          total: 'Jami',
+          selected: 'Tanlangan',
+          noData: 'Ma’lumot yo‘q',
+          loading: 'Yuklanmoqda...',
+          prev: 'Oldingi',
+          next: 'Keyingi',
+          qr: 'QR kod',
+          created: 'Yaratilgan',
+          usedAt: 'Ishlatilgan vaqt',
+          usedBy: 'Mijoz',
+          unscan: 'Skan bekor qilish',
+          unscanReason: 'Bekor qilish sababi',
+        }
+  ), [lang]);
+
+  const [products, setProducts] = useState<Product[]>([]);
+  const [productSearch, setProductSearch] = useState('');
+  const [productPickerOpen, setProductPickerOpen] = useState(false);
+  const [selectedProductId, setSelectedProductId] = useState('all');
+  const [stateFilter, setStateFilter] = useState<'all' | 'unused' | 'used' | 'revoked'>('all');
+  const [search, setSearch] = useState('');
+  const [offset, setOffset] = useState(0);
+  const [count, setCount] = useState(0);
+  const [codes, setCodes] = useState<ProductQrCode[]>([]);
+  const [stats, setStats] = useState<QrStatsResponse>({ total: 0, used: 0, unused: 0, revoked: 0 });
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [generateCount, setGenerateCount] = useState('100');
+  const [loading, setLoading] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [unscanTarget, setUnscanTarget] = useState<ProductQrCode | null>(null);
+  const [unscanReason, setUnscanReason] = useState('');
+  const [unscanSubmitting, setUnscanSubmitting] = useState(false);
+  const [bulkUnscanOpen, setBulkUnscanOpen] = useState(false);
+
+  const loadProducts = async () => {
+    const response = await fetch(`${API_BASE_URL}/api/products`);
+    const payload = await response.json() as ProductsApiResponse | { error?: string };
+    if (!response.ok) throw new Error('error' in payload && payload.error ? payload.error : 'Failed to load products');
+    const nextProducts = (payload as ProductsApiResponse).products || [];
+    setProducts(nextProducts);
+    setSelectedProductId('all');
+    setProductSearch('');
+  };
+
+  const loadCodes = async (nextOffset: number) => {
+    if (!selectedProductId) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const params = new URLSearchParams({
+        offset: String(nextOffset),
+        limit: String(PAGE_SIZE),
+        state: stateFilter,
+      });
+      if (search.trim()) params.set('search', search.trim());
+
+      const codesUrl = selectedProductId === 'all'
+        ? `${API_BASE_URL}/api/qr-codes?${params.toString()}`
+        : `${API_BASE_URL}/api/products/${selectedProductId}/qr-codes?${params.toString()}`;
+      const statsUrl = selectedProductId === 'all'
+        ? `${API_BASE_URL}/api/qr-codes/stats`
+        : `${API_BASE_URL}/api/products/${selectedProductId}/qr-codes/stats`;
+      const [codesRes, statsRes] = await Promise.all([
+        fetch(codesUrl),
+        fetch(statsUrl),
+      ]);
+      const codesPayload = await codesRes.json() as QrCodesApiResponse | { error?: string };
+      const statsPayload = await statsRes.json() as QrStatsResponse | { error?: string };
+      if (!codesRes.ok) throw new Error('error' in codesPayload && codesPayload.error ? codesPayload.error : 'Failed to load QR codes');
+      if (!statsRes.ok) throw new Error('error' in statsPayload && statsPayload.error ? statsPayload.error : 'Failed to load stats');
+
+      setCodes((codesPayload as QrCodesApiResponse).codes || []);
+      setCount(Number((codesPayload as QrCodesApiResponse).count || 0));
+      setStats(statsPayload as QrStatsResponse);
+      setOffset(nextOffset);
+      setSelectedIds([]);
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : 'Failed to load');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadProducts();
+  }, []);
+
+  useEffect(() => {
+    if (selectedProductId === 'all' && productSearch.trim().toLowerCase() === copy.all.toLowerCase()) {
+      setProductSearch('');
+    }
+  }, [selectedProductId, productSearch, copy.all]);
+
+  useEffect(() => {
+    if (selectedProductId) {
+      void loadCodes(0);
+    }
+  }, [selectedProductId, stateFilter]);
+
+  const runGenerate = async () => {
+    if (!selectedProductId || selectedProductId === 'all') return;
+    const countValue = Number.parseInt(generateCount, 10);
+    if (!Number.isInteger(countValue) || countValue < 1 || countValue > 5000) {
+      setError(lang === 'RU' ? 'Введите количество 1..5000' : '1..5000 kiriting');
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/products/${selectedProductId}/qr-codes/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ count: countValue }),
+      });
+      const payload = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(payload.error || 'Generate failed');
+      await loadCodes(0);
+    } catch (generateError) {
+      setError(generateError instanceof Error ? generateError.message : 'Generate failed');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const bulkUpdate = async (mode: 'revoke' | 'restore') => {
+    if (!selectedProductId || selectedProductId === 'all' || selectedIds.length === 0) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/products/${selectedProductId}/qr-codes/${mode}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: selectedIds }),
+      });
+      const payload = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(payload.error || 'Bulk update failed');
+      await loadCodes(offset);
+    } catch (bulkError) {
+      setError(bulkError instanceof Error ? bulkError.message : 'Bulk update failed');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const openBulkUnscan = () => {
+    if (selectedIds.length === 0) return;
+    setBulkUnscanOpen(true);
+    setUnscanReason('');
+  };
+
+  const closeBulkUnscan = () => {
+    if (unscanSubmitting) return;
+    setBulkUnscanOpen(false);
+    setUnscanReason('');
+  };
+
+  const runBulkUnscan = async () => {
+    if (selectedIds.length === 0) return;
+    const reason = unscanReason.trim();
+    if (!reason) {
+      setError(lang === 'RU' ? 'Укажите причину отмены' : 'Bekor qilish sababini kiriting');
+      return;
+    }
+    const selectedRows = codes.filter((row) => selectedIds.includes(row.id) && row.isUsed);
+    if (selectedRows.length === 0) return;
+    setUnscanSubmitting(true);
+    setBusy(true);
+    setError(null);
+    try {
+      for (const row of selectedRows) {
+        const targetProductId = selectedProductId === 'all' ? row.productId : selectedProductId;
+        if (!targetProductId) continue;
+        const response = await fetch(`${API_BASE_URL}/api/products/${targetProductId}/qr-codes/${row.id}/unscan`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ reason, operator: 'Admin' }),
+        });
+        const payload = await response.json() as { error?: string };
+        if (!response.ok) throw new Error(payload.error || 'Unscan failed');
+      }
+      await loadCodes(offset);
+    } catch (unscanError) {
+      setError(unscanError instanceof Error ? unscanError.message : 'Unscan failed');
+    } finally {
+      setUnscanSubmitting(false);
+      setBusy(false);
+      closeBulkUnscan();
+    }
+  };
+
+  const openUnscanModal = (row: ProductQrCode) => {
+    if (!row.isUsed) return;
+    setUnscanTarget(row);
+    setUnscanReason('');
+  };
+
+  const closeUnscanModal = () => {
+    if (unscanSubmitting) return;
+    setUnscanTarget(null);
+    setUnscanReason('');
+  };
+
+  const unscanRow = async () => {
+    if (!unscanTarget || !unscanTarget.isUsed) return;
+    const targetProductId = selectedProductId === 'all' ? unscanTarget.productId : selectedProductId;
+    if (!targetProductId) {
+      setError(lang === 'RU' ? 'Не удалось определить продукт для отмены скана' : 'Skan bekor qilish uchun mahsulot topilmadi');
+      closeUnscanModal();
+      return;
+    }
+    const reason = unscanReason.trim();
+    if (!reason) {
+      setError(lang === 'RU' ? 'Укажите причину отмены' : 'Bekor qilish sababini kiriting');
+      return;
+    }
+    setUnscanSubmitting(true);
+    setBusy(true);
+    setError(null);
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/products/${targetProductId}/qr-codes/${unscanTarget.id}/unscan`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason, operator: 'Admin' }),
+      });
+      const payload = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(payload.error || 'Unscan failed');
+      await loadCodes(offset);
+    } catch (unscanError) {
+      setError(unscanError instanceof Error ? unscanError.message : 'Unscan failed');
+    } finally {
+      setUnscanSubmitting(false);
+      setBusy(false);
+      closeUnscanModal();
+    }
+  };
+
+  const toggleSelect = (id: number, checked: boolean) => {
+    setSelectedIds((current) => {
+      if (checked) return [...new Set([...current, id])];
+      return current.filter((item) => item !== id);
+    });
+  };
+
+  const selectAllOnPage = (checked: boolean) => {
+    if (!checked) {
+      setSelectedIds([]);
+      return;
+    }
+    const eligible = codes.filter((item) => item.isUsed).map((item) => item.id);
+    setSelectedIds(eligible);
+  };
+
+  const selectedProduct = products.find((item) => item.id === selectedProductId) || null;
+  const filteredProducts = useMemo(() => {
+    const query = productSearch.trim().toLowerCase();
+    if (!query) return products;
+    return products.filter((product) => {
+      const localizedName = String(product.name?.[lang] || '').toLowerCase();
+      const allNames = Object.values(product.name || {}).join(' ').toLowerCase();
+      return (
+        String(product.id).toLowerCase().includes(query) ||
+        localizedName.includes(query) ||
+        allNames.includes(query)
+      );
+    });
+  }, [products, productSearch, lang]);
+  const pageStart = count === 0 ? 0 : offset + 1;
+  const pageEnd = Math.min(offset + codes.length, count);
+  const eligibleIds = useMemo(() => codes.filter((item) => item.isUsed).map((item) => item.id), [codes]);
+  const selectedEligibleCount = useMemo(() => eligibleIds.filter((id) => selectedIds.includes(id)).length, [eligibleIds, selectedIds]);
+  const allEligibleChecked = eligibleIds.length > 0 && selectedEligibleCount === eligibleIds.length;
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-bold text-slate-800">{copy.title}</h2>
+          <p className="text-sm text-slate-500">{copy.subtitle}</p>
+        </div>
+        <button onClick={() => void loadCodes(offset)} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700">
+          <RefreshCw className="w-4 h-4" />
+          {copy.refresh}
+        </button>
+      </div>
+
+      {error && <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-600">{error}</div>}
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="rounded-xl border border-slate-100 bg-white p-4"><p className="text-xs text-slate-400">{copy.total}</p><p className="text-2xl font-black text-slate-800">{stats.total}</p></div>
+        <div className="rounded-xl border border-slate-100 bg-white p-4"><p className="text-xs text-slate-400">{copy.unused}</p><p className="text-2xl font-black text-emerald-600">{stats.unused}</p></div>
+        <div className="rounded-xl border border-slate-100 bg-white p-4"><p className="text-xs text-slate-400">{copy.used}</p><p className="text-2xl font-black text-cyan-600">{stats.used}</p></div>
+        <div className="rounded-xl border border-slate-100 bg-white p-4"><p className="text-xs text-slate-400">{copy.revoked}</p><p className="text-2xl font-black text-rose-600">{stats.revoked}</p></div>
+      </div>
+
+      <div className="rounded-2xl border border-slate-100 bg-white p-4 grid grid-cols-1 md:grid-cols-5 gap-3">
+        <div className="relative">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+            <input
+              value={productSearch}
+              onFocus={() => setProductPickerOpen(true)}
+              onBlur={() => {
+                window.setTimeout(() => setProductPickerOpen(false), 150);
+              }}
+              onChange={(event) => {
+                setProductSearch(event.target.value);
+                setProductPickerOpen(true);
+              }}
+              onClick={() => {
+                if (productSearch.trim().toLowerCase() === copy.all.toLowerCase()) {
+                  setProductSearch('');
+                }
+              }}
+              placeholder={selectedProductId === 'all' && !productSearch.trim() ? copy.all : copy.productSearch}
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 pl-8 pr-3 py-1.5 text-xs"
+            />
+          </div>
+          {productPickerOpen && (
+            <div className="absolute left-0 right-0 top-full z-20 mt-1 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg">
+              <div className="max-h-56 overflow-y-auto">
+                {filteredProducts.length === 0 ? (
+                  <div className="px-3 py-3 text-xs text-slate-500">{copy.productNoData}</div>
+                ) : (
+                  <>
+                    <button
+                      onClick={() => {
+                        setSelectedProductId('all');
+                        setProductSearch('');
+                        setProductPickerOpen(false);
+                      }}
+                      className={`w-full px-3 py-2 text-left text-xs hover:bg-slate-50 ${
+                        selectedProductId === 'all' ? 'bg-cyan-50' : 'bg-white'
+                      }`}
+                    >
+                      <span className="block truncate">{copy.all}</span>
+                    </button>
+                    {filteredProducts.map((product) => (
+                      <button
+                        key={product.id}
+                        onClick={() => {
+                          setSelectedProductId(product.id);
+                          setProductSearch(`${product.id} - ${product.name[lang]}`);
+                          setProductPickerOpen(false);
+                        }}
+                        className={`w-full px-3 py-2 text-left text-xs hover:bg-slate-50 ${
+                          product.id === selectedProductId ? 'bg-cyan-50' : 'bg-white'
+                        }`}
+                      >
+                        <span className="block truncate">{product.id} - {product.name[lang]}</span>
+                      </button>
+                    ))}
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+        <select value={stateFilter} onChange={(event) => setStateFilter(event.target.value as 'all' | 'unused' | 'used' | 'revoked')} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+          <option value="all">{copy.all}</option>
+          <option value="unused">{copy.unused}</option>
+          <option value="used">{copy.used}</option>
+          <option value="revoked">{copy.revoked}</option>
+        </select>
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={copy.search} className="w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 py-2 text-sm" />
+        </div>
+        <div className="flex gap-2">
+          <input value={generateCount} onChange={(event) => setGenerateCount(event.target.value)} type="number" min={1} max={5000} placeholder={copy.amount} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm" />
+          <button onClick={() => void runGenerate()} disabled={busy || !selectedProductId || selectedProductId === 'all'} className="rounded-xl bg-cyan-600 text-white px-4 py-2 text-sm font-semibold disabled:opacity-50">{copy.generate}</button>
+        </div>
+        <button onClick={() => void loadCodes(0)} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700">{copy.refresh}</button>
+      </div>
+
+      <div className="rounded-2xl border border-slate-100 bg-white p-4 flex flex-wrap gap-2">
+        <button
+          onClick={openBulkUnscan}
+          disabled={busy || selectedIds.length === 0}
+          className="inline-flex items-center gap-2 rounded-xl bg-amber-600 text-white px-4 py-2 text-sm font-semibold disabled:opacity-50"
+        >
+          <ShieldBan className="w-4 h-4" />
+          {lang === 'RU' ? 'Отменить скан выбранные' : 'Tanlangan skanlarni bekor qilish'}
+        </button>
+        <button
+          onClick={async () => {
+            const url = selectedProductId === 'all'
+              ? `${API_BASE_URL}/api/qr-codes.csv?include_used=true&include_revoked=true`
+              : selectedProduct
+                ? `${API_BASE_URL}/api/products/${selectedProduct.id}/qr-codes.csv?include_used=true&include_revoked=true`
+                : '';
+            if (!url) return;
+            const res = await fetch(url);
+            const blob = await res.blob();
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `qr_codes.csv`;
+            link.click();
+            URL.revokeObjectURL(link.href);
+          }}
+          disabled={!selectedProductId}
+          className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 disabled:opacity-50"
+        >
+          <Download className="w-4 h-4" />
+          {copy.downloadCsv}
+        </button>
+        <button
+          onClick={async () => {
+            const url = selectedProductId === 'all'
+              ? `${API_BASE_URL}/api/qr-codes.zip?include_used=true&include_revoked=true&size=600`
+              : selectedProduct
+                ? `${API_BASE_URL}/api/products/${selectedProduct.id}/qr-codes.zip?include_used=true&include_revoked=true&size=600`
+                : '';
+            if (!url) return;
+            const res = await fetch(url);
+            const blob = await res.blob();
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `qr_codes.zip`;
+            link.click();
+            URL.revokeObjectURL(link.href);
+          }}
+          disabled={!selectedProductId}
+          className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 disabled:opacity-50"
+        >
+          <Download className="w-4 h-4" />
+          {copy.downloadZip}
+        </button>
+        <span className="ml-auto text-xs text-slate-500">{copy.selected}: {selectedIds.length}</span>
+      </div>
+
+      <div className="rounded-3xl border border-slate-100 bg-white overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-slate-50/60 text-[10px] font-bold uppercase tracking-widest text-slate-400 border-b border-slate-100">
+                <th className="px-4 py-3">
+                  <input
+                    type="checkbox"
+                    onChange={(event) => selectAllOnPage(event.target.checked)}
+                    checked={allEligibleChecked}
+                    disabled={eligibleIds.length === 0}
+                  />
+                </th>
+                <th className="px-4 py-3">ID</th>
+                <th className="px-4 py-3">{copy.qr}</th>
+                <th className="px-4 py-3">{copy.product}</th>
+                <th className="px-4 py-3">{copy.state}</th>
+                <th className="px-4 py-3">{copy.usedBy}</th>
+                <th className="px-4 py-3">{copy.created}</th>
+                <th className="px-4 py-3">{copy.usedAt}</th>
+                <th className="px-4 py-3">Action</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50">
+              {loading ? (
+                <tr>
+                  <td colSpan={8} className="px-4 py-12 text-sm text-slate-400">
+                    <LoadingGlass label={copy.loading} />
+                  </td>
+                </tr>
+              ) : codes.length === 0 ? (
+                <tr><td colSpan={8} className="px-4 py-12 text-center text-sm text-slate-400">{copy.noData}</td></tr>
+              ) : (
+                codes.map((row) => {
+                  const stateLabel = row.isRevoked ? copy.revoked : row.isUsed ? copy.used : copy.unused;
+                  const stateClass = row.isRevoked ? 'text-rose-600' : row.isUsed ? 'text-cyan-600' : 'text-emerald-600';
+                  return (
+                    <tr key={row.id} className="hover:bg-slate-50/70">
+                      <td className="px-4 py-3">
+                        <input
+                          type="checkbox"
+                          disabled={!row.isUsed}
+                          checked={selectedIds.includes(row.id)}
+                          onChange={(event) => toggleSelect(row.id, event.target.checked)}
+                        />
+                      </td>
+                      <td className="px-4 py-3 text-xs font-semibold text-slate-700">{row.id}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-start gap-2">
+                          <QrCode className="w-4 h-4 text-slate-300 mt-0.5" />
+                          <span className="text-xs text-slate-600 break-all max-w-[420px]">{row.qrCode}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex flex-col">
+                          <span className="text-xs font-semibold text-slate-700">{row.productName || '-'}</span>
+                          <span className="text-[10px] text-slate-400">{row.productId || ''}</span>
+                        </div>
+                      </td>
+                      <td className={`px-4 py-3 text-xs font-bold ${stateClass}`}>{stateLabel}</td>
+                      <td className="px-4 py-3 text-xs text-slate-600">{row.usedByClientId || '-'}</td>
+                      <td className="px-4 py-3 text-xs text-slate-600">{row.createdAt || '-'}</td>
+                      <td className="px-4 py-3 text-xs text-slate-600">{row.usedAt || row.revokedAt || '-'}</td>
+                      <td className="px-4 py-3">
+                        {row.isUsed ? (
+                          <button
+                            onClick={() => openUnscanModal(row)}
+                            disabled={busy}
+                            className="text-[11px] px-2 py-1 rounded-lg bg-amber-100 text-amber-700 font-semibold disabled:opacity-50"
+                          >
+                            {copy.unscan}
+                          </button>
+                        ) : <span className="text-xs text-slate-300">-</span>}
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+        <div className="p-4 border-t border-slate-100 bg-slate-50/60 flex items-center justify-between">
+          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{copy.total}: {pageStart}-{pageEnd} / {count}</span>
+          <div className="flex gap-2">
+            <button onClick={() => void loadCodes(Math.max(0, offset - PAGE_SIZE))} disabled={offset === 0 || loading} className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-600 disabled:opacity-50">{copy.prev}</button>
+            <button onClick={() => void loadCodes(offset + PAGE_SIZE)} disabled={loading || offset + PAGE_SIZE >= count} className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-600 disabled:opacity-50">{copy.next}</button>
+          </div>
+        </div>
+      </div>
+
+      {unscanTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={closeUnscanModal} />
+          <div className="relative w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-100 text-amber-600">
+                <ShieldBan className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-slate-800">
+                  {lang === 'RU' ? 'Подтвердите отмену скана' : 'Skan bekor qilishni tasdiqlang'}
+                </h3>
+                <p className="text-xs text-slate-500">
+                  {unscanTarget.productName || unscanTarget.productId}
+                </p>
+              </div>
+            </div>
+            <div className="mt-4">
+              <label className="text-xs font-semibold text-slate-500">{copy.unscanReason}</label>
+              <textarea
+                value={unscanReason}
+                onChange={(event) => setUnscanReason(event.target.value)}
+                rows={3}
+                className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
+              />
+            </div>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                onClick={closeUnscanModal}
+                className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600"
+              >
+                {lang === 'RU' ? 'Отмена' : 'Bekor qilish'}
+              </button>
+              <button
+                onClick={() => void unscanRow()}
+                disabled={unscanSubmitting}
+                className="rounded-xl bg-amber-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+              >
+                {unscanSubmitting
+                  ? (lang === 'RU' ? 'Обработка...' : 'Bajarilmoqda...')
+                  : (lang === 'RU' ? 'Отменить скан' : 'Skan bekor qilish')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {bulkUnscanOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={closeBulkUnscan} />
+          <div className="relative w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-100 text-amber-600">
+                <ShieldBan className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-slate-800">
+                  {lang === 'RU' ? 'Отмена скана' : 'Skan bekor qilish'}
+                </h3>
+                <p className="text-xs text-slate-500">
+                  {lang === 'RU' ? `Выбрано: ${selectedIds.length}` : `Tanlangan: ${selectedIds.length}`}
+                </p>
+              </div>
+            </div>
+            <div className="mt-4">
+              <label className="text-xs font-semibold text-slate-500">{copy.unscanReason}</label>
+              <textarea
+                value={unscanReason}
+                onChange={(event) => setUnscanReason(event.target.value)}
+                rows={3}
+                className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
+              />
+            </div>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                onClick={closeBulkUnscan}
+                className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600"
+              >
+                {lang === 'RU' ? 'Отмена' : 'Bekor qilish'}
+              </button>
+              <button
+                onClick={() => void runBulkUnscan()}
+                disabled={unscanSubmitting}
+                className="rounded-xl bg-amber-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+              >
+                {unscanSubmitting
+                  ? (lang === 'RU' ? 'Обработка...' : 'Bajarilmoqda...')
+                  : (lang === 'RU' ? 'Отменить скан' : 'Skan bekor qilish')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default QrManageView;

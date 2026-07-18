@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(awk 'NR>=640 && NR<=1794 && /^def /{print NR\": \"$0}' backend/legacy.py)",
+      "Bash(grep -vE '^\\\\s*$')",
+      "Read(//tmp/**)",
+      "Bash(cp backend/legacy.py /tmp/legacy.py.bak)",
+      "Bash(sed -i '' '650,1794d' backend/legacy.py)",
+      "Bash(python3 -m py_compile backend/legacy.py backend/app.py)",
+      "Bash(python3 -c \"import fastapi; print\\('fastapi available'\\)\")",
+      "Bash(python3 -m venv /tmp/irizon_test_venv)",
+      "Bash(/tmp/irizon_test_venv/bin/pip install *)",
+      "Bash([ -x \"$JBR/bin/java\" ])",
+      "Bash('/Applications/Android Studio.app/Contents/jbr/Contents/Home/bin/java' -version)",
+      "Bash(npm install *)",
+      "Bash(npm --prefix irizon-mobile-ui install)",
+      "Bash(npm run *)"
+    ]
+  }
+}
