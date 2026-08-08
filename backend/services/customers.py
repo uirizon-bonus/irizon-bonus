@@ -18,11 +18,6 @@ def get_clients_payload(*, offset: int, limit: int, refresh: bool):
     return {"count": len(clients), "clients": clients}
 
 
-def client_activity_payload(client_id: str):
-    activities = customer_core._load_customer_activity(str(client_id))
-    return {"count": len(activities), "activities": activities}
-
-
 def create_client_payload(payload: CustomerUpsertPayload):
     try:
         customer = customer_core._create_customer(payload)
