@@ -263,16 +263,6 @@ const App: React.FC = () => {
 
   return (
     <div className="flex min-h-screen bg-slate-50 overflow-hidden font-inter">
-      {/* View Switcher Floating Button */}
-      {!isPortalApp && (
-        <button 
-          onClick={() => setViewMode('user')}
-          className="fixed bottom-6 right-6 z-[100] flex items-center gap-2 px-4 py-3 bg-indigo-600 text-white font-bold rounded-full shadow-2xl hover:bg-indigo-700 hover:scale-105 active:scale-95 transition-all group"
-        >
-          <UserIcon className="w-5 h-5" />
-          <span className="max-w-0 overflow-hidden group-hover:max-w-xs transition-all duration-500 whitespace-nowrap">{TRANSLATIONS[lang].switch_to_portal}</span>
-        </button>
-      )}
 
       {/* Sidebar - Enterprise SaaS Style */}
       <aside className={`${isSidebarOpen ? 'w-64' : 'w-20'} sidebar-gradient transition-all duration-300 flex flex-col z-50`}>

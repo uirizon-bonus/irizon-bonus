@@ -637,11 +637,6 @@ const CustomersView: React.FC<CustomersViewProps> = ({ lang, onOpenReconciliatio
         <div>
           <h2 className="text-2xl font-bold text-slate-800">{t.customers}</h2>
           <p className="text-sm text-slate-500">{t.track_manage_loyalty}</p>
-          {formattedLastSyncedAt && (
-            <p className="mt-1 text-xs font-medium text-slate-400">
-              {t.last_updated}: {formattedLastSyncedAt}
-            </p>
-          )}
         </div>
         <div className="flex items-center gap-3">
           <button
@@ -989,16 +984,6 @@ const CustomersView: React.FC<CustomersViewProps> = ({ lang, onOpenReconciliatio
                             className="flex items-center gap-1.5 rounded-lg bg-cyan-600 px-3 py-1.5 text-[11px] font-bold text-white shadow-sm shadow-cyan-600/10 transition-all hover:bg-cyan-700"
                           >
                             <Plus className="w-3.5 h-3.5" /> {t.new_order}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onOpenPortal(customer.id);
-                            }}
-                            className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-bold text-slate-500 shadow-sm transition-all hover:border-cyan-200 hover:text-cyan-600"
-                          >
-                            <ArrowRight className="w-3.5 h-3.5 text-cyan-500" /> Portal
                           </button>
                           <button
                             type="button"
