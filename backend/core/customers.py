@@ -320,11 +320,13 @@ def _next_manual_customer_id(connection: Any) -> str:
 def _create_customer(payload: CustomerUpsertPayload) -> Dict[str, Any]:
     from backend import legacy as _legacy
 
+    if not str(payload.full_name or "").strip():
+        raise ValueError("Customer name is required")
     phone_raw = str(payload.phone or "").strip()
     phone_norm = _normalize_phone(phone_raw)
-    if phone_norm and len(phone_norm) < 9:
-        raise ValueError("Phone number must contain at least 9 digits")
-    duplicate_id = _customer_exists_with_phone(phone_norm) if phone_norm else None
+    if not phone_norm or len(phone_norm) < 9:
+        raise ValueError("A valid phone number (at least 9 digits) is required")
+    duplicate_id = _customer_exists_with_phone(phone_norm)
     if duplicate_id:
         raise ValueError(f"Phone number already belongs to customer {duplicate_id}")
 
@@ -389,11 +391,13 @@ def _update_customer(client_id: str, payload: CustomerUpsertPayload) -> Dict[str
     from backend import legacy as _legacy
 
     customer_id = str(client_id).strip()
+    if not str(payload.full_name or "").strip():
+        raise ValueError("Customer name is required")
     phone_raw = str(payload.phone or "").strip()
     phone_norm = _normalize_phone(phone_raw)
-    if phone_norm and len(phone_norm) < 9:
-        raise ValueError("Phone number must contain at least 9 digits")
-    duplicate_id = _customer_exists_with_phone(phone_norm, exclude_client_id=customer_id) if phone_norm else None
+    if not phone_norm or len(phone_norm) < 9:
+        raise ValueError("A valid phone number (at least 9 digits) is required")
+    duplicate_id = _customer_exists_with_phone(phone_norm, exclude_client_id=customer_id)
     if duplicate_id:
         raise ValueError(f"Phone number already belongs to customer {duplicate_id}")
 
