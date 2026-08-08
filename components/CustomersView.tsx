@@ -175,16 +175,12 @@ const CustomersView: React.FC<CustomersViewProps> = ({ lang, onOpenReconciliatio
     const pointMap = new Map(pointEntries.map((entry) => [entry.clientId, entry]));
     return baseCustomers.map((customer) => {
       const pointEntry = pointMap.get(customer.id);
-      if (!pointEntry) {
-        return customer;
-      }
-
       return {
         ...customer,
-        totalPoints: pointEntry.totalPoints,
-        pointsEarned: pointEntry.pointsEarned,
-        pointsRedeemed: pointEntry.pointsRedeemed,
-        lastUpdated: customer.lastUpdated || pointEntry.lastBonusAt,
+        totalPoints: pointEntry?.totalPoints ?? customer.totalPoints ?? 0,
+        pointsEarned: pointEntry?.pointsEarned ?? customer.pointsEarned ?? 0,
+        pointsRedeemed: pointEntry?.pointsRedeemed ?? customer.pointsRedeemed ?? 0,
+        lastUpdated: customer.lastUpdated || pointEntry?.lastBonusAt || '',
       };
     });
   };
@@ -946,13 +942,13 @@ const CustomersView: React.FC<CustomersViewProps> = ({ lang, onOpenReconciliatio
                       <span className="text-xs font-medium text-slate-500">{customer.phone}</span>
                     </td>
                     <td className="px-4 py-2.5">
-                      <span className="text-sm font-bold text-slate-800">{customer.totalPoints.toLocaleString()}</span>
+                      <span className="text-sm font-bold text-slate-800">{(customer.totalPoints ?? 0).toLocaleString()}</span>
                     </td>
                     <td className="px-4 py-2.5">
-                      <span className="text-xs font-medium text-slate-500">{customer.pointsEarned.toLocaleString()}</span>
+                      <span className="text-xs font-medium text-slate-500">{(customer.pointsEarned ?? 0).toLocaleString()}</span>
                     </td>
                     <td className="px-4 py-2.5">
-                      <span className="text-xs font-medium text-slate-500">{customer.pointsRedeemed.toLocaleString()}</span>
+                      <span className="text-xs font-medium text-slate-500">{(customer.pointsRedeemed ?? 0).toLocaleString()}</span>
                     </td>
                     <td className="px-4 py-2.5 text-right">
                       <div className="flex items-center justify-end pr-2">
