@@ -15,13 +15,22 @@ export function Layout() {
   ];
 
   return (
-    <div className="min-h-screen bg-[#F5F7FA] pb-24">
+    <div
+      className="min-h-screen bg-[#F5F7FA]"
+      style={{
+        paddingTop: "env(safe-area-inset-top)",
+        paddingBottom: "calc(6rem + env(safe-area-inset-bottom))",
+      }}
+    >
       <div className="max-w-md mx-auto">
         <Outlet />
       </div>
 
       {shouldShowNav ? (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50">
+        <div
+          className="fixed left-1/2 -translate-x-1/2 z-50"
+          style={{ bottom: "calc(1.5rem + env(safe-area-inset-bottom))" }}
+        >
           <nav className="bg-white rounded-[28px] shadow-2xl px-6 py-3 flex gap-6 border border-gray-100">
             {navItems.map((item) => {
               const isActive =

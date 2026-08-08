@@ -173,20 +173,24 @@ export function QRScanner({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center">
+    <div className="fixed inset-0 z-[70] bg-black/95 flex items-center justify-center">
       <div className="relative w-full h-full max-w-md mx-auto">
-        <button
-          type="button"
-          onClick={onClose}
-          className="absolute top-4 right-4 z-20 p-4 bg-white/20 backdrop-blur-sm rounded-full active:bg-white/40 transition-colors"
-          style={{ minWidth: 56, minHeight: 56 }}
+        <div
+          className="absolute top-0 inset-x-0 z-20 px-5 pb-4 bg-gradient-to-b from-black/70 to-transparent"
+          style={{ paddingTop: "calc(env(safe-area-inset-top) + 14px)" }}
         >
-          <X className="w-7 h-7 text-white" />
-        </button>
-
-        <div className="absolute top-6 left-6 z-10">
-          <h2 className="text-white text-xl font-bold mb-1">{i18n.scanModalTitle}</h2>
-          <p className="text-white/70 text-sm">{i18n.scanModalHint}</p>
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="min-w-0 truncate text-white text-xl font-bold">{i18n.scanModalTitle}</h2>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close"
+              className="shrink-0 w-11 h-11 rounded-full bg-white/15 backdrop-blur-md flex items-center justify-center active:bg-white/30 transition-colors"
+            >
+              <X className="w-6 h-6 text-white" />
+            </button>
+          </div>
+          <p className="text-white/70 text-sm mt-1">{i18n.scanModalHint}</p>
         </div>
 
         <div className="flex items-center justify-center h-full p-6">
@@ -255,7 +259,10 @@ export function QRScanner({
         </div>
 
         {scanResult === "idle" ? (
-          <div className="absolute bottom-12 left-0 right-0 px-6">
+          <div
+            className="absolute left-0 right-0 px-6"
+            style={{ bottom: "calc(env(safe-area-inset-bottom) + 2rem)" }}
+          >
             <div className="bg-white/10 backdrop-blur-sm rounded-2xl px-6 py-4">
               <p className="text-white text-center text-sm">{i18n.scanAlignHint}</p>
             </div>

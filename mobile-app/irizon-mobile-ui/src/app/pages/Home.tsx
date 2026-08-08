@@ -4,6 +4,7 @@ import { motion } from "motion/react";
 import { toast } from "sonner";
 import { QRScanner } from "../components/QRScanner";
 import { SettingsModal } from "../components/SettingsModal";
+import { ProfileModal } from "../components/ProfileModal";
 import { LoadingScreen } from "../components/LoadingScreen";
 import { usePortal } from "../context/PortalContext";
 
@@ -50,6 +51,7 @@ export function Home() {
   const [displayPoints, setDisplayPoints] = useState(0);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [scanResult, setScanResult] = useState<ScanResult>("idle");
   const [scanMessage, setScanMessage] = useState("");
@@ -166,6 +168,7 @@ export function Home() {
       <div className="px-5 pt-6 pb-4 flex items-center justify-between">
         <motion.button
           whileTap={{ scale: 0.95 }}
+          onClick={() => setIsProfileOpen(true)}
           className="w-11 h-11 rounded-full bg-white/90 backdrop-blur-xl flex items-center justify-center shadow-lg border border-white/60"
           style={{ boxShadow: "0 8px 16px -4px rgba(15, 76, 129, 0.15), 0 0 0 1px rgba(255, 255, 255, 0.8) inset" }}
         >
@@ -359,6 +362,7 @@ export function Home() {
       />
 
       <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
+      <ProfileModal isOpen={isProfileOpen} onClose={() => setIsProfileOpen(false)} />
     </div>
   );
 }
