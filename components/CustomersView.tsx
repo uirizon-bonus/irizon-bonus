@@ -170,6 +170,7 @@ const CustomersView: React.FC<CustomersViewProps> = ({ lang, onOpenReconciliatio
     pointsRedeemedMin: '',
     pointsRedeemedMax: '',
   });
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
 
   const applyPointEntriesToCustomers = (baseCustomers: Customer[], pointEntries: CustomerPointsEntry[]) => {
     const pointMap = new Map(pointEntries.map((entry) => [entry.clientId, entry]));
@@ -580,6 +581,7 @@ const CustomersView: React.FC<CustomersViewProps> = ({ lang, onOpenReconciliatio
     if (filters.pointsEarnedMax) result = result.filter(c => c.pointsEarned <= Number(filters.pointsEarnedMax));
     if (filters.pointsRedeemedMin) result = result.filter(c => c.pointsRedeemed >= Number(filters.pointsRedeemedMin));
     if (filters.pointsRedeemedMax) result = result.filter(c => c.pointsRedeemed <= Number(filters.pointsRedeemedMax));
+    if (statusFilter !== 'all') result = result.filter(c => (c.status || 'active') === statusFilter);
 
     // Sorting
     if (sortConfig.key) {
@@ -594,7 +596,7 @@ const CustomersView: React.FC<CustomersViewProps> = ({ lang, onOpenReconciliatio
     }
 
     return result;
-  }, [customers, search, filters, sortConfig]);
+  }, [customers, search, filters, sortConfig, statusFilter]);
 
   const totals = useMemo(() => {
     return filteredAndSortedCustomers.reduce((acc, curr) => ({
@@ -678,12 +680,12 @@ const CustomersView: React.FC<CustomersViewProps> = ({ lang, onOpenReconciliatio
         </div>
       )}
 
-      {/* Search Bar Only */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
-        <div className="relative w-full">
+      {/* Search + status filter */}
+      <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col sm:flex-row gap-3">
+        <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-          <input 
-            type="text" 
+          <input
+            type="text"
             placeholder={t.search_placeholder}
             value={search}
             onChange={(e) => {
@@ -693,6 +695,15 @@ const CustomersView: React.FC<CustomersViewProps> = ({ lang, onOpenReconciliatio
             className="pl-10 pr-4 py-2 w-full bg-slate-50 border border-slate-100 rounded-xl text-sm focus:ring-2 focus:ring-cyan-500/10 focus:bg-white transition-all outline-none"
           />
         </div>
+        <select
+          value={statusFilter}
+          onChange={(e) => { setStatusFilter(e.target.value as 'all' | 'active' | 'inactive'); setCurrentPage(1); }}
+          className="sm:w-44 bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 text-sm font-medium text-slate-600 focus:ring-2 focus:ring-cyan-500/10 focus:bg-white transition-all outline-none"
+        >
+          <option value="all">{t.status}: Hammasi</option>
+          <option value="active">Faol</option>
+          <option value="inactive">Nofaol</option>
+        </select>
       </div>
 
       {/* Table Container - Minimal Enterprise Style */}
@@ -905,19 +916,20 @@ const CustomersView: React.FC<CustomersViewProps> = ({ lang, onOpenReconciliatio
                   </ColumnFilterPopover>
                 </th>
 
+                <th className="w-28 px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">{t.status}</th>
                 <th className="w-20 px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">{t.actions}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {isLoading ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-12 text-sm text-slate-400">
+                  <td colSpan={8} className="px-4 py-12 text-sm text-slate-400">
                     <LoadingGlass label={t.loading} />
                   </td>
                 </tr>
               ) : filteredAndSortedCustomers.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-12 text-center text-sm text-slate-400">{t.no_data}</td>
+                  <td colSpan={8} className="px-4 py-12 text-center text-sm text-slate-400">{t.no_data}</td>
                 </tr>
               ) : paginatedCustomers.map((customer) => (
                 <React.Fragment key={customer.id}>
@@ -945,6 +957,11 @@ const CustomersView: React.FC<CustomersViewProps> = ({ lang, onOpenReconciliatio
                     <td className="px-4 py-2.5">
                       <span className="text-xs font-medium text-slate-500">{(customer.pointsRedeemed ?? 0).toLocaleString()}</span>
                     </td>
+                    <td className="px-4 py-2.5">
+                      <span className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-bold ${(customer.status || 'active') === 'active' ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-500'}`}>
+                        {(customer.status || 'active') === 'active' ? 'Faol' : 'Nofaol'}
+                      </span>
+                    </td>
                     <td className="px-4 py-2.5 text-right">
                       <div className="flex items-center justify-end pr-2">
                         <ChevronDown className={`w-4 h-4 text-slate-300 transition-transform duration-200 ${expandedRowId === customer.id ? 'rotate-180 text-cyan-500' : ''}`} />
@@ -953,7 +970,7 @@ const CustomersView: React.FC<CustomersViewProps> = ({ lang, onOpenReconciliatio
                   </tr>
                   {expandedRowId === customer.id && (
                     <tr>
-                      <td colSpan={7} className="border-t border-slate-100 bg-slate-50/70 px-8 py-4">
+                      <td colSpan={8} className="border-t border-slate-100 bg-slate-50/70 px-8 py-4">
                         <div className="flex items-center justify-end gap-3">
                           <button
                             type="button"
