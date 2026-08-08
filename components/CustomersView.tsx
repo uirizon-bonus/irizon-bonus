@@ -133,6 +133,17 @@ const localizeApiError = (message: string, lang: Language): string => {
   return message;
 };
 
+// Format Uzbek phone numbers as +998 90 123 45 67.
+const formatPhone = (raw: string): string => {
+  let d = String(raw || '').replace(/\D/g, '');
+  if (d.length === 9) d = `998${d}`;
+  if (d.length === 12 && d.startsWith('998')) {
+    const p = d.slice(3);
+    return `+998 ${p.slice(0, 2)} ${p.slice(2, 5)} ${p.slice(5, 7)} ${p.slice(7, 9)}`;
+  }
+  return raw || '—';
+};
+
 const CustomersView: React.FC<CustomersViewProps> = ({ lang, onOpenReconciliation, onOpenPortal }) => {
   const t = TRANSLATIONS[lang];
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -172,6 +183,20 @@ const CustomersView: React.FC<CustomersViewProps> = ({ lang, onOpenReconciliatio
     pointsRedeemedMax: '',
   });
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
+
+  // Bulk selection
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isBulkDeleteOpen, setIsBulkDeleteOpen] = useState(false);
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+  const clearSelection = () => setSelectedIds(new Set());
 
   const applyPointEntriesToCustomers = (baseCustomers: Customer[], pointEntries: CustomerPointsEntry[]) => {
     const pointMap = new Map(pointEntries.map((entry) => [entry.clientId, entry]));
@@ -344,7 +369,7 @@ const CustomersView: React.FC<CustomersViewProps> = ({ lang, onOpenReconciliatio
       ...filteredAndSortedCustomers.map((customer) => [
         customer.id,
         customer.fullName,
-        customer.phone,
+        formatPhone(customer.phone),
         String(customer.totalPoints),
         String(customer.pointsEarned),
         String(customer.pointsRedeemed),
@@ -595,6 +620,54 @@ const CustomersView: React.FC<CustomersViewProps> = ({ lang, onOpenReconciliatio
     return result;
   }, [customers, search, filters, sortConfig, statusFilter]);
 
+  const allFilteredSelected = filteredAndSortedCustomers.length > 0 && filteredAndSortedCustomers.every((c) => selectedIds.has(c.id));
+  const toggleSelectAll = () => {
+    if (allFilteredSelected) clearSelection();
+    else setSelectedIds(new Set(filteredAndSortedCustomers.map((c) => c.id)));
+  };
+
+  const handleBulkDelete = async () => {
+    setIsBulkDeleting(true);
+    setLoadError(null);
+    const ids = Array.from(selectedIds);
+    const failed: string[] = [];
+    for (const id of ids) {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/clients/${id}`, { method: 'DELETE' });
+        if (!response.ok) failed.push(id);
+      } catch {
+        failed.push(id);
+      }
+    }
+    const deleted = new Set(ids.filter((id) => !failed.includes(id)));
+    const nextCustomers = customers.filter((c) => !deleted.has(c.id));
+    setCustomers(nextCustomers);
+    persistCustomersCache(nextCustomers);
+    setSelectedIds(new Set(failed));
+    setIsBulkDeleting(false);
+    setIsBulkDeleteOpen(false);
+    if (failed.length) setLoadError(`${failed.length} ta mijozni o'chirib bo'lmadi`);
+  };
+
+  const handleExportSelectedCsv = () => {
+    const selected = filteredAndSortedCustomers.filter((c) => selectedIds.has(c.id));
+    const csvRows = [
+      ['ID', t.full_name, t.phone, t.total_points, t.earned, t.redeemed],
+      ...selected.map((c) => [c.id, c.fullName, formatPhone(c.phone), String(c.totalPoints), String(c.pointsEarned), String(c.pointsRedeemed)]),
+    ];
+    const escapeCell = (value: string) => `"${value.replace(/"/g, '""')}"`;
+    const csvContent = csvRows.map((row) => row.map(escapeCell).join(',')).join('\n');
+    const blob = new Blob([`﻿${csvContent}`], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `customers-selected-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   const totals = useMemo(() => {
     return filteredAndSortedCustomers.reduce((acc, curr) => ({
       count: acc.count + 1,
@@ -703,12 +776,43 @@ const CustomersView: React.FC<CustomersViewProps> = ({ lang, onOpenReconciliatio
         </select>
       </div>
 
+      {selectedIds.size > 0 && (
+        <div className="flex items-center justify-between gap-3 rounded-2xl border border-cyan-200 bg-cyan-50 px-4 py-3">
+          <span className="text-sm font-bold text-cyan-700">{selectedIds.size} tanlangan</span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleExportSelectedCsv}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-50"
+            >
+              <Download className="h-3.5 w-3.5" /> Eksport
+            </button>
+            <button
+              onClick={() => setIsBulkDeleteOpen(true)}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-rose-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-rose-700"
+            >
+              <Trash2 className="h-3.5 w-3.5" /> {t.delete}
+            </button>
+            <button onClick={clearSelection} className="rounded-xl p-1.5 text-slate-400 hover:bg-white hover:text-slate-600">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Table Container - Minimal Enterprise Style */}
       <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden flex-1 flex flex-col min-h-0">
         <div className="overflow-auto flex-1 relative custom-scrollbar">
           <table className="w-full text-left border-collapse table-fixed min-w-[900px]">
             <thead className="sticky top-0 z-40 bg-slate-50 border-b border-slate-200">
               <tr>
+                <th className="w-10 px-4 py-3">
+                  <input
+                    type="checkbox"
+                    checked={allFilteredSelected}
+                    onChange={toggleSelectAll}
+                    className="h-4 w-4 cursor-pointer rounded border-slate-300 text-cyan-600 focus:ring-cyan-500/30"
+                  />
+                </th>
                 {/* ID Column */}
                 <th className="w-24 px-4 py-3 relative">
                   <div className="flex items-center gap-2 group cursor-pointer" onClick={() => handleSort('id')}>
@@ -920,20 +1024,28 @@ const CustomersView: React.FC<CustomersViewProps> = ({ lang, onOpenReconciliatio
             <tbody className="divide-y divide-slate-100">
               {isLoading ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-12 text-sm text-slate-400">
+                  <td colSpan={9} className="px-4 py-12 text-sm text-slate-400">
                     <LoadingGlass label={t.loading} />
                   </td>
                 </tr>
               ) : filteredAndSortedCustomers.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-12 text-center text-sm text-slate-400">{t.no_data}</td>
+                  <td colSpan={9} className="px-4 py-12 text-center text-sm text-slate-400">{t.no_data}</td>
                 </tr>
               ) : paginatedCustomers.map((customer) => (
                 <React.Fragment key={customer.id}>
-                  <tr 
-                    className={`hover:bg-slate-50 transition-colors cursor-pointer group ${expandedRowId === customer.id ? 'bg-slate-50/80' : ''}`}
+                  <tr
+                    className={`hover:bg-slate-50 transition-colors cursor-pointer group ${expandedRowId === customer.id ? 'bg-slate-50/80' : ''} ${selectedIds.has(customer.id) ? 'bg-cyan-50/50' : ''}`}
                     onClick={() => handleRowClick(customer)}
                   >
+                    <td className="px-4 py-2.5" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(customer.id)}
+                        onChange={() => toggleSelect(customer.id)}
+                        className="h-4 w-4 cursor-pointer rounded border-slate-300 text-cyan-600 focus:ring-cyan-500/30"
+                      />
+                    </td>
                     <td className="px-4 py-2.5">
                       <span className="text-[11px] font-bold text-slate-400 uppercase tracking-tight">{customer.id}</span>
                     </td>
@@ -943,7 +1055,7 @@ const CustomersView: React.FC<CustomersViewProps> = ({ lang, onOpenReconciliatio
                       </div>
                     </td>
                     <td className="w-36 px-4 py-2.5">
-                      <span className="text-xs font-medium text-slate-500">{customer.phone}</span>
+                      <span className="text-xs font-medium text-slate-500">{formatPhone(customer.phone)}</span>
                     </td>
                     <td className="px-4 py-2.5">
                       <span className="text-sm font-bold text-slate-800">{(customer.totalPoints ?? 0).toLocaleString()}</span>
@@ -967,7 +1079,7 @@ const CustomersView: React.FC<CustomersViewProps> = ({ lang, onOpenReconciliatio
                   </tr>
                   {expandedRowId === customer.id && (
                     <tr>
-                      <td colSpan={8} className="border-t border-slate-100 bg-slate-50/70 px-8 py-4">
+                      <td colSpan={9} className="border-t border-slate-100 bg-slate-50/70 px-8 py-4">
                         <div className="flex items-center justify-end gap-3">
                           <button
                             type="button"
@@ -1159,6 +1271,38 @@ const CustomersView: React.FC<CustomersViewProps> = ({ lang, onOpenReconciliatio
                 className="rounded-2xl bg-cyan-600 px-4 py-2 text-sm font-semibold text-white transition-all hover:bg-cyan-700 disabled:opacity-50"
               >
                 {isSubmittingBonus ? t.loading : t.confirm_add_points}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isBulkDeleteOpen && (
+        <div className="fixed inset-0 z-[230] flex items-center justify-center bg-slate-900/40 px-4">
+          <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-rose-100 text-rose-600">
+                <Trash2 className="h-5 w-5" />
+              </div>
+              <h3 className="text-lg font-bold text-slate-800">{t.delete}</h3>
+            </div>
+            <p className="mt-4 text-sm text-slate-600">
+              <span className="font-semibold text-slate-800">{selectedIds.size}</span> ta mijozni rostdan ham o'chirmoqchimisiz?
+            </p>
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                onClick={() => setIsBulkDeleteOpen(false)}
+                disabled={isBulkDeleting}
+                className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition-all hover:bg-slate-50 disabled:opacity-50"
+              >
+                {t.cancel}
+              </button>
+              <button
+                onClick={() => void handleBulkDelete()}
+                disabled={isBulkDeleting}
+                className="rounded-2xl bg-rose-600 px-4 py-2 text-sm font-semibold text-white transition-all hover:bg-rose-700 disabled:opacity-50"
+              >
+                {isBulkDeleting ? t.loading : t.delete}
               </button>
             </div>
           </div>
