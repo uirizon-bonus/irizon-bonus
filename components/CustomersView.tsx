@@ -154,6 +154,7 @@ const CustomersView: React.FC<CustomersViewProps> = ({ lang, onOpenReconciliatio
   const [customerFormError, setCustomerFormError] = useState<string | null>(null);
   const [isSubmittingCustomer, setIsSubmittingCustomer] = useState(false);
   const [isDeletingCustomerId, setIsDeletingCustomerId] = useState<string | null>(null);
+  const [customerToDelete, setCustomerToDelete] = useState<Customer | null>(null);
 
   // Filter & Sort states
   const [search, setSearch] = useState('');
@@ -486,11 +487,6 @@ const CustomersView: React.FC<CustomersViewProps> = ({ lang, onOpenReconciliatio
   };
 
   const handleDeleteCustomer = async (customer: Customer) => {
-    const confirmed = window.confirm(`Delete customer "${customer.fullName}"?`);
-    if (!confirmed) {
-      return;
-    }
-
     setIsDeletingCustomerId(customer.id);
     setLoadError(null);
 
@@ -516,6 +512,7 @@ const CustomersView: React.FC<CustomersViewProps> = ({ lang, onOpenReconciliatio
       setLoadError(error instanceof Error ? error.message : 'Failed to delete customer');
     } finally {
       setIsDeletingCustomerId(null);
+      setCustomerToDelete(null);
     }
   };
 
@@ -1006,7 +1003,7 @@ const CustomersView: React.FC<CustomersViewProps> = ({ lang, onOpenReconciliatio
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              void handleDeleteCustomer(customer);
+                              setCustomerToDelete(customer);
                             }}
                             disabled={isDeletingCustomerId === customer.id}
                             className="flex items-center gap-1.5 rounded-lg border border-rose-200 bg-white px-3 py-1.5 text-[11px] font-bold text-rose-500 shadow-sm transition-all hover:bg-rose-50 disabled:opacity-50"
@@ -1162,6 +1159,43 @@ const CustomersView: React.FC<CustomersViewProps> = ({ lang, onOpenReconciliatio
                 className="rounded-2xl bg-cyan-600 px-4 py-2 text-sm font-semibold text-white transition-all hover:bg-cyan-700 disabled:opacity-50"
               >
                 {isSubmittingBonus ? t.loading : t.confirm_add_points}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {customerToDelete && (
+        <div className="fixed inset-0 z-[230] flex items-center justify-center bg-slate-900/40 px-4">
+          <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-rose-100 text-rose-600">
+                <Trash2 className="h-5 w-5" />
+              </div>
+              <h3 className="text-lg font-bold text-slate-800">{t.delete}</h3>
+            </div>
+            <p className="mt-4 text-sm text-slate-600">
+              <span className="font-semibold text-slate-800">{customerToDelete.fullName}</span> — rostdan ham o'chirmoqchimisiz?
+            </p>
+            {(customerToDelete.totalPoints ?? 0) > 0 && (
+              <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-medium text-amber-700">
+                Diqqat: bu mijozda {(customerToDelete.totalPoints ?? 0).toLocaleString()} ball bor.
+              </div>
+            )}
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                onClick={() => setCustomerToDelete(null)}
+                disabled={isDeletingCustomerId === customerToDelete.id}
+                className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition-all hover:bg-slate-50 disabled:opacity-50"
+              >
+                {t.cancel}
+              </button>
+              <button
+                onClick={() => void handleDeleteCustomer(customerToDelete)}
+                disabled={isDeletingCustomerId === customerToDelete.id}
+                className="rounded-2xl bg-rose-600 px-4 py-2 text-sm font-semibold text-white transition-all hover:bg-rose-700 disabled:opacity-50"
+              >
+                {isDeletingCustomerId === customerToDelete.id ? t.loading : t.delete}
               </button>
             </div>
           </div>
