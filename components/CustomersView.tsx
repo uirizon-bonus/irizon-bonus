@@ -109,6 +109,30 @@ const ROWS_PER_PAGE = 50;
 const CUSTOMERS_CACHE_KEY = 'irizon_customers_cache';
 const CLIENTS_FETCH_LIMIT = 5000;
 
+// Localize known backend validation errors to the selected UI language.
+const localizeApiError = (message: string, lang: Language): string => {
+  const dup = message.match(/belongs to customer\s+(\S+)/i);
+  if (dup) {
+    const id = dup[1];
+    return {
+      EN: `This phone number is already registered to customer ${id}`,
+      RU: `Этот номер телефона уже привязан к клиенту ${id}`,
+      UZ: `Bu telefon raqami allaqachon ${id} mijozga biriktirilgan`,
+    }[lang];
+  }
+  if (/name is required/i.test(message)) {
+    return { EN: 'Customer name is required', RU: 'Укажите имя клиента', UZ: 'Mijoz ismini kiriting' }[lang];
+  }
+  if (/valid phone number/i.test(message)) {
+    return {
+      EN: 'Enter a valid phone number (at least 9 digits)',
+      RU: 'Введите корректный номер телефона (не менее 9 цифр)',
+      UZ: "To'g'ri telefon raqamini kiriting (kamida 9 ta raqam)",
+    }[lang];
+  }
+  return message;
+};
+
 const CustomersView: React.FC<CustomersViewProps> = ({ lang, onOpenReconciliation, onOpenPortal }) => {
   const t = TRANSLATIONS[lang];
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -458,7 +482,7 @@ const CustomersView: React.FC<CustomersViewProps> = ({ lang, onOpenReconciliatio
       setExpandedRowId(updatedCustomer.id);
       setIsCustomerModalOpen(false);
     } catch (error) {
-      setCustomerFormError(error instanceof Error ? error.message : 'Failed to save customer');
+      setCustomerFormError(error instanceof Error ? localizeApiError(error.message, lang) : 'Failed to save customer');
     } finally {
       setIsSubmittingCustomer(false);
     }
