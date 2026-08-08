@@ -133,6 +133,21 @@ const localizeApiError = (message: string, lang: Language): string => {
   return message;
 };
 
+interface LedgerItem {
+  id: string;
+  type: string;
+  description: string;
+  time: string;
+  points: number;
+}
+
+const formatLedgerDate = (value: string): string => {
+  if (!value) return '';
+  const d = new Date(value.replace(' ', 'T'));
+  if (Number.isNaN(d.getTime())) return value;
+  return `${d.toLocaleDateString('uz-UZ')}, ${d.toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' })}`;
+};
+
 const CustomersView: React.FC<CustomersViewProps> = ({ lang, onOpenReconciliation, onOpenPortal }) => {
   const t = TRANSLATIONS[lang];
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -142,6 +157,27 @@ const CustomersView: React.FC<CustomersViewProps> = ({ lang, onOpenReconciliatio
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [expandedRowId, setExpandedRowId] = useState<string | null>(null);
+  const [ledgerMap, setLedgerMap] = useState<Record<string, LedgerItem[]>>({});
+  const [ledgerLoadingId, setLedgerLoadingId] = useState<string | null>(null);
+  const [ledgerErrorId, setLedgerErrorId] = useState<string | null>(null);
+
+  const loadCustomerLedger = async (customerId: string) => {
+    if (ledgerMap[customerId]) return;
+    setLedgerLoadingId(customerId);
+    setLedgerErrorId(null);
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/clients/${customerId}/activity`);
+      const payload = await response.json() as { activities?: LedgerItem[]; error?: string };
+      if (!response.ok) {
+        throw new Error('error' in payload && payload.error ? payload.error : 'Failed to load history');
+      }
+      setLedgerMap((prev) => ({ ...prev, [customerId]: Array.isArray(payload.activities) ? payload.activities : [] }));
+    } catch {
+      setLedgerErrorId(customerId);
+    } finally {
+      setLedgerLoadingId(null);
+    }
+  };
   const [isCreatingOrder, setIsCreatingOrder] = useState(false);
   const [isBonusModalOpen, setIsBonusModalOpen] = useState(false);
   const [bonusPoints, setBonusPoints] = useState('');
@@ -623,7 +659,11 @@ const CustomersView: React.FC<CustomersViewProps> = ({ lang, onOpenReconciliatio
   }, [currentPage, totalPages]);
 
   const handleRowClick = (customer: Customer) => {
-    setExpandedRowId(prev => prev === customer.id ? null : customer.id);
+    setExpandedRowId((prev) => {
+      const next = prev === customer.id ? null : customer.id;
+      if (next) void loadCustomerLedger(customer.id);
+      return next;
+    });
     setSelectedCustomer(customer);
   };
 
@@ -954,6 +994,33 @@ const CustomersView: React.FC<CustomersViewProps> = ({ lang, onOpenReconciliatio
                   {expandedRowId === customer.id && (
                     <tr>
                       <td colSpan={7} className="border-t border-slate-100 bg-slate-50/70 px-8 py-4">
+                        <div className="mb-4">
+                          <p className="mb-2 text-[10px] font-black uppercase tracking-widest text-slate-400">Ballar tarixi</p>
+                          {ledgerLoadingId === customer.id ? (
+                            <p className="text-xs text-slate-400">Yuklanmoqda...</p>
+                          ) : ledgerErrorId === customer.id ? (
+                            <p className="text-xs text-rose-500">Tarixni yuklab bo'lmadi</p>
+                          ) : (ledgerMap[customer.id]?.length ?? 0) === 0 ? (
+                            <p className="text-xs text-slate-400">Amaliyotlar yo'q</p>
+                          ) : (
+                            <div className="max-h-64 divide-y divide-slate-50 overflow-y-auto rounded-xl border border-slate-100 bg-white">
+                              {ledgerMap[customer.id].map((item) => (
+                                <div key={item.id} className="flex items-center justify-between gap-3 px-4 py-2.5">
+                                  <div className="flex min-w-0 items-center gap-2.5">
+                                    <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${item.points >= 0 ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+                                    <div className="min-w-0">
+                                      <p className="truncate text-xs font-medium text-slate-700">{item.description}</p>
+                                      <p className="text-[10px] text-slate-400">{formatLedgerDate(item.time)}</p>
+                                    </div>
+                                  </div>
+                                  <span className={`shrink-0 text-xs font-bold ${item.points >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                    {item.points >= 0 ? '+' : ''}{item.points.toLocaleString()}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                         <div className="flex items-center justify-end gap-3">
                           <button
                             type="button"
