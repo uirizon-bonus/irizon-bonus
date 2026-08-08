@@ -660,6 +660,30 @@ def _init_bonus_db() -> None:
     _sync_customers_cache_from_db()
 
 
+def _audit_log(
+    connection: Any,
+    *,
+    action: str,
+    entity: str,
+    entity_id: str = "",
+    description: str = "",
+    actor: str = "System",
+) -> None:
+    connection.execute(
+        """
+        INSERT INTO audit_events (action, entity, entity_id, description, actor)
+        VALUES (?, ?, ?, ?, ?)
+        """,
+        (
+            str(action or ""),
+            str(entity or ""),
+            str(entity_id or ""),
+            str(description or ""),
+            str(actor or "System"),
+        ),
+    )
+
+
 def _auth() -> HTTPBasicAuth:
     return HTTPBasicAuth(SMARTUP_LOGIN, SMARTUP_PASSWORD)
 
