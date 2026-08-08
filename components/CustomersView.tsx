@@ -984,16 +984,6 @@ const CustomersView: React.FC<CustomersViewProps> = ({ lang, onOpenReconciliatio
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              onOpenReconciliation(customer.id);
-                            }}
-                            className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-bold text-slate-500 shadow-sm transition-all hover:border-cyan-200 hover:text-cyan-600"
-                          >
-                            <FileText className="w-3.5 h-3.5 text-cyan-500" /> {t.reconciliation}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
                               void handleDeleteCustomer(customer);
                             }}
                             disabled={isDeletingCustomerId === customer.id}

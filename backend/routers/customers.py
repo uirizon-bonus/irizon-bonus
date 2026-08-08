@@ -50,15 +50,6 @@ def get_customer_points():
     return customer_service.customer_points_payload()
 
 
-@router.get("/api/customers/{client_id}/reconciliation", dependencies=[Depends(deps.require_admin)])
-def get_customer_reconciliation(
-    client_id: str,
-    start_date: str = Query(..., description="YYYY-MM-DD"),
-    end_date: str = Query(..., description="YYYY-MM-DD"),
-):
-    return customer_service.customer_reconciliation_payload(client_id, start_date, end_date)
-
-
 @router.get("/api/customers/{client_id}/portal")
 def get_customer_portal(client_id: str, current_id: str = Depends(deps.require_customer)):
     return customer_service.customer_portal_payload(client_id, current_id)
