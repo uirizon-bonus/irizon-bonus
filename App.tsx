@@ -42,7 +42,7 @@ const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [reconciliationCustomerId, setReconciliationCustomerId] = useState<string | null>(null);
   const [initialSelectedId, setInitialSelectedId] = useState<string | null>(null);
-  const [lang, setLang] = useState<Language>(isPortalApp ? 'RU' : 'EN');
+  const [lang, setLang] = useState<Language>('UZ');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const pointsMarketNavItem = useMemo(
@@ -107,19 +107,13 @@ const App: React.FC = () => {
     return 'dashboard';
   };
 
-  // Local storage for lang
+  // Language is fixed to Uzbek (RU/EN removed).
   useEffect(() => {
-    const savedLang = localStorage.getItem(APP_LANG_KEY) as Language;
-    if (!savedLang) {
-      return;
+    if (localStorage.getItem(APP_LANG_KEY) !== 'UZ') {
+      localStorage.setItem(APP_LANG_KEY, 'UZ');
     }
-    if (isPortalApp && savedLang === 'EN') {
-      setLang('RU');
-      localStorage.setItem(APP_LANG_KEY, 'RU');
-      return;
-    }
-    setLang(savedLang);
-  }, [APP_LANG_KEY, isPortalApp]);
+    setLang('UZ');
+  }, [APP_LANG_KEY]);
 
   useEffect(() => {
     const savedPortalCustomerId = localStorage.getItem(PORTAL_CUSTOMER_ID_KEY);
@@ -372,26 +366,6 @@ const App: React.FC = () => {
               />
             </div>
 
-            <div className="h-6 w-px bg-slate-200"></div>
-
-            {/* Language Selection */}
-            <div className="relative group">
-              <button className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-slate-50 transition-all text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                <Globe className="w-3.5 h-3.5" />
-                <span>{lang}</span>
-              </button>
-              <div className="absolute right-0 top-full mt-1 w-32 bg-white rounded-xl shadow-xl border border-slate-100 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all py-2 z-50">
-                {((isPortalApp ? ['RU', 'UZ'] : ['EN', 'RU', 'UZ']) as Language[]).map(l => (
-                  <button
-                    key={l}
-                    onClick={() => changeLang(l)}
-                    className={`w-full text-left px-4 py-1.5 text-xs hover:bg-slate-50 transition-colors ${lang === l ? 'text-cyan-600 font-bold' : 'text-slate-600'}`}
-                  >
-                    {l === 'EN' ? 'English' : l === 'RU' ? 'Русский' : 'O\'zbekcha'}
-                  </button>
-                ))}
-              </div>
-            </div>
 
             <button className="relative p-1.5 text-slate-400 hover:text-slate-900 transition-all">
               <Bell className="w-4 h-4" />
