@@ -82,6 +82,10 @@ const COPY = {
   operator: 'Operator',
   successCreated: 'Bitim yaratildi',
   successUpdated: 'Holat yangilandi',
+  confirmTitle: 'Holatni o‘zgartirish',
+  confirmCta: 'Tasdiqlash',
+  confirmFromTo: 'Holat',
+  noPointsMove: 'Ball harakati bo‘lmaydi — faqat holat o‘zgaradi.',
 };
 
 const statusOptions: MarketStatus[] = ['Pending', 'Completed', 'Rejected', 'Cancelled'];
@@ -102,6 +106,24 @@ const statusBadgeClass: Record<MarketStatus, string> = {
 
 const formatAmount = (value: number) => value.toLocaleString('ru-RU');
 
+// Describe, in Uzbek, exactly how a status change will move the client's points.
+const describePointsEffect = (order: MarketOrder, target: MarketStatus): string => {
+  const n = formatAmount(order.points);
+  const willApply = target === 'Completed' && order.status !== 'Completed';
+  const willRollback = order.status === 'Completed' && target !== 'Completed';
+  if (willApply) {
+    return order.type === 'buy'
+      ? `Mijozga ${n} ball qo‘shiladi.`
+      : `Mijozdan ${n} ball ayiriladi.`;
+  }
+  if (willRollback) {
+    return order.type === 'buy'
+      ? `Ball harakati bekor qilinadi: mijozdan ${n} ball qaytarib olinadi.`
+      : `Ball harakati bekor qilinadi: mijozga ${n} ball qaytariladi.`;
+  }
+  return 'Ball harakati bo‘lmaydi — faqat holat o‘zgaradi.';
+};
+
 const PointsMarketView: React.FC<{ lang: Language }> = () => {
   const t = COPY;
   const [orders, setOrders] = useState<MarketOrder[]>([]);
@@ -118,6 +140,7 @@ const PointsMarketView: React.FC<{ lang: Language }> = () => {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [isUpdating, setIsUpdating] = useState<string | null>(null);
+  const [pendingChange, setPendingChange] = useState<{ order: MarketOrder; target: MarketStatus } | null>(null);
   const [draftStatus, setDraftStatus] = useState<Record<string, MarketStatus>>({});
   const [form, setForm] = useState({
     client_id: '',
@@ -214,11 +237,19 @@ const PointsMarketView: React.FC<{ lang: Language }> = () => {
     }
   };
 
-  const handleApplyStatus = async (order: MarketOrder) => {
+  const requestApplyStatus = (order: MarketOrder) => {
     const nextStatus = draftStatus[order.id] || order.status;
     if (nextStatus === order.status) {
       return;
     }
+    setPendingChange({ order, target: nextStatus });
+  };
+
+  const confirmStatusChange = async () => {
+    if (!pendingChange) {
+      return;
+    }
+    const { order, target } = pendingChange;
     setIsUpdating(order.id);
     setError(null);
     setSuccess(null);
@@ -227,7 +258,7 @@ const PointsMarketView: React.FC<{ lang: Language }> = () => {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          status: nextStatus,
+          status: target,
           operator: 'Admin',
           note: '',
         }),
@@ -237,6 +268,7 @@ const PointsMarketView: React.FC<{ lang: Language }> = () => {
         throw new Error(result.error || 'Failed to update market status');
       }
       setSuccess(t.successUpdated);
+      setPendingChange(null);
       await loadData(true);
     } catch (updateError) {
       setError(updateError instanceof Error ? updateError.message : 'Failed to update market status');
@@ -388,7 +420,7 @@ const PointsMarketView: React.FC<{ lang: Language }> = () => {
                         ))}
                       </select>
                       <button
-                        onClick={() => void handleApplyStatus(order)}
+                        onClick={() => requestApplyStatus(order)}
                         disabled={isUpdating === order.id || (draftStatus[order.id] || order.status) === order.status}
                         className="px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-cyan-600 hover:bg-cyan-700 disabled:opacity-50"
                       >
@@ -476,6 +508,45 @@ const PointsMarketView: React.FC<{ lang: Language }> = () => {
           </div>
         </div>
       )}
+
+      {pendingChange && (() => {
+        const { order, target } = pendingChange;
+        const willApply = target === 'Completed' && order.status !== 'Completed';
+        const willRollback = order.status === 'Completed' && target !== 'Completed';
+        const movesPoints = willApply || willRollback;
+        const busy = isUpdating === order.id;
+        return (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => { if (!busy) setPendingChange(null); }}></div>
+            <div className="relative bg-white w-full max-w-md rounded-[32px] shadow-2xl overflow-hidden p-8 animate-in zoom-in-95 duration-200">
+              <h3 className="text-xl font-black text-slate-800 mb-2">{t.confirmTitle}</h3>
+              <p className="text-sm text-slate-500 mb-5">
+                {t.confirmFromTo}: <span className="font-bold text-slate-700">{statusLabels[order.status]}</span> → <span className="font-bold text-slate-700">{statusLabels[target]}</span>
+              </p>
+              <div className={`rounded-2xl border px-4 py-3 mb-6 ${movesPoints ? 'bg-amber-50 border-amber-200' : 'bg-slate-50 border-slate-100'}`}>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">{order.id} · {order.clientName}</p>
+                <p className={`text-sm font-semibold ${movesPoints ? 'text-amber-800' : 'text-slate-600'}`}>{describePointsEffect(order, target)}</p>
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setPendingChange(null)}
+                  disabled={busy}
+                  className="flex-1 py-3 rounded-2xl border border-slate-200 text-slate-600 font-bold text-xs uppercase tracking-widest hover:bg-slate-50 disabled:opacity-50 transition-all"
+                >
+                  {t.close}
+                </button>
+                <button
+                  onClick={() => void confirmStatusChange()}
+                  disabled={busy}
+                  className="flex-1 py-3 rounded-2xl bg-cyan-600 text-white font-bold text-xs uppercase tracking-widest hover:bg-cyan-700 disabled:opacity-50 shadow-lg shadow-cyan-600/20 transition-all"
+                >
+                  {busy ? '...' : t.confirmCta}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 };
