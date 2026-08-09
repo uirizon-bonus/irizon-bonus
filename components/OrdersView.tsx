@@ -256,7 +256,9 @@ const OrdersView: React.FC<OrdersViewProps> = ({ lang, initialSelectedId }) => {
                     <span className="text-xs font-bold text-slate-600 bg-slate-100 px-2 py-1 rounded-full">{order.itemsCount}</span>
                   </td>
                   <td className="px-6 py-4">
-                    <span className="text-sm font-black text-cyan-600">+{order.totalPoints.toLocaleString()}</span>
+                    <span className={`text-sm font-black ${order.status === 'Reversed' ? 'text-slate-300 line-through' : 'text-cyan-600'}`}>
+                      +{order.totalPoints.toLocaleString()}
+                    </span>
                   </td>
                   <td className="px-6 py-4">
                     <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
@@ -349,7 +351,14 @@ const OrdersView: React.FC<OrdersViewProps> = ({ lang, initialSelectedId }) => {
                   <FileText className="w-6 h-6" />
                 </div>
                 <div>
-                  <h3 className="text-xl font-bold text-slate-800">{t.order_details}</h3>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-xl font-bold text-slate-800">{t.order_details}</h3>
+                    {selectedOrder.status === 'Reversed' && (
+                      <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border bg-amber-50 text-amber-600 border-amber-100">
+                        Bekor qilingan
+                      </span>
+                    )}
+                  </div>
                   <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">{selectedOrder.id}</p>
                 </div>
               </div>
@@ -394,10 +403,12 @@ const OrdersView: React.FC<OrdersViewProps> = ({ lang, initialSelectedId }) => {
                         </tr>
                       ))}
                     </tbody>
-                    <tfoot className="bg-cyan-50/30">
+                    <tfoot className={selectedOrder.status === 'Reversed' ? 'bg-amber-50/30' : 'bg-cyan-50/30'}>
                       <tr>
                         <td colSpan={3} className="px-6 py-4 text-right font-bold text-slate-600">{t.grand_total}:</td>
-                        <td className="px-6 py-4 text-right font-black text-cyan-700 text-lg">+{selectedOrder.totalPoints} pts</td>
+                        <td className={`px-6 py-4 text-right font-black text-lg ${selectedOrder.status === 'Reversed' ? 'text-slate-300 line-through' : 'text-cyan-700'}`}>
+                          +{selectedOrder.totalPoints} pts
+                        </td>
                       </tr>
                     </tfoot>
                   </table>
