@@ -3,7 +3,6 @@ import {
   AlertTriangle,
   Edit3,
   Grid,
-  Image as ImageIcon,
   List,
   Plus,
   Search,
@@ -41,7 +40,6 @@ const GiftsView: React.FC<GiftsViewProps> = ({ lang }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [currentGift, setCurrentGift] = useState<Gift | null>(null);
-  const [deleteConfirmation, setDeleteConfirmation] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -111,8 +109,8 @@ const GiftsView: React.FC<GiftsViewProps> = ({ lang }) => {
   const handleOpenEdit = (gift: Gift) => {
     setEditingGift(gift);
     setForm({
-      name: gift.name.RU,
-      description: gift.description.RU,
+      name: gift.name.UZ,
+      description: gift.description.UZ,
       pointsCost: String(gift.pointsCost),
       stock: String(gift.stock),
       category: gift.category,
@@ -125,7 +123,6 @@ const GiftsView: React.FC<GiftsViewProps> = ({ lang }) => {
 
   const handleDeleteClick = (gift: Gift) => {
     setCurrentGift(gift);
-    setDeleteConfirmation('');
     setDeleteError(null);
     setIsDeleteModalOpen(true);
   };
@@ -145,7 +142,6 @@ const GiftsView: React.FC<GiftsViewProps> = ({ lang }) => {
       clearApiCache(API_CACHE_KEYS.gifts);
       setIsDeleteModalOpen(false);
       setCurrentGift(null);
-      setDeleteConfirmation('');
     } catch (error) {
       setDeleteError(error instanceof Error ? error.message : 'Failed to delete gift');
     } finally {
@@ -161,7 +157,7 @@ const GiftsView: React.FC<GiftsViewProps> = ({ lang }) => {
       !Number.isInteger(pointsCost) || pointsCost < 0 ||
       !Number.isInteger(stock) || stock < 0
     ) {
-      setFormError('Fill all gift fields correctly.');
+      setFormError('Barcha maydonlarni to‘g‘ri to‘ldiring.');
       return;
     }
 
@@ -347,19 +343,8 @@ const GiftsView: React.FC<GiftsViewProps> = ({ lang }) => {
             </div>
             <h3 className="text-2xl font-bold text-slate-800 mb-2">{t.delete}?</h3>
             <p className="text-slate-500 text-sm mb-6 leading-relaxed">
-              Type DELETE to remove <span className="font-bold text-slate-800">"{currentGift.name[lang]}"</span>.
+              <span className="font-bold text-slate-800">"{currentGift.name[lang]}"</span> sovg‘asini o‘chirmoqchimisiz? Bu amalni ortga qaytarib bo‘lmaydi.
             </p>
-
-            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 mb-6">
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Type DELETE to confirm</p>
-              <input
-                type="text"
-                className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-rose-500/20 outline-none transition-all uppercase"
-                placeholder="DELETE"
-                value={deleteConfirmation}
-                onChange={(e) => setDeleteConfirmation(e.target.value.toUpperCase())}
-              />
-            </div>
 
             {deleteError && (
               <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-600 mb-4">
@@ -371,7 +356,7 @@ const GiftsView: React.FC<GiftsViewProps> = ({ lang }) => {
               <button disabled={isDeleting} onClick={() => setIsDeleteModalOpen(false)} className="flex-1 py-3 px-4 bg-slate-100 text-slate-600 font-bold text-sm rounded-2xl hover:bg-slate-200 transition-all disabled:opacity-50">
                 {t.cancel}
               </button>
-              <button disabled={isDeleting || deleteConfirmation !== 'DELETE'} onClick={() => void handleDelete()} className="flex-1 py-3 px-4 bg-rose-500 text-white font-bold text-sm rounded-2xl hover:bg-rose-600 shadow-lg shadow-rose-500/20 disabled:opacity-50 transition-all">
+              <button disabled={isDeleting} onClick={() => void handleDelete()} className="flex-1 py-3 px-4 bg-rose-500 text-white font-bold text-sm rounded-2xl hover:bg-rose-600 shadow-lg shadow-rose-500/20 disabled:opacity-50 transition-all">
                 {isDeleting ? (
                   <span className="flex items-center justify-center gap-2">
                     <span className="h-4 w-4 rounded-full border-2 border-white/60 border-t-white animate-spin"></span>
@@ -401,20 +386,22 @@ const GiftsView: React.FC<GiftsViewProps> = ({ lang }) => {
             </div>
 
             <div className="flex-1 overflow-y-auto custom-scrollbar p-8 space-y-8">
-              <div className="border-2 border-dashed border-slate-200 rounded-[28px] p-8 flex flex-col items-center justify-center gap-4 bg-slate-50 text-center">
-                <div className="w-16 h-16 rounded-2xl bg-white flex items-center justify-center text-slate-300 shadow-sm">
-                  <ImageIcon className="w-8 h-8" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold text-slate-600">Click or drag to upload</p>
-                  <p className="mt-1 text-xs font-semibold uppercase tracking-widest text-slate-300">PNG, JPG up to 10MB</p>
-                </div>
+              <div>
+                <label className="mb-2 block text-[10px] font-bold uppercase tracking-widest text-slate-400">Rasm havolasi (URL)</label>
                 <input
                   value={form.image}
                   onChange={(e) => setForm((current) => ({ ...current, image: e.target.value }))}
-                  placeholder="Image URL"
-                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none"
+                  placeholder="https://..."
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none"
                 />
+                {form.image ? (
+                  <img
+                    src={form.image}
+                    alt=""
+                    className="mt-3 h-28 w-28 rounded-2xl object-cover border border-slate-100"
+                    onError={(event) => { (event.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                  />
+                ) : null}
               </div>
 
               <div className="space-y-5">
@@ -423,16 +410,16 @@ const GiftsView: React.FC<GiftsViewProps> = ({ lang }) => {
                   <input
                     value={form.name}
                     onChange={(e) => setForm((current) => ({ ...current, name: e.target.value }))}
-                    placeholder="Введите название"
+                    placeholder="Sovg‘a nomi"
                     className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none"
                   />
                 </div>
                 <div>
-                  <label className="mb-2 block text-[10px] font-bold uppercase tracking-widest text-slate-400">{t.reason}</label>
+                  <label className="mb-2 block text-[10px] font-bold uppercase tracking-widest text-slate-400">Tavsif</label>
                   <textarea
                     value={form.description}
                     onChange={(e) => setForm((current) => ({ ...current, description: e.target.value }))}
-                    placeholder="Введите описание подарка"
+                    placeholder="Sovg‘a tavsifi"
                     className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none h-24"
                   />
                 </div>
@@ -457,7 +444,7 @@ const GiftsView: React.FC<GiftsViewProps> = ({ lang }) => {
 
             <div className="p-8 border-t border-slate-100 bg-slate-50/30 flex gap-4">
               <button onClick={() => { setIsModalOpen(false); resetForm(); }} className="flex-1 py-4 px-6 bg-slate-100 text-slate-600 font-bold text-sm rounded-2xl hover:bg-slate-200 transition-all">
-                {t.save} {t.draft}
+                {t.cancel}
               </button>
               <button onClick={() => void handleSubmit()} disabled={isSubmitting} className="flex-1 py-4 px-6 bg-cyan-600 text-white font-bold text-sm rounded-2xl hover:bg-cyan-700 transition-all shadow-lg shadow-cyan-600/20 disabled:opacity-50">
                 {isSubmitting ? t.loading : editingGift ? t.save : t.confirm}
