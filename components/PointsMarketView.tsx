@@ -242,6 +242,8 @@ const PointsMarketView: React.FC<{ lang: Language }> = () => {
     if (nextStatus === order.status) {
       return;
     }
+    setError(null);
+    setSuccess(null);
     setPendingChange({ order, target: nextStatus });
   };
 
@@ -527,6 +529,11 @@ const PointsMarketView: React.FC<{ lang: Language }> = () => {
                 <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">{order.id} · {order.clientName}</p>
                 <p className={`text-sm font-semibold ${movesPoints ? 'text-amber-800' : 'text-slate-600'}`}>{describePointsEffect(order, target)}</p>
               </div>
+              {error && (
+                <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 mb-6 text-sm font-semibold text-rose-600">
+                  {error}
+                </div>
+              )}
               <div className="flex gap-3">
                 <button
                   onClick={() => setPendingChange(null)}

@@ -886,8 +886,17 @@ def _generate_market_order_public_id(connection: Any) -> str:
 def _apply_market_points_effect(connection: Any, market_row: Any, *, note_suffix: str = "") -> None:
     if int(market_row["points_applied"] or 0) == 1:
         return
-    signed_points = int(market_row["points"] or 0)
-    if str(market_row["type"] or "buy").lower() == "sell":
+    points_value = int(market_row["points"] or 0)
+    is_sell = str(market_row["type"] or "buy").lower() == "sell"
+    if is_sell:
+        # Selling subtracts points — the client must actually own enough.
+        current_balance = _get_client_points_balance(connection, str(market_row["client_id"]))
+        if current_balance < points_value:
+            raise ValueError(
+                f"Mijozda yetarli ball yo‘q (mavjud: {current_balance}, kerak: {points_value})"
+            )
+    signed_points = points_value
+    if is_sell:
         signed_points = -signed_points
     base_note = f"Points market apply {market_row['public_id']} ({market_row['type']})"
     note = f"{base_note} {note_suffix}".strip()
