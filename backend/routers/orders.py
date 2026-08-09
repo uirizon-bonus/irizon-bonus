@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, Query
 
 from backend import deps
-from backend.models.schemas import OrderCreatePayload
+from backend.models.schemas import OrderCreatePayload, OrderStatusPayload
 from backend.services import orders as orders_service
 
 
@@ -20,6 +20,11 @@ def get_orders(
 @router.post("/api/orders", dependencies=[Depends(deps.require_admin)])
 def create_order(payload: OrderCreatePayload):
     return orders_service.create_order_payload(payload)
+
+
+@router.put("/api/orders/{order_id}/status", dependencies=[Depends(deps.require_admin)])
+def update_order_status(order_id: str, payload: OrderStatusPayload):
+    return orders_service.update_order_status_payload(order_id, payload)
 
 
 @router.delete("/api/orders/{order_id}", dependencies=[Depends(deps.require_admin)])

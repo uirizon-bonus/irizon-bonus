@@ -1,13 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  Download,
   Eye,
   FileText,
   Filter,
   MoreHorizontal,
   Plus,
+  RotateCcw,
   Search,
-  Trash2,
+  Undo2,
   X,
 } from 'lucide-react';
 import { TRANSLATIONS } from '../constants';
@@ -28,10 +28,12 @@ interface OrdersApiResponse {
   limit: number;
 }
 
-interface DeleteOrderResponse {
+interface OrderStatusResponse {
   message: string;
   order: Order;
 }
+
+type OrderStatusTarget = 'Confirmed' | 'Reversed';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000';
 const PAGE_SIZE = 50;
@@ -46,8 +48,8 @@ const OrdersView: React.FC<OrdersViewProps> = ({ lang, initialSelectedId }) => {
   const [page, setPage] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
   const [isCreating, setIsCreating] = useState(false);
-  const [deletingOrder, setDeletingOrder] = useState<Order | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
+  const [pendingStatus, setPendingStatus] = useState<{ order: Order; target: OrderStatusTarget } | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [activeActionMenu, setActiveActionMenu] = useState<string | null>(null);
 
@@ -108,35 +110,37 @@ const OrdersView: React.FC<OrdersViewProps> = ({ lang, initialSelectedId }) => {
     [orders, statusFilter],
   );
 
-  const handleDelete = async () => {
-    if (!deletingOrder) {
+  const handleStatusChange = async () => {
+    if (!pendingStatus) {
       return;
     }
 
-    setIsDeleting(true);
+    const { order: targetOrder, target } = pendingStatus;
+    setIsSubmitting(true);
     setLoadError(null);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/orders/${deletingOrder.id}`, {
-        method: 'DELETE',
+      const response = await fetch(`${API_BASE_URL}/api/orders/${targetOrder.id}/status`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: target }),
       });
-      const payload = await response.json() as DeleteOrderResponse | { error?: string };
+      const payload = await response.json() as OrderStatusResponse | { error?: string };
       if (!response.ok) {
-        throw new Error('error' in payload && payload.error ? payload.error : 'Failed to delete order');
+        throw new Error('error' in payload && payload.error ? payload.error : 'Failed to update order');
       }
 
-      const deletedPayload = (payload as DeleteOrderResponse).order;
-      const nextOrders = orders.map((order) => order.id === deletingOrder.id ? deletedPayload : order);
-      setOrders(nextOrders);
+      const updatedOrder = (payload as OrderStatusResponse).order;
+      setOrders((current) => current.map((order) => order.id === targetOrder.id ? updatedOrder : order));
       clearApiCache(API_CACHE_KEYS.customerPoints);
-      if (selectedOrder?.id === deletingOrder.id) {
-        setSelectedOrder(deletedPayload);
+      if (selectedOrder?.id === targetOrder.id) {
+        setSelectedOrder(updatedOrder);
       }
-      setDeletingOrder(null);
+      setPendingStatus(null);
     } catch (error) {
-      setLoadError(error instanceof Error ? error.message : 'Failed to delete order');
+      setLoadError(error instanceof Error ? error.message : 'Failed to update order');
     } finally {
-      setIsDeleting(false);
+      setIsSubmitting(false);
     }
   };
 
@@ -166,10 +170,6 @@ const OrdersView: React.FC<OrdersViewProps> = ({ lang, initialSelectedId }) => {
           <p className="text-sm text-slate-500">{t.manage_bonus}</p>
         </div>
         <div className="flex items-center gap-3">
-          <button className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-all">
-            <Download className="w-4 h-4" />
-            {t.export_orders}
-          </button>
           <button
             onClick={() => setIsCreating(true)}
             className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-cyan-600 rounded-xl shadow-lg shadow-cyan-600/20 hover:bg-cyan-700 hover:-translate-y-0.5 transition-all"
@@ -292,12 +292,19 @@ const OrdersView: React.FC<OrdersViewProps> = ({ lang, initialSelectedId }) => {
                           >
                             <Eye className="w-4 h-4 text-slate-400" /> {t.view_order}
                           </button>
-                          {order.status !== 'Reversed' && (
+                          {order.status === 'Reversed' ? (
                             <button
-                              onClick={(e) => { e.stopPropagation(); setDeletingOrder(order); setActiveActionMenu(null); }}
+                              onClick={(e) => { e.stopPropagation(); setPendingStatus({ order, target: 'Confirmed' }); setActiveActionMenu(null); }}
+                              className="w-full px-4 py-2.5 text-left text-xs font-bold text-emerald-600 hover:bg-emerald-50 flex items-center gap-2 transition-all"
+                            >
+                              <RotateCcw className="w-4 h-4" /> Buyurtmani tiklash
+                            </button>
+                          ) : (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setPendingStatus({ order, target: 'Reversed' }); setActiveActionMenu(null); }}
                               className="w-full px-4 py-2.5 text-left text-xs font-bold text-rose-500 hover:bg-rose-50 flex items-center gap-2 transition-all"
                             >
-                              <Trash2 className="w-4 h-4" /> Buyurtmani qaytarish
+                              <Undo2 className="w-4 h-4" /> Buyurtmani bekor qilish
                             </button>
                           )}
                         </div>
@@ -408,36 +415,50 @@ const OrdersView: React.FC<OrdersViewProps> = ({ lang, initialSelectedId }) => {
         </div>
       )}
 
-      {deletingOrder && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setDeletingOrder(null)}></div>
-          <div className="relative bg-white w-full max-w-md rounded-[40px] shadow-2xl overflow-hidden p-10 animate-in zoom-in-95 duration-200">
-            <div className="w-16 h-16 rounded-3xl bg-rose-50 text-rose-500 flex items-center justify-center mb-6">
-              <Trash2 className="w-8 h-8" />
-            </div>
-            <h3 className="text-2xl font-black text-slate-800 mb-4">Buyurtmani qaytarish</h3>
-            <p className="text-slate-500 leading-relaxed mb-8">
-              Buyurtma bekor qilinadi va mijozdan <span className="font-bold text-slate-700">{deletingOrder.totalPoints.toLocaleString()}</span> ball ayiriladi. Buyurtma ro'yxatda "Bekor qilingan" holatida saqlanadi.
-            </p>
+      {pendingStatus && (() => {
+        const isReverse = pendingStatus.target === 'Reversed';
+        const points = pendingStatus.order.totalPoints.toLocaleString();
+        return (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setPendingStatus(null)}></div>
+            <div className="relative bg-white w-full max-w-md rounded-[40px] shadow-2xl overflow-hidden p-10 animate-in zoom-in-95 duration-200">
+              <div className={`w-16 h-16 rounded-3xl flex items-center justify-center mb-6 ${isReverse ? 'bg-rose-50 text-rose-500' : 'bg-emerald-50 text-emerald-600'}`}>
+                {isReverse ? <Undo2 className="w-8 h-8" /> : <RotateCcw className="w-8 h-8" />}
+              </div>
+              <h3 className="text-2xl font-black text-slate-800 mb-4">
+                {isReverse ? 'Buyurtmani bekor qilish' : 'Buyurtmani tiklash'}
+              </h3>
+              <p className="text-slate-500 leading-relaxed mb-8">
+                {isReverse ? (
+                  <>Buyurtma bekor qilinadi va mijozdan <span className="font-bold text-slate-700">{points}</span> ball ayiriladi. Buyurtma ro'yxatda "Bekor qilingan" holatida saqlanadi.</>
+                ) : (
+                  <>Buyurtma qayta tasdiqlanadi va mijozga <span className="font-bold text-slate-700">{points}</span> ball qaytariladi.</>
+                )}
+              </p>
 
-            <div className="flex gap-4">
-              <button
-                onClick={() => setDeletingOrder(null)}
-                className="flex-1 py-4 text-slate-400 font-black text-xs uppercase tracking-widest hover:text-slate-600 transition-all"
-              >
-                {t.cancel}
-              </button>
-              <button
-                disabled={isDeleting}
-                onClick={() => void handleDelete()}
-                className="flex-1 py-4 bg-rose-500 text-white font-black text-xs uppercase tracking-widest rounded-2xl hover:bg-rose-600 shadow-xl shadow-rose-500/20 disabled:opacity-50 transition-all"
-              >
-                {isDeleting ? t.loading : 'Qaytarish'}
-              </button>
+              <div className="flex gap-4">
+                <button
+                  onClick={() => setPendingStatus(null)}
+                  className="flex-1 py-4 text-slate-400 font-black text-xs uppercase tracking-widest hover:text-slate-600 transition-all"
+                >
+                  {t.cancel}
+                </button>
+                <button
+                  disabled={isSubmitting}
+                  onClick={() => void handleStatusChange()}
+                  className={`flex-1 py-4 text-white font-black text-xs uppercase tracking-widest rounded-2xl shadow-xl disabled:opacity-50 transition-all ${
+                    isReverse
+                      ? 'bg-rose-500 hover:bg-rose-600 shadow-rose-500/20'
+                      : 'bg-emerald-500 hover:bg-emerald-600 shadow-emerald-500/20'
+                  }`}
+                >
+                  {isSubmitting ? t.loading : isReverse ? 'Bekor qilish' : 'Tiklash'}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 };

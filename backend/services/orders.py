@@ -6,7 +6,7 @@ from backend import legacy
 from backend.core import dashboard as dashboard_core
 from backend.core import transactions as transaction_core
 from backend.db import bonus_db
-from backend.models.schemas import OrderCreatePayload
+from backend.models.schemas import OrderCreatePayload, OrderStatusPayload
 
 
 def get_orders_payload(offset: int, limit: int, search: str):
@@ -47,6 +47,34 @@ def create_order_payload(payload: OrderCreatePayload):
     legacy._ORDERS_CACHE.clear()
     dashboard_core._invalidate_dashboard_cache()
     return {"message": "Order created", "order": order}
+
+
+def update_order_status_payload(order_id: str, payload: OrderStatusPayload):
+    try:
+        order = transaction_core._update_order_status(order_id, payload.status)
+    except ValueError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=400)
+    except Exception as exc:  # pragma: no cover - defensive
+        legacy.logger.exception("Failed to update order %s status", order_id)
+        return JSONResponse({"error": f"Failed to update order: {exc}"}, status_code=500)
+    if order is None:
+        return JSONResponse({"error": "Order not found"}, status_code=404)
+    connection = bonus_db()
+    try:
+        legacy._audit_log(
+            connection,
+            action="status_change",
+            entity="order",
+            entity_id=str(order_id),
+            description=f"Changed order {order_id} to {payload.status}",
+            actor=str(payload.actor or "Admin"),
+        )
+        connection.commit()
+    finally:
+        connection.close()
+    legacy._ORDERS_CACHE.clear()
+    dashboard_core._invalidate_dashboard_cache()
+    return {"message": "Order updated", "order": order}
 
 
 def delete_order_payload(order_id: str):

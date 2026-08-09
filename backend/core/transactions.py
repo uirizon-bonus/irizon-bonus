@@ -737,37 +737,92 @@ def _reverse_manual_bonus_order(public_id: str) -> Optional[Dict[str, Any]]:
         connection.close()
 
 
-def _delete_order(public_id: str) -> Optional[Dict[str, Any]]:
+def _restore_manual_bonus_order(public_id: str) -> Optional[Dict[str, Any]]:
+    if not public_id.startswith("MAN-"):
+        return None
+    raw_id = public_id.removeprefix("MAN-")
+    if not raw_id.isdigit():
+        return None
+
+    connection = bonus_db()
+    try:
+        row = connection.execute(
+            """
+            SELECT id, client_id, client_name, points, note, created_at
+            FROM bonus_transactions
+            WHERE id = ? AND source_type = 'manual'
+            """,
+            (int(raw_id),),
+        ).fetchone()
+        if row is None:
+            return None
+
+        # Restore by removing the reversal entry, giving the points back once.
+        connection.execute(
+            "DELETE FROM bonus_transactions WHERE source_type = 'manual_reversal' AND source_ref = ?",
+            (public_id,),
+        )
+        connection.commit()
+        return _serialize_manual_bonus_order(row, is_reversed=False)
+    finally:
+        connection.close()
+
+
+def _update_order_status(public_id: str, status: str) -> Optional[Dict[str, Any]]:
+    next_status = str(status or "").strip()
+    if next_status not in ("Confirmed", "Reversed"):
+        raise ValueError("Order status must be 'Confirmed' or 'Reversed'")
+
     if public_id.startswith("MAN-"):
-        return _reverse_manual_bonus_order(public_id)
+        return (
+            _reverse_manual_bonus_order(public_id)
+            if next_status == "Reversed"
+            else _restore_manual_bonus_order(public_id)
+        )
 
     target_order = _load_order_by_id(public_id)
     if target_order is None:
         return None
 
-    # Idempotent soft reverse: keep the record, mark it Reversed, refund points once.
-    if str(target_order.get("status")) == "Reversed":
+    # Idempotent: the status is the source of truth for whether points are applied.
+    if str(target_order.get("status")) == next_status:
         return target_order
 
     connection = bonus_db()
     try:
         connection.execute(
-            "UPDATE orders SET status = 'Reversed' WHERE public_id = ?",
-            (public_id,),
+            "UPDATE orders SET status = ? WHERE public_id = ?",
+            (next_status, public_id),
         )
         connection.commit()
     finally:
         connection.close()
 
-    points_core._create_bonus_transaction(
-        client_id=str(target_order["customerId"]),
-        client_name=str(target_order["customerName"]),
-        points=-int(target_order["totalPoints"]),
-        note=f"Order {public_id} reversed",
-        source_type="order_reversal",
-        source_ref=public_id,
-    )
+    total_points = int(target_order["totalPoints"])
+    if next_status == "Reversed":
+        points_core._create_bonus_transaction(
+            client_id=str(target_order["customerId"]),
+            client_name=str(target_order["customerName"]),
+            points=-total_points,
+            note=f"Order {public_id} reversed",
+            source_type="order_reversal",
+            source_ref=public_id,
+        )
+    else:  # Confirmed → restore the previously refunded points
+        points_core._create_bonus_transaction(
+            client_id=str(target_order["customerId"]),
+            client_name=str(target_order["customerName"]),
+            points=total_points,
+            note=f"Order {public_id} restored",
+            source_type="order_restore",
+            source_ref=public_id,
+        )
     return _load_order_by_id(public_id)
+
+
+def _delete_order(public_id: str) -> Optional[Dict[str, Any]]:
+    # Soft reverse: keep the record, mark it Reversed, refund points once.
+    return _update_order_status(public_id, "Reversed")
 
 
 def _normalize_market_type(value: str) -> str:

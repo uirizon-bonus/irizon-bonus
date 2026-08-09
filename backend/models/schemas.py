@@ -34,6 +34,11 @@ class OrderCreatePayload(BaseModel):
     createdBy: str = Field(default="Admin")
 
 
+class OrderStatusPayload(BaseModel):
+    status: str = Field(..., min_length=1, max_length=50)
+    actor: str = Field(default="Admin", max_length=200)
+
+
 class ProductCreatePayload(BaseModel):
     name: str = Field(..., min_length=1, max_length=300)
     points_value: int = Field(default=0, ge=0, le=1_000_000)
