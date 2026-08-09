@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Eye,
   FileText,
@@ -67,6 +67,9 @@ const OrdersView: React.FC<OrdersViewProps> = ({ lang, initialSelectedId }) => {
         if (search.trim()) {
           params.set('search', search.trim());
         }
+        if (statusFilter !== 'all') {
+          params.set('status', statusFilter);
+        }
         const response = await fetch(`${API_BASE_URL}/api/orders?${params.toString()}`);
         const payload = await response.json() as OrdersApiResponse | { error?: string };
         if (!response.ok) {
@@ -99,16 +102,11 @@ const OrdersView: React.FC<OrdersViewProps> = ({ lang, initialSelectedId }) => {
     return () => {
       isCancelled = true;
     };
-  }, [initialSelectedId, page, search]);
+  }, [initialSelectedId, page, search, statusFilter]);
 
   useEffect(() => {
     setPage(0);
-  }, [search]);
-
-  const filteredOrders = useMemo(
-    () => (statusFilter === 'all' ? orders : orders.filter((order) => order.status === statusFilter)),
-    [orders, statusFilter],
-  );
+  }, [search, statusFilter]);
 
   const handleStatusChange = async () => {
     if (!pendingStatus) {
@@ -234,11 +232,11 @@ const OrdersView: React.FC<OrdersViewProps> = ({ lang, initialSelectedId }) => {
                     <LoadingGlass label={t.loading} />
                   </td>
                 </tr>
-              ) : filteredOrders.length === 0 ? (
+              ) : orders.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-6 py-10 text-center text-sm text-slate-400">{t.no_data}</td>
                 </tr>
-              ) : filteredOrders.map((order) => (
+              ) : orders.map((order) => (
                 <tr key={order.id} className="hover:bg-slate-50/50 transition-colors group cursor-pointer" onClick={() => setSelectedOrder(order)}>
                   <td className="px-6 py-4">
                     <span className="text-xs font-bold text-cyan-600 bg-cyan-50 px-2 py-1 rounded-md">{order.id}</span>

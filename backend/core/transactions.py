@@ -376,7 +376,7 @@ def _update_requests_status_bulk(payload: RedemptionRequestBulkStatusPayload) ->
     return [rows_by_id[request_id] for request_id in updated_ids if request_id in rows_by_id]
 
 
-def _load_orders(*, offset: int = 0, limit: int = 100, search: str = "") -> Tuple[List[Dict[str, Any]], int]:
+def _load_orders(*, offset: int = 0, limit: int = 100, search: str = "", status: str = "") -> Tuple[List[Dict[str, Any]], int]:
     connection = bonus_db()
     try:
         order_params: List[Any] = []
@@ -393,16 +393,6 @@ def _load_orders(*, offset: int = 0, limit: int = 100, search: str = "") -> Tupl
                 " AND (LOWER('MAN-' || id) LIKE ? OR LOWER(client_name) LIKE ? OR LOWER(client_id) LIKE ? OR LOWER(note) LIKE ?)"
             )
             manual_params = [normalized, normalized, normalized, normalized]
-
-        order_count_row = connection.execute(
-            f"SELECT COUNT(*) AS total FROM orders {order_where_sql}",
-            tuple(order_params),
-        ).fetchone()
-        manual_count_row = connection.execute(
-            f"SELECT COUNT(*) AS total FROM bonus_transactions {manual_where_sql}",
-            tuple(manual_params),
-        ).fetchone()
-        total_count = int(order_count_row["total"] or 0) + int(manual_count_row["total"] or 0)
 
         order_rows = connection.execute(
             f"""
@@ -437,7 +427,13 @@ def _load_orders(*, offset: int = 0, limit: int = 100, search: str = "") -> Tupl
             ).fetchall()
             reversed_manual_refs = {str(row["source_ref"]) for row in reversed_rows}
         combined_rows = [
-            {"kind": "order", "row": row, "created_at": str(row["created_at"] or ""), "sort_id": int(row["public_id"].split("-")[-1]) if str(row["public_id"]).split("-")[-1].isdigit() else 0}
+            {
+                "kind": "order",
+                "row": row,
+                "created_at": str(row["created_at"] or ""),
+                "sort_id": int(row["public_id"].split("-")[-1]) if str(row["public_id"]).split("-")[-1].isdigit() else 0,
+                "status": str(row["status"] or "Confirmed"),
+            }
             for row in order_rows
         ]
         combined_rows.extend(
@@ -446,9 +442,16 @@ def _load_orders(*, offset: int = 0, limit: int = 100, search: str = "") -> Tupl
                 "row": row,
                 "created_at": str(row["created_at"] or ""),
                 "sort_id": int(row["id"] or 0),
+                "status": "Reversed" if f"MAN-{row['id']}" in reversed_manual_refs else "Confirmed",
             }
             for row in manual_rows
         )
+
+        status_filter = str(status or "").strip()
+        if status_filter:
+            combined_rows = [entry for entry in combined_rows if entry["status"] == status_filter]
+
+        total_count = len(combined_rows)
         combined_rows.sort(key=lambda entry: (entry["created_at"], entry["sort_id"]), reverse=True)
         paged_rows = combined_rows[int(offset):int(offset) + int(limit)]
 

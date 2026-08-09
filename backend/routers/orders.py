@@ -13,8 +13,9 @@ def get_orders(
     offset: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=500),
     search: str = Query("", description="Search by order id or customer"),
+    status: str = Query("", description="Filter by status: Confirmed or Reversed"),
 ):
-    return orders_service.get_orders_payload(offset, limit, search)
+    return orders_service.get_orders_payload(offset, limit, search, status)
 
 
 @router.post("/api/orders", dependencies=[Depends(deps.require_admin)])
