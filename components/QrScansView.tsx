@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { QrCode, RefreshCw, Search } from 'lucide-react';
 import { Language, QrScanEvent } from '../types';
 import LoadingGlass from './LoadingGlass';
@@ -15,50 +15,44 @@ interface QrScansApiResponse {
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000';
 const PAGE_SIZE = 50;
 
-const QrScansView: React.FC<QrScansViewProps> = ({ lang }) => {
-  const copy = useMemo(() => (
-    lang === 'RU'
-      ? {
-          title: 'QR сканы',
-          subtitle: 'История начислений баллов по QR кодам',
-          loading: 'Загрузка...',
-          empty: 'Нет сканов за выбранный период',
-          customer: 'Клиент',
-          product: 'Продукт',
-          points: 'Баллы',
-          qty: 'Кол-во',
-          date: 'Дата',
-          search: 'Поиск по клиенту или продукту...',
-          customerId: 'ID клиента',
-          productId: 'ID продукта',
-          reset: 'Сброс',
-          refresh: 'Обновить',
-          prev: 'Пред.',
-          next: 'След.',
-          showing: 'Показано',
-          of: 'из',
-        }
-      : {
-          title: 'QR skanlar',
-          subtitle: 'QR kodlar orqali ball berish tarixi',
-          loading: 'Yuklanmoqda...',
-          empty: 'Tanlangan filtr bo‘yicha skan topilmadi',
-          customer: 'Mijoz',
-          product: 'Mahsulot',
-          points: 'Ball',
-          qty: 'Soni',
-          date: 'Sana',
-          search: 'Mijoz yoki mahsulot bo‘yicha qidirish...',
-          customerId: 'Mijoz ID',
-          productId: 'Mahsulot ID',
-          reset: 'Tozalash',
-          refresh: 'Yangilash',
-          prev: 'Oldingi',
-          next: 'Keyingi',
-          showing: 'Ko‘rsatilmoqda',
-          of: 'dan',
-        }
-  ), [lang]);
+const COPY = {
+  title: 'QR skanlar',
+  subtitle: 'QR kodlar orqali ball berish tarixi',
+  loading: 'Yuklanmoqda...',
+  empty: 'Tanlangan filtr bo‘yicha skan topilmadi',
+  customer: 'Mijoz',
+  product: 'Mahsulot',
+  points: 'Ball',
+  qty: 'Soni',
+  date: 'Sana',
+  search: 'Mijoz yoki mahsulot bo‘yicha qidirish...',
+  searchBtn: 'Qidirish',
+  customerId: 'Mijoz ID',
+  productId: 'Mahsulot ID',
+  reset: 'Tozalash',
+  refresh: 'Yangilash',
+  prev: 'Oldingi',
+  next: 'Keyingi',
+  showing: 'Ko‘rsatilmoqda',
+  of: 'dan',
+};
+
+const formatDate = (value: string) => {
+  if (!value) return '';
+  const iso = value.replace(' ', 'T').replace(/\.\d+$/, '');
+  const parsed = new Date(iso);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleString('ru-RU', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+};
+
+const QrScansView: React.FC<QrScansViewProps> = () => {
+  const copy = COPY;
 
   const [events, setEvents] = useState<QrScanEvent[]>([]);
   const [count, setCount] = useState(0);
@@ -146,7 +140,7 @@ const QrScansView: React.FC<QrScansViewProps> = ({ lang }) => {
           onClick={() => void loadEvents(0)}
           className="px-4 py-2 text-sm font-semibold text-white bg-cyan-600 rounded-xl hover:bg-cyan-700 transition-all"
         >
-          {copy.search}
+          {copy.searchBtn}
         </button>
         <button
           onClick={() => {
@@ -195,7 +189,7 @@ const QrScansView: React.FC<QrScansViewProps> = ({ lang }) => {
               ) : (
                 events.map((event) => (
                   <tr key={`${event.id}-${event.date}`} className="hover:bg-slate-50/70 transition-all">
-                    <td className="px-6 py-4 text-xs text-slate-600">{event.date}</td>
+                    <td className="px-6 py-4 text-xs text-slate-600">{formatDate(event.date)}</td>
                     <td className="px-6 py-4">
                       <p className="text-sm font-semibold text-slate-800">{event.customerName}</p>
                       <p className="text-xs text-slate-400">{event.customerId}</p>
