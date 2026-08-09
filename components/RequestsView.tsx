@@ -542,6 +542,7 @@ const RequestsView: React.FC<RequestsViewProps> = ({ lang, initialSelectedId }) 
 
   const handleStatusChange = (req: RedemptionRequest, newStatus: RequestStatus) => {
     if (req.status === newStatus) return;
+    setLoadError(null);
     setStatusChangeModal({ request: req, newStatus });
     setRejectReason('');
     setConfirmCheckbox(false);
@@ -558,6 +559,7 @@ const RequestsView: React.FC<RequestsViewProps> = ({ lang, initialSelectedId }) 
     if (eligibleIds.length === 0) {
       return;
     }
+    setLoadError(null);
     setBulkStatusModal({ requestIds: eligibleIds, newStatus });
     setRejectReason('');
     setConfirmCheckbox(false);
@@ -992,8 +994,13 @@ const RequestsView: React.FC<RequestsViewProps> = ({ lang, initialSelectedId }) 
               </div>
             )}
 
+            {loadError && (
+              <div className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-600">
+                {loadError}
+              </div>
+            )}
             <div className="flex gap-4">
-              <button 
+              <button
                 onClick={() => setStatusChangeModal(null)}
                 className="flex-1 py-4 font-black text-xs uppercase tracking-widest text-slate-400 hover:text-slate-600 transition-all"
               >
@@ -1074,6 +1081,11 @@ const RequestsView: React.FC<RequestsViewProps> = ({ lang, initialSelectedId }) 
               </div>
             )}
 
+            {loadError && (
+              <div className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-600">
+                {loadError}
+              </div>
+            )}
             <div className="flex gap-4">
               <button
                 onClick={() => setBulkStatusModal(null)}

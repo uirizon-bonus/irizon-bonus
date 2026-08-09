@@ -144,6 +144,15 @@ def _request_status_applies_effects(status: str) -> bool:
 
 
 def _apply_request_effects(connection: Any, request_row: Any) -> None:
+    # Re-check the balance at approval time: affordability was verified when the
+    # request was created, but the client may have spent points since then.
+    if int(request_row["points_applied"] or 0) == 0:
+        points_used = int(request_row["points_used"] or 0)
+        balance = _get_client_points_balance(connection, str(request_row["customer_id"]))
+        if balance < points_used:
+            raise ValueError(
+                f"{request_row['public_id']}: mijozda yetarli ball yo‘q (mavjud: {balance}, kerak: {points_used})"
+            )
     if int(request_row["stock_applied"] or 0) == 0:
         connection.execute(
             "UPDATE gifts SET stock = stock - 1 WHERE id = ? AND stock > 0",
