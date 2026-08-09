@@ -73,6 +73,10 @@ const COPY = {
   errAmount: '1..5000 kiriting',
   errReason: 'Bekor qilish sababini kiriting',
   errProduct: 'Skan bekor qilish uchun mahsulot topilmadi',
+  revokeConfirmTitle: 'Tanlangan QR kodlarni bekor qilasizmi?',
+  revokeConfirmCta: 'Ha, bekor qilish',
+  revokeConfirmNote: 'Bekor qilingan kodlarni skan qilib bo‘lmaydi. Keyinchalik tiklash mumkin.',
+  back: 'Orqaga',
 };
 
 const formatDate = (value: string) => {
@@ -111,6 +115,7 @@ const QrManageView: React.FC<QrManageViewProps> = ({ lang }) => {
   const [unscanReason, setUnscanReason] = useState('');
   const [unscanSubmitting, setUnscanSubmitting] = useState(false);
   const [bulkUnscanOpen, setBulkUnscanOpen] = useState(false);
+  const [revokeConfirmOpen, setRevokeConfirmOpen] = useState(false);
   const [qrPreview, setQrPreview] = useState<ProductQrCode | null>(null);
   const qrCanvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -213,24 +218,39 @@ const QrManageView: React.FC<QrManageViewProps> = ({ lang }) => {
     }
   };
 
-  const bulkUpdate = async (mode: 'revoke' | 'restore') => {
-    if (!selectedProductId || selectedProductId === 'all' || selectedIds.length === 0) return;
+  const applyRevokeState = async (mode: 'revoke' | 'restore', ids: number[]) => {
+    if (ids.length === 0) return;
     setBusy(true);
     setError(null);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/products/${selectedProductId}/qr-codes/${mode}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ids: selectedIds }),
-      });
-      const payload = await response.json() as { error?: string };
-      if (!response.ok) throw new Error(payload.error || 'Bulk update failed');
+      // Group ids by product so the per-product endpoint works in the "all" view too.
+      const idsByProduct = new Map<string, number[]>();
+      for (const id of ids) {
+        const row = codes.find((item) => item.id === id);
+        const productId = selectedProductId === 'all' ? (row?.productId || '') : selectedProductId;
+        if (!productId) continue;
+        idsByProduct.set(productId, [...(idsByProduct.get(productId) || []), id]);
+      }
+      for (const [productId, groupIds] of idsByProduct) {
+        const response = await fetch(`${API_BASE_URL}/api/products/${productId}/qr-codes/${mode}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ids: groupIds }),
+        });
+        const payload = await response.json() as { error?: string };
+        if (!response.ok) throw new Error(payload.error || 'Bulk update failed');
+      }
       await loadCodes(offset);
     } catch (bulkError) {
       setError(bulkError instanceof Error ? bulkError.message : 'Bulk update failed');
     } finally {
       setBusy(false);
     }
+  };
+
+  const confirmRevoke = async () => {
+    await applyRevokeState('revoke', selectedUnusedIds);
+    setRevokeConfirmOpen(false);
   };
 
   const openBulkUnscan = () => {
@@ -333,12 +353,7 @@ const QrManageView: React.FC<QrManageViewProps> = ({ lang }) => {
   };
 
   const selectAllOnPage = (checked: boolean) => {
-    if (!checked) {
-      setSelectedIds([]);
-      return;
-    }
-    const eligible = codes.filter((item) => item.isUsed).map((item) => item.id);
-    setSelectedIds(eligible);
+    setSelectedIds(checked ? codes.map((item) => item.id) : []);
   };
 
   const selectedProduct = products.find((item) => item.id === selectedProductId) || null;
@@ -357,9 +372,12 @@ const QrManageView: React.FC<QrManageViewProps> = ({ lang }) => {
   }, [products, productSearch, lang]);
   const pageStart = count === 0 ? 0 : offset + 1;
   const pageEnd = Math.min(offset + codes.length, count);
-  const eligibleIds = useMemo(() => codes.filter((item) => item.isUsed).map((item) => item.id), [codes]);
+  const eligibleIds = useMemo(() => codes.map((item) => item.id), [codes]);
   const selectedEligibleCount = useMemo(() => eligibleIds.filter((id) => selectedIds.includes(id)).length, [eligibleIds, selectedIds]);
   const allEligibleChecked = eligibleIds.length > 0 && selectedEligibleCount === eligibleIds.length;
+  const selectedUsedIds = useMemo(() => codes.filter((item) => item.isUsed && selectedIds.includes(item.id)).map((item) => item.id), [codes, selectedIds]);
+  const selectedUnusedIds = useMemo(() => codes.filter((item) => !item.isUsed && !item.isRevoked && selectedIds.includes(item.id)).map((item) => item.id), [codes, selectedIds]);
+  const selectedRevokedIds = useMemo(() => codes.filter((item) => item.isRevoked && selectedIds.includes(item.id)).map((item) => item.id), [codes, selectedIds]);
 
   return (
     <div className="space-y-6">
@@ -466,11 +484,27 @@ const QrManageView: React.FC<QrManageViewProps> = ({ lang }) => {
       <div className="rounded-2xl border border-slate-100 bg-white p-4 flex flex-wrap gap-2">
         <button
           onClick={openBulkUnscan}
-          disabled={busy || selectedIds.length === 0}
+          disabled={busy || selectedUsedIds.length === 0}
           className="inline-flex items-center gap-2 rounded-xl bg-amber-600 text-white px-4 py-2 text-sm font-semibold disabled:opacity-50"
         >
           <ShieldBan className="w-4 h-4" />
-          {copy.bulkUnscanSelected}
+          {copy.bulkUnscanSelected}{selectedUsedIds.length > 0 ? ` (${selectedUsedIds.length})` : ''}
+        </button>
+        <button
+          onClick={() => setRevokeConfirmOpen(true)}
+          disabled={busy || selectedUnusedIds.length === 0}
+          className="inline-flex items-center gap-2 rounded-xl bg-rose-600 text-white px-4 py-2 text-sm font-semibold disabled:opacity-50"
+        >
+          <ShieldBan className="w-4 h-4" />
+          {copy.revokeSelected}{selectedUnusedIds.length > 0 ? ` (${selectedUnusedIds.length})` : ''}
+        </button>
+        <button
+          onClick={() => void applyRevokeState('restore', selectedRevokedIds)}
+          disabled={busy || selectedRevokedIds.length === 0}
+          className="inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-700 px-4 py-2 text-sm font-semibold disabled:opacity-50"
+        >
+          <RotateCcw className="w-4 h-4" />
+          {copy.restoreSelected}{selectedRevokedIds.length > 0 ? ` (${selectedRevokedIds.length})` : ''}
         </button>
         <button
           onClick={async () => {
@@ -560,7 +594,6 @@ const QrManageView: React.FC<QrManageViewProps> = ({ lang }) => {
                       <td className="px-4 py-3">
                         <input
                           type="checkbox"
-                          disabled={!row.isUsed}
                           checked={selectedIds.includes(row.id)}
                           onChange={(event) => toggleSelect(row.id, event.target.checked)}
                         />
@@ -768,6 +801,40 @@ const QrManageView: React.FC<QrManageViewProps> = ({ lang }) => {
                 className="rounded-xl bg-amber-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
               >
                 {unscanSubmitting ? copy.processing : copy.unscan}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {revokeConfirmOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => { if (!busy) setRevokeConfirmOpen(false); }} />
+          <div className="relative w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-rose-100 text-rose-600">
+                <ShieldBan className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-slate-800">{copy.revokeConfirmTitle}</h3>
+                <p className="text-xs text-slate-500">{copy.selected}: {selectedUnusedIds.length}</p>
+              </div>
+            </div>
+            <p className="mt-4 text-sm text-slate-500">{copy.revokeConfirmNote}</p>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                onClick={() => setRevokeConfirmOpen(false)}
+                disabled={busy}
+                className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 disabled:opacity-50"
+              >
+                {copy.back}
+              </button>
+              <button
+                onClick={() => void confirmRevoke()}
+                disabled={busy || selectedUnusedIds.length === 0}
+                className="rounded-xl bg-rose-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+              >
+                {busy ? copy.processing : copy.revokeConfirmCta}
               </button>
             </div>
           </div>
