@@ -77,6 +77,9 @@ const COPY = {
   revokeConfirmCta: 'Ha, bekor qilish',
   revokeConfirmNote: 'Bekor qilingan kodlarni skan qilib bo‘lmaydi. Keyinchalik tiklash mumkin.',
   back: 'Orqaga',
+  genDone: 'ta QR kod yaratildi',
+  unscanDone: 'ta skan bekor qilindi',
+  unscanFail: 'ta skan bekor qilinmadi',
 };
 
 const formatDate = (value: string) => {
@@ -111,6 +114,7 @@ const QrManageView: React.FC<QrManageViewProps> = ({ lang }) => {
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
   const [unscanTarget, setUnscanTarget] = useState<ProductQrCode | null>(null);
   const [unscanReason, setUnscanReason] = useState('');
   const [unscanSubmitting, setUnscanSubmitting] = useState(false);
@@ -142,6 +146,7 @@ const QrManageView: React.FC<QrManageViewProps> = ({ lang }) => {
     if (!selectedProductId) return;
     setLoading(true);
     setError(null);
+    setSuccess(null);
     try {
       const params = new URLSearchParams({
         offset: String(nextOffset),
@@ -202,15 +207,17 @@ const QrManageView: React.FC<QrManageViewProps> = ({ lang }) => {
     }
     setBusy(true);
     setError(null);
+    setSuccess(null);
     try {
       const response = await fetch(`${API_BASE_URL}/api/products/${selectedProductId}/qr-codes/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ count: countValue }),
       });
-      const payload = await response.json() as { error?: string };
+      const payload = await response.json() as { createdCount?: number; error?: string };
       if (!response.ok) throw new Error(payload.error || 'Generate failed');
       await loadCodes(0);
+      setSuccess(`${payload.createdCount ?? countValue} ${copy.genDone}`);
     } catch (generateError) {
       setError(generateError instanceof Error ? generateError.message : 'Generate failed');
     } finally {
@@ -277,19 +284,34 @@ const QrManageView: React.FC<QrManageViewProps> = ({ lang }) => {
     setUnscanSubmitting(true);
     setBusy(true);
     setError(null);
+    setSuccess(null);
+
+    const unscanOne = async (row: ProductQrCode) => {
+      const targetProductId = selectedProductId === 'all' ? row.productId : selectedProductId;
+      if (!targetProductId) throw new Error(copy.errProduct);
+      const response = await fetch(`${API_BASE_URL}/api/products/${targetProductId}/qr-codes/${row.id}/unscan`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason, operator: 'Admin' }),
+      });
+      const payload = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(payload.error || 'Unscan failed');
+    };
+
     try {
-      for (const row of selectedRows) {
-        const targetProductId = selectedProductId === 'all' ? row.productId : selectedProductId;
-        if (!targetProductId) continue;
-        const response = await fetch(`${API_BASE_URL}/api/products/${targetProductId}/qr-codes/${row.id}/unscan`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ reason, operator: 'Admin' }),
-        });
-        const payload = await response.json() as { error?: string };
-        if (!response.ok) throw new Error(payload.error || 'Unscan failed');
+      // Run in small concurrent batches: much faster than sequential, and a
+      // single failure no longer aborts the rest of the selection.
+      const BATCH = 10;
+      const results: PromiseSettledResult<void>[] = [];
+      for (let i = 0; i < selectedRows.length; i += BATCH) {
+        const chunk = selectedRows.slice(i, i + BATCH);
+        results.push(...(await Promise.allSettled(chunk.map(unscanOne))));
       }
       await loadCodes(offset);
+      const ok = results.filter((result) => result.status === 'fulfilled').length;
+      const failed = results.length - ok;
+      if (ok > 0) setSuccess(`${ok} ${copy.unscanDone}`);
+      if (failed > 0) setError(`${failed} ${copy.unscanFail}`);
     } catch (unscanError) {
       setError(unscanError instanceof Error ? unscanError.message : 'Unscan failed');
     } finally {
@@ -393,6 +415,7 @@ const QrManageView: React.FC<QrManageViewProps> = ({ lang }) => {
       </div>
 
       {error && <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-600">{error}</div>}
+      {success && <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{success}</div>}
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div className="rounded-xl border border-slate-100 bg-white p-4"><p className="text-xs text-slate-400">{copy.total}</p><p className="text-2xl font-black text-slate-800">{stats.total}</p></div>
