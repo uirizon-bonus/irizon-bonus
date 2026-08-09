@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, Clock3, Filter, Plus, RefreshCw, Search, XCircle } from 'lucide-react';
-import { Language } from '../types';
+import { Customer, Language } from '../types';
 import LoadingGlass from './LoadingGlass';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000';
@@ -86,6 +86,13 @@ const COPY = {
   confirmCta: 'Tasdiqlash',
   confirmFromTo: 'Holat',
   noPointsMove: 'Ball harakati bo‘lmaydi — faqat holat o‘zgaradi.',
+  clientLabel: 'Mijoz',
+  clientSearchPlaceholder: 'Ism, telefon yoki ID bo‘yicha qidiring...',
+  clientLoading: 'Mijozlar yuklanmoqda...',
+  noClients: 'Mijoz topilmadi',
+  balance: 'Balans',
+  notEnoughBalance: 'Bu mijozning balansi sotishga yetarli emas',
+  changeClient: 'O‘zgartirish',
 };
 
 const statusOptions: MarketStatus[] = ['Pending', 'Completed', 'Rejected', 'Cancelled'];
@@ -139,6 +146,10 @@ const PointsMarketView: React.FC<{ lang: Language }> = () => {
   const [totalCount, setTotalCount] = useState(0);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [customersLoading, setCustomersLoading] = useState(false);
+  const [selectedClient, setSelectedClient] = useState<Customer | null>(null);
+  const [clientQuery, setClientQuery] = useState('');
   const [isUpdating, setIsUpdating] = useState<string | null>(null);
   const [pendingChange, setPendingChange] = useState<{ order: MarketOrder; target: MarketStatus } | null>(null);
   const [draftStatus, setDraftStatus] = useState<Record<string, MarketStatus>>({});
@@ -209,6 +220,54 @@ const PointsMarketView: React.FC<{ lang: Language }> = () => {
 
   const totalPages = useMemo(() => Math.max(1, Math.ceil(totalCount / PAGE_SIZE)), [totalCount]);
 
+  // Load the customer list once, when the create modal is first opened.
+  useEffect(() => {
+    if (!isCreateOpen || customers.length > 0 || customersLoading) {
+      return;
+    }
+    let cancelled = false;
+    const loadCustomers = async () => {
+      setCustomersLoading(true);
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/clients?limit=5000`);
+        const payload = (await response.json()) as { clients?: Customer[] } | { error?: string };
+        if (response.ok && !cancelled && 'clients' in payload && Array.isArray(payload.clients)) {
+          setCustomers(payload.clients);
+        }
+      } catch {
+        // Silent: the deal can still be created; the picker just won't suggest.
+      } finally {
+        if (!cancelled) {
+          setCustomersLoading(false);
+        }
+      }
+    };
+    void loadCustomers();
+    return () => {
+      cancelled = true;
+    };
+  }, [isCreateOpen, customers.length, customersLoading]);
+
+  const clientMatches = useMemo(() => {
+    const query = clientQuery.trim().toLowerCase();
+    if (!query) {
+      return customers.slice(0, 8);
+    }
+    return customers
+      .filter((customer) =>
+        customer.fullName.toLowerCase().includes(query) ||
+        customer.phone.toLowerCase().includes(query) ||
+        customer.id.toLowerCase().includes(query),
+      )
+      .slice(0, 8);
+  }, [customers, clientQuery]);
+
+  const resetClientSelection = () => {
+    setSelectedClient(null);
+    setClientQuery('');
+    setForm((current) => ({ ...current, client_id: '', client_name: '' }));
+  };
+
   const handleCreate = async () => {
     setIsCreating(true);
     setError(null);
@@ -228,6 +287,7 @@ const PointsMarketView: React.FC<{ lang: Language }> = () => {
         throw new Error(result.error || 'Failed to create market deal');
       }
       setIsCreateOpen(false);
+      resetClientSelection();
       setSuccess(t.successCreated);
       await loadData(true);
     } catch (createError) {
@@ -464,14 +524,67 @@ const PointsMarketView: React.FC<{ lang: Language }> = () => {
               <h3 className="text-xl font-black text-slate-800">{t.createModalTitle}</h3>
             </div>
             <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-              <label className="text-sm font-medium text-slate-600">
-                {t.clientId}
-                <input className="mt-1.5 w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 outline-none" value={form.client_id} onChange={(event) => setForm((current) => ({ ...current, client_id: event.target.value }))} />
-              </label>
-              <label className="text-sm font-medium text-slate-600">
-                {t.clientName}
-                <input className="mt-1.5 w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 outline-none" value={form.client_name} onChange={(event) => setForm((current) => ({ ...current, client_name: event.target.value }))} />
-              </label>
+              <div className="md:col-span-2">
+                <span className="text-sm font-medium text-slate-600">{t.clientLabel}</span>
+                {selectedClient ? (
+                  <div className="mt-1.5 flex items-center justify-between gap-3 px-4 py-3 rounded-xl border border-cyan-200 bg-cyan-50">
+                    <div className="min-w-0">
+                      <div className="text-sm font-bold text-slate-800 truncate">{selectedClient.fullName}</div>
+                      <div className="text-[11px] text-slate-500">
+                        {selectedClient.phone} · ID {selectedClient.id} · {t.balance}: <span className="font-bold text-slate-700">{formatAmount(selectedClient.totalPoints)}</span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={resetClientSelection}
+                      className="shrink-0 text-xs font-bold text-cyan-700 hover:text-cyan-800"
+                    >
+                      {t.changeClient}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="relative mt-1.5">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <input
+                      value={clientQuery}
+                      onChange={(event) => setClientQuery(event.target.value)}
+                      placeholder={t.clientSearchPlaceholder}
+                      className="pl-9 pr-3 py-2 w-full rounded-xl border border-slate-200 bg-slate-50 outline-none text-sm"
+                    />
+                    {(clientQuery.trim() !== '' || customers.length > 0 || customersLoading) && (
+                      <div className="absolute z-10 mt-1 w-full max-h-56 overflow-y-auto rounded-xl border border-slate-100 bg-white shadow-xl">
+                        {customersLoading ? (
+                          <div className="px-4 py-3 text-xs text-slate-400">{t.clientLoading}</div>
+                        ) : clientMatches.length === 0 ? (
+                          <div className="px-4 py-3 text-xs text-slate-400">{t.noClients}</div>
+                        ) : clientMatches.map((customer) => (
+                          <button
+                            type="button"
+                            key={customer.id}
+                            onClick={() => {
+                              setSelectedClient(customer);
+                              setForm((current) => ({ ...current, client_id: customer.id, client_name: customer.fullName }));
+                              setClientQuery('');
+                            }}
+                            className="w-full text-left px-4 py-2.5 hover:bg-slate-50 flex items-center justify-between gap-3"
+                          >
+                            <span className="min-w-0">
+                              <span className="block text-sm font-semibold text-slate-700 truncate">{customer.fullName}</span>
+                              <span className="block text-[11px] text-slate-400">{customer.phone} · ID {customer.id}</span>
+                            </span>
+                            <span className="shrink-0 text-[11px] font-bold text-slate-500">{formatAmount(customer.totalPoints)}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+                {selectedClient && form.type === 'sell' && form.points > selectedClient.totalPoints && (
+                  <p className="mt-2 text-xs font-semibold text-rose-600">
+                    {t.notEnoughBalance} ({t.balance}: {formatAmount(selectedClient.totalPoints)})
+                  </p>
+                )}
+              </div>
               <label className="text-sm font-medium text-slate-600">
                 {t.type}
                 <select className="mt-1.5 w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 outline-none" value={form.type} onChange={(event) => setForm((current) => ({ ...current, type: event.target.value as MarketType }))}>
@@ -502,7 +615,7 @@ const PointsMarketView: React.FC<{ lang: Language }> = () => {
               </label>
             </div>
             <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-end gap-3">
-              <button onClick={() => setIsCreateOpen(false)} disabled={isCreating} className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 font-semibold">{t.close}</button>
+              <button onClick={() => { setIsCreateOpen(false); resetClientSelection(); }} disabled={isCreating} className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 font-semibold">{t.close}</button>
               <button onClick={() => void handleCreate()} disabled={isCreating || !form.client_id.trim() || !form.client_name.trim() || form.points < 1 || form.rate < 1} className="px-5 py-2 rounded-xl bg-cyan-600 text-white font-semibold disabled:opacity-50">
                 {isCreating ? '...' : t.save}
               </button>
