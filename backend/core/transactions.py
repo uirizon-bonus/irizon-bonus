@@ -745,10 +745,16 @@ def _delete_order(public_id: str) -> Optional[Dict[str, Any]]:
     if target_order is None:
         return None
 
+    # Idempotent soft reverse: keep the record, mark it Reversed, refund points once.
+    if str(target_order.get("status")) == "Reversed":
+        return target_order
+
     connection = bonus_db()
     try:
-        connection.execute("DELETE FROM order_items WHERE order_public_id = ?", (public_id,))
-        connection.execute("DELETE FROM orders WHERE public_id = ?", (public_id,))
+        connection.execute(
+            "UPDATE orders SET status = 'Reversed' WHERE public_id = ?",
+            (public_id,),
+        )
         connection.commit()
     finally:
         connection.close()
@@ -757,11 +763,11 @@ def _delete_order(public_id: str) -> Optional[Dict[str, Any]]:
         client_id=str(target_order["customerId"]),
         client_name=str(target_order["customerName"]),
         points=-int(target_order["totalPoints"]),
-        note=f"Order {public_id} deleted",
+        note=f"Order {public_id} reversed",
         source_type="order_reversal",
         source_ref=public_id,
     )
-    return target_order
+    return _load_order_by_id(public_id)
 
 
 def _normalize_market_type(value: str) -> str:

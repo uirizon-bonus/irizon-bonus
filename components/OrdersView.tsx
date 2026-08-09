@@ -122,13 +122,11 @@ const OrdersView: React.FC<OrdersViewProps> = ({ lang, initialSelectedId }) => {
       }
 
       const deletedPayload = (payload as DeleteOrderResponse).order;
-      const nextOrders = deletingOrder.id.startsWith('MAN-')
-        ? orders.map((order) => order.id === deletingOrder.id ? deletedPayload : order)
-        : orders.filter((order) => order.id !== deletingOrder.id);
+      const nextOrders = orders.map((order) => order.id === deletingOrder.id ? deletedPayload : order);
       setOrders(nextOrders);
       clearApiCache(API_CACHE_KEYS.customerPoints);
       if (selectedOrder?.id === deletingOrder.id) {
-        setSelectedOrder(deletingOrder.id.startsWith('MAN-') ? deletedPayload : null);
+        setSelectedOrder(deletedPayload);
       }
       setDeletingOrder(null);
     } catch (error) {
@@ -258,7 +256,7 @@ const OrdersView: React.FC<OrdersViewProps> = ({ lang, initialSelectedId }) => {
                             ? 'bg-amber-50 text-amber-600 border-amber-100'
                           : 'bg-slate-50 text-slate-400 border-slate-100'
                     }`}>
-                      {order.status === 'Confirmed' ? t.confirmed : order.status === 'Cancelled' ? t.cancelled : order.status === 'Reversed' ? 'Reversed' : t.draft}
+                      {order.status === 'Confirmed' ? t.confirmed : order.status === 'Cancelled' ? t.cancelled : order.status === 'Reversed' ? 'Bekor qilingan' : t.draft}
                     </span>
                   </td>
                   <td className="px-6 py-4 text-right relative">
@@ -287,7 +285,7 @@ const OrdersView: React.FC<OrdersViewProps> = ({ lang, initialSelectedId }) => {
                               onClick={(e) => { e.stopPropagation(); setDeletingOrder(order); setActiveActionMenu(null); }}
                               className="w-full px-4 py-2.5 text-left text-xs font-bold text-rose-500 hover:bg-rose-50 flex items-center gap-2 transition-all"
                             >
-                              <Trash2 className="w-4 h-4" /> {t.delete_order}
+                              <Trash2 className="w-4 h-4" /> Buyurtmani qaytarish
                             </button>
                           )}
                         </div>
@@ -405,9 +403,9 @@ const OrdersView: React.FC<OrdersViewProps> = ({ lang, initialSelectedId }) => {
             <div className="w-16 h-16 rounded-3xl bg-rose-50 text-rose-500 flex items-center justify-center mb-6">
               <Trash2 className="w-8 h-8" />
             </div>
-            <h3 className="text-2xl font-black text-slate-800 mb-4">{t.delete_order}</h3>
+            <h3 className="text-2xl font-black text-slate-800 mb-4">Buyurtmani qaytarish</h3>
             <p className="text-slate-500 leading-relaxed mb-8">
-              {t.delete_confirmation_confirmed.replace('{points}', deletingOrder.totalPoints.toLocaleString())}
+              Buyurtma bekor qilinadi va mijozdan <span className="font-bold text-slate-700">{deletingOrder.totalPoints.toLocaleString()}</span> ball ayiriladi. Buyurtma ro'yxatda "Bekor qilingan" holatida saqlanadi.
             </p>
 
             <div className="flex gap-4">
@@ -422,7 +420,7 @@ const OrdersView: React.FC<OrdersViewProps> = ({ lang, initialSelectedId }) => {
                 onClick={() => void handleDelete()}
                 className="flex-1 py-4 bg-rose-500 text-white font-black text-xs uppercase tracking-widest rounded-2xl hover:bg-rose-600 shadow-xl shadow-rose-500/20 disabled:opacity-50 transition-all"
               >
-                {isDeleting ? t.loading : t.confirm_delete}
+                {isDeleting ? t.loading : 'Qaytarish'}
               </button>
             </div>
           </div>
