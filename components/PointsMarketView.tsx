@@ -44,127 +44,54 @@ interface MarketOrdersResponse {
   limit: number;
 }
 
-const copyByLang: Record<Language, Record<string, string>> = {
-  EN: {
-    title: 'Points Market',
-    subtitle: 'Manage buy/sell point operations and statuses',
-    total: 'Total',
-    pending: 'Pending',
-    completed: 'Completed',
-    rejected: 'Rejected / Cancelled',
-    search: 'Search by order/client...',
-    statusFilter: 'Status',
-    typeFilter: 'Type',
-    all: 'All',
-    buy: 'Buy',
-    sell: 'Sell',
-    refresh: 'Refresh',
-    newDeal: 'New Deal',
-    noData: 'No data',
-    loading: 'Loading...',
-    date: 'Date / Time',
-    orderId: 'Deal ID',
-    client: 'Client',
-    points: 'Points',
-    amount: 'Amount',
-    rate: 'Rate',
-    type: 'Type',
-    status: 'Status',
-    actions: 'Actions',
-    payment: 'Payment',
-    apply: 'Apply',
-    created: 'Created',
-    createModalTitle: 'Create Points Market Deal',
-    close: 'Close',
-    save: 'Create',
-    clientId: 'Client ID',
-    clientName: 'Client Name',
-    note: 'Note',
-    operator: 'Operator',
-    successCreated: 'Deal created',
-    successUpdated: 'Status updated',
-  },
-  RU: {
-    title: 'Рынок баллов',
-    subtitle: 'Управление покупкой/продажей баллов и статусами',
-    total: 'Всего',
-    pending: 'Ожидает',
-    completed: 'Завершено',
-    rejected: 'Отклонено / Отменено',
-    search: 'Поиск по сделке/клиенту...',
-    statusFilter: 'Статус',
-    typeFilter: 'Тип',
-    all: 'Все',
-    buy: 'Покупка',
-    sell: 'Продажа',
-    refresh: 'Обновить',
-    newDeal: 'Новая сделка',
-    noData: 'Нет данных',
-    loading: 'Загрузка...',
-    date: 'Дата / Время',
-    orderId: 'ID сделки',
-    client: 'Клиент',
-    points: 'Баллы',
-    amount: 'Сумма',
-    rate: 'Курс',
-    type: 'Тип',
-    status: 'Статус',
-    actions: 'Действия',
-    payment: 'Оплата',
-    apply: 'Применить',
-    created: 'Создана',
-    createModalTitle: 'Создать сделку рынка баллов',
-    close: 'Отмена',
-    save: 'Создать',
-    clientId: 'ID клиента',
-    clientName: 'Имя клиента',
-    note: 'Комментарий',
-    operator: 'Оператор',
-    successCreated: 'Сделка создана',
-    successUpdated: 'Статус обновлен',
-  },
-  UZ: {
-    title: 'Ballar bozori',
-    subtitle: 'Ball sotib olish/sotish operatsiyalarini boshqarish',
-    total: 'Jami',
-    pending: 'Kutilmoqda',
-    completed: 'Yakunlangan',
-    rejected: 'Rad etilgan / Bekor qilingan',
-    search: 'Bitim/mijoz bo‘yicha qidiruv...',
-    statusFilter: 'Holat',
-    typeFilter: 'Turi',
-    all: 'Barchasi',
-    buy: 'Sotib olish',
-    sell: 'Sotish',
-    refresh: 'Yangilash',
-    newDeal: 'Yangi bitim',
-    noData: 'Maʼlumot yoʻq',
-    loading: 'Yuklanmoqda...',
-    date: 'Sana / Vaqt',
-    orderId: 'Bitim ID',
-    client: 'Mijoz',
-    points: 'Ballar',
-    amount: 'Summa',
-    rate: 'Kurs',
-    type: 'Turi',
-    status: 'Holat',
-    actions: 'Amallar',
-    payment: 'To‘lov',
-    apply: 'Qo‘llash',
-    created: 'Yaratildi',
-    createModalTitle: 'Ballar bozori bitimini yaratish',
-    close: 'Bekor qilish',
-    save: 'Yaratish',
-    clientId: 'Mijoz ID',
-    clientName: 'Mijoz nomi',
-    note: 'Izoh',
-    operator: 'Operator',
-    successCreated: 'Bitim yaratildi',
-    successUpdated: 'Holat yangilandi',
-  },
+const COPY = {
+  title: 'Ballar bozori',
+  subtitle: 'Ball sotib olish/sotish operatsiyalarini boshqarish',
+  total: 'Jami',
+  pending: 'Kutilmoqda',
+  completed: 'Yakunlangan',
+  rejected: 'Rad etilgan / Bekor qilingan',
+  search: 'Bitim/mijoz bo‘yicha qidiruv...',
+  statusFilter: 'Holat',
+  typeFilter: 'Turi',
+  all: 'Barchasi',
+  buy: 'Sotib olish',
+  sell: 'Sotish',
+  refresh: 'Yangilash',
+  newDeal: 'Yangi bitim',
+  noData: 'Maʼlumot yoʻq',
+  loading: 'Yuklanmoqda...',
+  date: 'Sana / Vaqt',
+  orderId: 'Bitim ID',
+  client: 'Mijoz',
+  points: 'Ballar',
+  amount: 'Summa',
+  rate: 'Kurs',
+  type: 'Turi',
+  status: 'Holat',
+  actions: 'Amallar',
+  payment: 'To‘lov',
+  apply: 'Qo‘llash',
+  created: 'Yaratildi',
+  createModalTitle: 'Ballar bozori bitimini yaratish',
+  close: 'Bekor qilish',
+  save: 'Yaratish',
+  clientId: 'Mijoz ID',
+  clientName: 'Mijoz nomi',
+  note: 'Izoh',
+  operator: 'Operator',
+  successCreated: 'Bitim yaratildi',
+  successUpdated: 'Holat yangilandi',
 };
 
 const statusOptions: MarketStatus[] = ['Pending', 'Completed', 'Rejected', 'Cancelled'];
+
+const statusLabels: Record<MarketStatus, string> = {
+  Pending: 'Kutilmoqda',
+  Completed: 'Yakunlangan',
+  Rejected: 'Rad etilgan',
+  Cancelled: 'Bekor qilingan',
+};
 
 const statusBadgeClass: Record<MarketStatus, string> = {
   Pending: 'bg-amber-50 text-amber-700 border-amber-200',
@@ -175,8 +102,8 @@ const statusBadgeClass: Record<MarketStatus, string> = {
 
 const formatAmount = (value: number) => value.toLocaleString('ru-RU');
 
-const PointsMarketView: React.FC<{ lang: Language }> = ({ lang }) => {
-  const t = copyByLang[lang];
+const PointsMarketView: React.FC<{ lang: Language }> = () => {
+  const t = COPY;
   const [orders, setOrders] = useState<MarketOrder[]>([]);
   const [stats, setStats] = useState<MarketStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -389,7 +316,7 @@ const PointsMarketView: React.FC<{ lang: Language }> = ({ lang }) => {
           >
             <option value="all">{t.all}</option>
             {statusOptions.map((statusValue) => (
-              <option key={statusValue} value={statusValue.toLowerCase()}>{statusValue}</option>
+              <option key={statusValue} value={statusValue.toLowerCase()}>{statusLabels[statusValue]}</option>
             ))}
           </select>
           <select
@@ -446,7 +373,7 @@ const PointsMarketView: React.FC<{ lang: Language }> = ({ lang }) => {
                   <td className="px-6 py-4">
                     <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase border ${statusBadgeClass[order.status]}`}>
                       {order.status === 'Rejected' || order.status === 'Cancelled' ? <XCircle className="w-3 h-3" /> : <CheckCircle2 className="w-3 h-3" />}
-                      {order.status}
+                      {statusLabels[order.status]}
                     </span>
                   </td>
                   <td className="px-6 py-4">
@@ -457,7 +384,7 @@ const PointsMarketView: React.FC<{ lang: Language }> = ({ lang }) => {
                         className="px-2 py-1.5 bg-slate-50 border border-slate-100 rounded-lg text-xs font-medium outline-none"
                       >
                         {statusOptions.map((statusValue) => (
-                          <option key={statusValue} value={statusValue}>{statusValue}</option>
+                          <option key={statusValue} value={statusValue}>{statusLabels[statusValue]}</option>
                         ))}
                       </select>
                       <button
@@ -521,10 +448,10 @@ const PointsMarketView: React.FC<{ lang: Language }> = ({ lang }) => {
               <label className="text-sm font-medium text-slate-600">
                 {t.payment}
                 <select className="mt-1.5 w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 outline-none" value={form.payment_method} onChange={(event) => setForm((current) => ({ ...current, payment_method: event.target.value }))}>
-                  <option value="click">click</option>
-                  <option value="payme">payme</option>
-                  <option value="cash">cash</option>
-                  <option value="bank">bank</option>
+                  <option value="click">Click</option>
+                  <option value="payme">Payme</option>
+                  <option value="cash">Naqd</option>
+                  <option value="bank">Bank o‘tkazma</option>
                 </select>
               </label>
               <label className="text-sm font-medium text-slate-600">
