@@ -27,80 +27,70 @@ interface QrStatsResponse {
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000';
 const PAGE_SIZE = 100;
 
+const COPY = {
+  title: 'QR boshqaruv',
+  subtitle: 'Bir martalik QR kodlarni ommaviy yaratish va nazorat',
+  product: 'Mahsulot',
+  productSearch: 'Mahsulot qidirish...',
+  productNameCol: 'Nomi',
+  productPriceCol: 'Narx',
+  productStockCol: 'Qoldiq',
+  productNoData: 'Mahsulot topilmadi',
+  state: 'Holat',
+  search: 'QR yoki mijoz ID bo‘yicha qidirish...',
+  generate: 'Yaratish',
+  amount: 'Soni',
+  all: 'Barchasi',
+  unused: 'Ishlatilmagan',
+  used: 'Ishlatilgan',
+  revoked: 'Bekor qilingan',
+  revokeSelected: 'Tanlanganlarni bekor qilish',
+  restoreSelected: 'Tanlanganlarni tiklash',
+  downloadCsv: 'CSV yuklash',
+  downloadZip: 'ZIP yuklash',
+  refresh: 'Yangilash',
+  total: 'Jami',
+  selected: 'Tanlangan',
+  noData: 'Ma’lumot yo‘q',
+  loading: 'Yuklanmoqda...',
+  prev: 'Oldingi',
+  next: 'Keyingi',
+  qr: 'QR kod',
+  created: 'Yaratilgan',
+  usedAt: 'Ishlatilgan vaqt',
+  usedBy: 'Mijoz',
+  unscan: 'Skan bekor qilish',
+  unscanReason: 'Bekor qilish sababi',
+  action: 'Amal',
+  showQr: 'QR kodni ko‘rsatish',
+  qrModalTitle: 'QR kod',
+  downloadPng: 'PNG yuklab olish',
+  close: 'Yopish',
+  cancel: 'Bekor qilish',
+  confirmUnscanTitle: 'Skan bekor qilishni tasdiqlang',
+  processing: 'Bajarilmoqda...',
+  bulkUnscanSelected: 'Tanlangan skanlarni bekor qilish',
+  errAmount: '1..5000 kiriting',
+  errReason: 'Bekor qilish sababini kiriting',
+  errProduct: 'Skan bekor qilish uchun mahsulot topilmadi',
+};
+
+const formatDate = (value: string) => {
+  if (!value) return '-';
+  const iso = value.replace(' ', 'T').replace(/\.\d+$/, '');
+  const parsed = new Date(iso);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleString('ru-RU', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+};
+
 const QrManageView: React.FC<QrManageViewProps> = ({ lang }) => {
-  const copy = useMemo(() => (
-    lang === 'RU'
-      ? {
-          title: 'QR управление',
-          subtitle: 'Массовая генерация и контроль одноразовых QR кодов',
-          product: 'Продукт',
-          productSearch: 'Поиск продукта...',
-          productNameCol: 'Название',
-          productPriceCol: 'Цена',
-          productStockCol: 'Остаток',
-          productNoData: 'Продукты не найдены',
-          state: 'Статус',
-          search: 'Поиск по QR или ID клиента...',
-          generate: 'Сгенерировать',
-          amount: 'Количество',
-          all: 'Все',
-          unused: 'Неиспользованные',
-          used: 'Использованные',
-          revoked: 'Отозванные',
-          revokeSelected: 'Отозвать выбранные',
-          restoreSelected: 'Восстановить выбранные',
-          downloadCsv: 'Скачать CSV',
-          downloadZip: 'Скачать ZIP',
-          refresh: 'Обновить',
-          total: 'Всего',
-          selected: 'Выбрано',
-          noData: 'Нет данных',
-          loading: 'Загрузка...',
-          prev: 'Пред.',
-          next: 'След.',
-          qr: 'QR код',
-          created: 'Создан',
-          usedAt: 'Использован',
-          usedBy: 'Клиент',
-          unscan: 'Отменить скан',
-          unscanReason: 'Причина отмены скана',
-        }
-      : {
-          title: 'QR boshqaruv',
-          subtitle: 'Bir martalik QR kodlarni ommaviy yaratish va nazorat',
-          product: 'Mahsulot',
-          productSearch: 'Mahsulot qidirish...',
-          productNameCol: 'Nomi',
-          productPriceCol: 'Narx',
-          productStockCol: 'Qoldiq',
-          productNoData: 'Mahsulot topilmadi',
-          state: 'Holat',
-          search: 'QR yoki mijoz ID bo‘yicha qidirish...',
-          generate: 'Yaratish',
-          amount: 'Soni',
-          all: 'Barchasi',
-          unused: 'Ishlatilmagan',
-          used: 'Ishlatilgan',
-          revoked: 'Bekor qilingan',
-          revokeSelected: 'Tanlanganlarni bekor qilish',
-          restoreSelected: 'Tanlanganlarni tiklash',
-          downloadCsv: 'CSV yuklash',
-          downloadZip: 'ZIP yuklash',
-          refresh: 'Yangilash',
-          total: 'Jami',
-          selected: 'Tanlangan',
-          noData: 'Ma’lumot yo‘q',
-          loading: 'Yuklanmoqda...',
-          prev: 'Oldingi',
-          next: 'Keyingi',
-          qr: 'QR kod',
-          created: 'Yaratilgan',
-          usedAt: 'Ishlatilgan vaqt',
-          usedBy: 'Mijoz',
-          unscan: 'Skan bekor qilish',
-          unscanReason: 'Bekor qilish sababi',
-        }
-  ), [lang]);
+  const copy = COPY;
 
   const [products, setProducts] = useState<Product[]>([]);
   const [productSearch, setProductSearch] = useState('');
@@ -202,7 +192,7 @@ const QrManageView: React.FC<QrManageViewProps> = ({ lang }) => {
     if (!selectedProductId || selectedProductId === 'all') return;
     const countValue = Number.parseInt(generateCount, 10);
     if (!Number.isInteger(countValue) || countValue < 1 || countValue > 5000) {
-      setError(lang === 'RU' ? 'Введите количество 1..5000' : '1..5000 kiriting');
+      setError(copy.errAmount);
       return;
     }
     setBusy(true);
@@ -259,7 +249,7 @@ const QrManageView: React.FC<QrManageViewProps> = ({ lang }) => {
     if (selectedIds.length === 0) return;
     const reason = unscanReason.trim();
     if (!reason) {
-      setError(lang === 'RU' ? 'Укажите причину отмены' : 'Bekor qilish sababini kiriting');
+      setError(copy.errReason);
       return;
     }
     const selectedRows = codes.filter((row) => selectedIds.includes(row.id) && row.isUsed);
@@ -305,13 +295,13 @@ const QrManageView: React.FC<QrManageViewProps> = ({ lang }) => {
     if (!unscanTarget || !unscanTarget.isUsed) return;
     const targetProductId = selectedProductId === 'all' ? unscanTarget.productId : selectedProductId;
     if (!targetProductId) {
-      setError(lang === 'RU' ? 'Не удалось определить продукт для отмены скана' : 'Skan bekor qilish uchun mahsulot topilmadi');
+      setError(copy.errProduct);
       closeUnscanModal();
       return;
     }
     const reason = unscanReason.trim();
     if (!reason) {
-      setError(lang === 'RU' ? 'Укажите причину отмены' : 'Bekor qilish sababini kiriting');
+      setError(copy.errReason);
       return;
     }
     setUnscanSubmitting(true);
@@ -480,7 +470,7 @@ const QrManageView: React.FC<QrManageViewProps> = ({ lang }) => {
           className="inline-flex items-center gap-2 rounded-xl bg-amber-600 text-white px-4 py-2 text-sm font-semibold disabled:opacity-50"
         >
           <ShieldBan className="w-4 h-4" />
-          {lang === 'RU' ? 'Отменить скан выбранные' : 'Tanlangan skanlarni bekor qilish'}
+          {copy.bulkUnscanSelected}
         </button>
         <button
           onClick={async () => {
@@ -549,7 +539,7 @@ const QrManageView: React.FC<QrManageViewProps> = ({ lang }) => {
                 <th className="px-4 py-3">{copy.usedBy}</th>
                 <th className="px-4 py-3">{copy.created}</th>
                 <th className="px-4 py-3">{copy.usedAt}</th>
-                <th className="px-4 py-3">Action</th>
+                <th className="px-4 py-3">{copy.action}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
@@ -580,7 +570,7 @@ const QrManageView: React.FC<QrManageViewProps> = ({ lang }) => {
                         <button
                           type="button"
                           onClick={() => setQrPreview(row)}
-                          title={lang === 'RU' ? 'Показать QR код' : 'QR kodni ko‘rsatish'}
+                          title={copy.showQr}
                           className="group flex items-start gap-2 text-left"
                         >
                           <QrCode className="w-4 h-4 text-cyan-500 mt-0.5 transition group-hover:scale-110" />
@@ -595,8 +585,8 @@ const QrManageView: React.FC<QrManageViewProps> = ({ lang }) => {
                       </td>
                       <td className={`px-4 py-3 text-xs font-bold ${stateClass}`}>{stateLabel}</td>
                       <td className="px-4 py-3 text-xs text-slate-600">{row.usedByClientId || '-'}</td>
-                      <td className="px-4 py-3 text-xs text-slate-600">{row.createdAt || '-'}</td>
-                      <td className="px-4 py-3 text-xs text-slate-600">{row.usedAt || row.revokedAt || '-'}</td>
+                      <td className="px-4 py-3 text-xs text-slate-600">{formatDate(row.createdAt)}</td>
+                      <td className="px-4 py-3 text-xs text-slate-600">{formatDate(row.usedAt || row.revokedAt)}</td>
                       <td className="px-4 py-3">
                         {row.isUsed ? (
                           <button
@@ -634,7 +624,7 @@ const QrManageView: React.FC<QrManageViewProps> = ({ lang }) => {
                   <QrCode className="h-5 w-5" />
                 </div>
                 <div className="min-w-0">
-                  <h3 className="text-lg font-semibold text-slate-800">{lang === 'RU' ? 'QR код' : 'QR kod'}</h3>
+                  <h3 className="text-lg font-semibold text-slate-800">{copy.qrModalTitle}</h3>
                   <p className="text-xs text-slate-500 truncate">{qrPreview.productName || qrPreview.productId}</p>
                 </div>
               </div>
@@ -668,11 +658,7 @@ const QrManageView: React.FC<QrManageViewProps> = ({ lang }) => {
                       : 'bg-emerald-50 text-emerald-600'
                 }`}
               >
-                {qrPreview.isRevoked
-                  ? (lang === 'RU' ? 'Отменён' : 'Bekor qilingan')
-                  : qrPreview.isUsed
-                    ? (lang === 'RU' ? 'Использован' : 'Ishlatilgan')
-                    : (lang === 'RU' ? 'Не использован' : 'Ishlatilmagan')}
+                {qrPreview.isRevoked ? copy.revoked : qrPreview.isUsed ? copy.used : copy.unused}
               </span>
               <p className="mt-3 w-full break-all text-center font-mono text-[11px] text-slate-500">{qrPreview.qrCode}</p>
             </div>
@@ -684,14 +670,14 @@ const QrManageView: React.FC<QrManageViewProps> = ({ lang }) => {
                 className="inline-flex items-center gap-2 rounded-xl bg-cyan-600 px-4 py-2 text-sm font-semibold text-white hover:bg-cyan-700"
               >
                 <Download className="h-4 w-4" />
-                {lang === 'RU' ? 'Скачать PNG' : 'PNG yuklab olish'}
+                {copy.downloadPng}
               </button>
               <button
                 type="button"
                 onClick={() => setQrPreview(null)}
                 className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600"
               >
-                {lang === 'RU' ? 'Закрыть' : 'Yopish'}
+                {copy.close}
               </button>
             </div>
           </div>
@@ -708,7 +694,7 @@ const QrManageView: React.FC<QrManageViewProps> = ({ lang }) => {
               </div>
               <div>
                 <h3 className="text-lg font-semibold text-slate-800">
-                  {lang === 'RU' ? 'Подтвердите отмену скана' : 'Skan bekor qilishni tasdiqlang'}
+                  {copy.confirmUnscanTitle}
                 </h3>
                 <p className="text-xs text-slate-500">
                   {unscanTarget.productName || unscanTarget.productId}
@@ -729,16 +715,14 @@ const QrManageView: React.FC<QrManageViewProps> = ({ lang }) => {
                 onClick={closeUnscanModal}
                 className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600"
               >
-                {lang === 'RU' ? 'Отмена' : 'Bekor qilish'}
+                {copy.cancel}
               </button>
               <button
                 onClick={() => void unscanRow()}
                 disabled={unscanSubmitting}
                 className="rounded-xl bg-amber-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
               >
-                {unscanSubmitting
-                  ? (lang === 'RU' ? 'Обработка...' : 'Bajarilmoqda...')
-                  : (lang === 'RU' ? 'Отменить скан' : 'Skan bekor qilish')}
+                {unscanSubmitting ? copy.processing : copy.unscan}
               </button>
             </div>
           </div>
@@ -755,10 +739,10 @@ const QrManageView: React.FC<QrManageViewProps> = ({ lang }) => {
               </div>
               <div>
                 <h3 className="text-lg font-semibold text-slate-800">
-                  {lang === 'RU' ? 'Отмена скана' : 'Skan bekor qilish'}
+                  {copy.unscan}
                 </h3>
                 <p className="text-xs text-slate-500">
-                  {lang === 'RU' ? `Выбрано: ${selectedIds.length}` : `Tanlangan: ${selectedIds.length}`}
+                  {copy.selected}: {selectedIds.length}
                 </p>
               </div>
             </div>
@@ -776,16 +760,14 @@ const QrManageView: React.FC<QrManageViewProps> = ({ lang }) => {
                 onClick={closeBulkUnscan}
                 className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600"
               >
-                {lang === 'RU' ? 'Отмена' : 'Bekor qilish'}
+                {copy.cancel}
               </button>
               <button
                 onClick={() => void runBulkUnscan()}
                 disabled={unscanSubmitting}
                 className="rounded-xl bg-amber-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
               >
-                {unscanSubmitting
-                  ? (lang === 'RU' ? 'Обработка...' : 'Bajarilmoqda...')
-                  : (lang === 'RU' ? 'Отменить скан' : 'Skan bekor qilish')}
+                {unscanSubmitting ? copy.processing : copy.unscan}
               </button>
             </div>
           </div>
