@@ -291,17 +291,17 @@ const NewRequestModal: React.FC<NewRequestModalProps> = ({ onClose, lang, custom
                   <div className="p-4 rounded-2xl bg-rose-50 border border-rose-100 flex gap-3 text-rose-600">
                     <AlertCircle className="w-5 h-5 flex-shrink-0" />
                     <div>
-                      <p className="text-xs font-bold uppercase tracking-widest mb-1">Operational Warnings</p>
+                      <p className="text-xs font-bold uppercase tracking-widest mb-1">Ogohlantirishlar</p>
                       <ul className="text-sm list-disc list-inside font-medium space-y-1">
-                        {!canAfford && <li>Customer has insufficient points balance.</li>}
-                        {!inStock && <li>Selected gift is currently out of stock.</li>}
+                        {!canAfford && <li>Mijozda yetarli ball yo‘q.</li>}
+                        {!inStock && <li>Tanlangan sovg‘a hozircha mavjud emas.</li>}
                       </ul>
                     </div>
                   </div>
                 )}
 
                 <div className="p-6 rounded-3xl border-2 border-dashed border-emerald-100 bg-emerald-50/20 flex flex-col items-center">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Projected Balance After Approval</p>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Tasdiqlangandan keyingi balans</p>
                   <p className="text-3xl font-black text-emerald-600">
                     {selectedCustomer && selectedGift ? (selectedCustomer.totalPoints - selectedGift.pointsCost).toLocaleString() : '0'} pts
                   </p>
@@ -356,21 +356,29 @@ const STATUS_THEMES: Record<RequestStatus, string> = {
   'Completed': 'bg-emerald-50 text-emerald-600 border-emerald-100'
 };
 
+const formatDate = (value: string) => {
+  if (!value) return '-';
+  const iso = value.replace(' ', 'T').replace(/\.\d+$/, '');
+  const parsed = new Date(iso);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleString('ru-RU', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+};
+
 const RequestsView: React.FC<RequestsViewProps> = ({ lang, initialSelectedId }) => {
   const t = TRANSLATIONS[lang];
-  const bulkCopy = lang === 'RU'
-    ? {
-        selected: 'Выбрано',
-        applyStatus: 'Применить статус',
-        confirmBulkStatusChange: 'Подтвердите массовую смену статуса',
-        bulkStatusDescription: 'Статус будет применен ко всем выбранным заявкам',
-      }
-    : {
-        selected: 'Tanlandi',
-        applyStatus: 'Statusni qo‘llash',
-        confirmBulkStatusChange: 'Ommaviy status o‘zgarishini tasdiqlang',
-        bulkStatusDescription: 'Status barcha tanlangan so‘rovlarga qo‘llanadi',
-      };
+  const bulkCopy = {
+    selected: 'Tanlandi',
+    applyStatus: 'Statusni qo‘llash',
+    confirmBulkStatusChange: 'Ommaviy status o‘zgarishini tasdiqlang',
+    bulkStatusDescription: 'Status barcha tanlangan so‘rovlarga qo‘llanadi',
+  };
+  const statusLabel = (status: RequestStatus) => (t[status.toLowerCase() as keyof typeof t] as string) || status;
   const [requests, setRequests] = useState<RedemptionRequest[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [gifts, setGifts] = useState<Gift[]>([]);
@@ -711,7 +719,7 @@ const RequestsView: React.FC<RequestsViewProps> = ({ lang, initialSelectedId }) 
                     onClick={() => handleBulkStatusChange(status as RequestStatus)}
                     className={`px-3 py-2 rounded-xl text-[11px] font-bold uppercase tracking-widest border transition-all ${STATUS_THEMES[status as RequestStatus]}`}
                   >
-                    {status}
+                    {statusLabel(status as RequestStatus)}
                   </button>
                 ))}
               </div>
@@ -773,7 +781,7 @@ const RequestsView: React.FC<RequestsViewProps> = ({ lang, initialSelectedId }) 
                         <span className="text-xs font-bold text-slate-400 uppercase tracking-tighter">{req.id}</span>
                       </td>
                       <td className="px-6 py-3">
-                        <span className="text-xs font-medium text-slate-600">{req.date}</span>
+                        <span className="text-xs font-medium text-slate-600">{formatDate(req.date)}</span>
                       </td>
                       <td className="px-6 py-3">
                         <div className="flex items-center gap-2">
@@ -800,7 +808,7 @@ const RequestsView: React.FC<RequestsViewProps> = ({ lang, initialSelectedId }) 
                           <button 
                             className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest border transition-all flex items-center gap-1.5 ${STATUS_THEMES[req.status]}`}
                           >
-                            {req.status}
+                            {statusLabel(req.status)}
                             <ChevronDown className="w-3 h-3 opacity-50 group-hover/status:opacity-100" />
                           </button>
                           
@@ -814,7 +822,7 @@ const RequestsView: React.FC<RequestsViewProps> = ({ lang, initialSelectedId }) 
                                   req.status === status ? 'text-cyan-600 bg-cyan-50/30' : 'text-slate-500'
                                 }`}
                               >
-                                {status}
+                                {statusLabel(status as RequestStatus)}
                                 {req.status === status && <Check className="w-3 h-3" />}
                               </button>
                             ))}
@@ -892,14 +900,14 @@ const RequestsView: React.FC<RequestsViewProps> = ({ lang, initialSelectedId }) 
                                       <div className="w-4 h-4 rounded-full bg-cyan-500 border-2 border-white shadow-sm"></div>
                                       <div>
                                         <p className="text-[10px] font-bold text-slate-700">{t.request_initiated} {req.requestType}</p>
-                                        <p className="text-[10px] text-slate-400">{req.date}</p>
+                                        <p className="text-[10px] text-slate-400">{formatDate(req.date)}</p>
                                       </div>
                                     </div>
                                     {req.operator && (
                                       <div className="flex gap-4 relative z-10">
                                         <div className="w-4 h-4 rounded-full bg-slate-800 border-2 border-white shadow-sm"></div>
                                         <div>
-                                          <p className="text-[10px] font-bold text-slate-700">{t.transitioned_to} {req.status}</p>
+                                          <p className="text-[10px] font-bold text-slate-700">{t.transitioned_to} {statusLabel(req.status)}</p>
                                           <p className="text-[10px] text-slate-400">{t.processed_by}: {req.operator}</p>
                                         </div>
                                       </div>
