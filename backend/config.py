@@ -44,6 +44,8 @@ SMARTUP_LOGIN = os.getenv("SMARTUP_LOGIN", "")
 SMARTUP_PASSWORD = os.getenv("SMARTUP_PASSWORD", "")
 
 ADMIN_API_KEY = os.getenv("ADMIN_API_KEY", "").strip()
+ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "").strip()
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "")
 SESSION_TTL_MINUTES = int(os.getenv("SESSION_TTL_MINUTES", "1440"))
 FIREBASE_SERVICE_ACCOUNT = os.getenv("FIREBASE_SERVICE_ACCOUNT", "firebase-service-account.json")
 

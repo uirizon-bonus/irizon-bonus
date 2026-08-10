@@ -135,3 +135,8 @@ class AuthRequestOtpPayload(BaseModel):
 class AuthVerifyOtpPayload(BaseModel):
     phone: str = Field(..., min_length=3, max_length=100)
     otp: str = Field(..., min_length=4, max_length=10)
+
+
+class AdminLoginPayload(BaseModel):
+    username: str = Field(..., min_length=1, max_length=200)
+    password: str = Field(..., min_length=1, max_length=200)

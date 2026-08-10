@@ -3,9 +3,9 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import App from './App';
+import { ADMIN_TOKEN_KEY } from './utils/adminAuth';
 
 const _API_BASE = (import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000').replace(/\/$/, '');
-const _ADMIN_KEY = import.meta.env.VITE_ADMIN_API_KEY ?? '';
 const _IS_PORTAL = import.meta.env.MODE === 'portal';
 export const SESSION_TOKEN_KEY = 'irizon_session_token';
 
@@ -20,9 +20,19 @@ window.fetch = (input: RequestInfo | URL, init?: RequestInit): Promise<Response>
     const token = localStorage.getItem(SESSION_TOKEN_KEY) ?? '';
     if (token) headers.set('Authorization', `Bearer ${token}`);
   } else {
-    if (_ADMIN_KEY) headers.set('X-Admin-Key', _ADMIN_KEY);
+    // Admin key is obtained via /api/admin/login and stored in localStorage —
+    // no longer baked into the bundle.
+    const adminToken = localStorage.getItem(ADMIN_TOKEN_KEY) ?? '';
+    if (adminToken) headers.set('X-Admin-Key', adminToken);
   }
-  return _origFetch(input, { ...init, headers });
+  return _origFetch(input, { ...init, headers }).then((response) => {
+    // A rejected admin token (invalid/expired) bounces back to the login screen.
+    if (!_IS_PORTAL && response.status === 401 && localStorage.getItem(ADMIN_TOKEN_KEY)) {
+      localStorage.removeItem(ADMIN_TOKEN_KEY);
+      window.location.reload();
+    }
+    return response;
+  });
 };
 
 const rootElement = document.getElementById('root');

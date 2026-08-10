@@ -13,9 +13,12 @@ import {
   User as UserIcon,
   ShieldCheck,
   RefreshCw,
-  TrendingUp
+  TrendingUp,
+  LogOut
 } from 'lucide-react';
 import { MENU_ITEMS, NAV_GROUPS, COLORS, TRANSLATIONS } from './constants';
+import { ADMIN_TOKEN_KEY } from './utils/adminAuth';
+import AdminLogin from './components/AdminLogin';
 import { Language, Customer } from './types';
 import irizonLogo from './src/data/Irizon-logo.png';
 import DashboardView from './components/DashboardView';
@@ -45,6 +48,7 @@ const App: React.FC = () => {
   const [lang, setLang] = useState<Language>('UZ');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isAuthed, setIsAuthed] = useState<boolean>(() => isPortalApp || !!localStorage.getItem(ADMIN_TOKEN_KEY));
   const pointsMarketNavItem = useMemo(
     () => ({
       id: 'points-market',
@@ -261,6 +265,10 @@ const App: React.FC = () => {
     );
   }
 
+  if (!isAuthed) {
+    return <AdminLogin onSuccess={() => setIsAuthed(true)} />;
+  }
+
   return (
     <div className="flex min-h-screen bg-slate-50 overflow-hidden font-inter">
 
@@ -362,15 +370,14 @@ const App: React.FC = () => {
               <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-cyan-500 rounded-full"></span>
             </button>
             
-            <div className="flex items-center gap-3 cursor-pointer group border-l border-slate-100 pl-4 ml-1">
-              <div className="flex flex-col text-right">
-                <span className="text-[11px] font-bold text-slate-900 leading-tight">Aziz Z.</span>
-                <span className="text-[9px] text-slate-400 font-medium uppercase tracking-widest">Admin</span>
-              </div>
-              <div className="w-8 h-8 rounded-full bg-slate-900 flex items-center justify-center ring-2 ring-white">
-                <span className="text-white font-bold text-[10px]">AZ</span>
-              </div>
-            </div>
+            <button
+              onClick={() => { localStorage.removeItem(ADMIN_TOKEN_KEY); setIsAuthed(false); }}
+              className="flex items-center gap-2 border-l border-slate-100 pl-4 ml-1 text-slate-400 hover:text-rose-600 transition-all"
+              title="Chiqish"
+            >
+              <LogOut className="w-4 h-4" />
+              <span className="text-[11px] font-bold uppercase tracking-widest hidden md:inline">Chiqish</span>
+            </button>
           </div>
         </header>
 
