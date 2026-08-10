@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { COLORS, TRANSLATIONS } from '../constants';
 import { Activity, Language } from '../types';
+import { formatDateTime } from '../utils/formatDate';
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000').replace(/\/$/, '');
 
@@ -101,7 +102,7 @@ const ActivityItem: React.FC<{ activity: Activity }> = ({ activity }) => (
       <p className="text-sm text-slate-700 leading-tight">
         <span className="font-semibold">{activity.user}</span>: {activity.description}
       </p>
-      <span className="text-[10px] font-medium text-slate-400 mt-1 uppercase tracking-wider">{activity.time}</span>
+      <span className="text-[10px] font-medium text-slate-400 mt-1 uppercase tracking-wider">{formatDateTime(activity.time)}</span>
     </div>
   </div>
 );

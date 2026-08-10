@@ -20,6 +20,7 @@ import { motion } from 'framer-motion';
 import { TRANSLATIONS } from '../constants';
 import { Language, Activity } from '../types';
 import LoadingGlass from './LoadingGlass';
+import { formatDateTime } from '../utils/formatDate';
 
 interface AuditLogViewProps {
   lang: Language;
@@ -170,7 +171,7 @@ const AuditLogView: React.FC<AuditLogViewProps> = ({ lang }) => {
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">
                         <Clock className="w-3.5 h-3.5 text-slate-300" />
-                        <span className="text-xs font-medium text-slate-600">{act.time}</span>
+                        <span className="text-xs font-medium text-slate-600">{formatDateTime(act.time)}</span>
                       </div>
                     </td>
                     <td className="px-6 py-4">

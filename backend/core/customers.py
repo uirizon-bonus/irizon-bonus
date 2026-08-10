@@ -805,19 +805,19 @@ def _load_customer_activity(client_id: str) -> List[Dict[str, Any]]:
         source_type = str(row["source_type"] or "manual")
         if source_type == "order":
             activity_type = "order_confirmed"
-            description = str(row["note"] or row["source_ref"] or "Order confirmed")
+            description = str(row["note"] or row["source_ref"] or "Buyurtma tasdiqlandi")
         elif source_type == "request":
             activity_type = "gift_redeemed"
-            description = str(row["note"] or row["source_ref"] or "Gift redeemed")
+            description = str(row["note"] or row["source_ref"] or "Sovg‘a olindi")
         elif source_type == "request_reversal":
             activity_type = "request_status_change"
-            description = str(row["note"] or row["source_ref"] or "Request updated")
+            description = str(row["note"] or row["source_ref"] or "So‘rov yangilandi")
         elif source_type in ("qr_scan", "qr_unscan"):
             activity_type = source_type
-            description = str(row["note"] or ("QR scan" if source_type == "qr_scan" else "QR unscan rollback"))
+            description = str(row["note"] or ("QR skan" if source_type == "qr_scan" else "QR skan bekor qilindi"))
         else:
             activity_type = "customer_added"
-            description = str(row["note"] or "Manual bonus adjustment")
+            description = str(row["note"] or "Qo‘lda ball o‘zgartirish")
 
         activities.append(
             {

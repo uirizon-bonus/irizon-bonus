@@ -571,7 +571,7 @@ def _unscan_product_qr_code(product_id: str, qr_row_id: int, payload: ProductQrU
             raise ValueError("Invalid points value on QR row")
 
         reason_text = str(payload.reason or "").strip()
-        note = f"QR unscan rollback: {row['product_name']} #{row['id']}"
+        note = f"QR skan bekor qilindi: {row['product_name']} #{row['id']}"
         if reason_text:
             note = f"{note} | {reason_text}"
 
@@ -651,7 +651,7 @@ def _apply_qr_scan(client_id: str, payload: QrScanPayload) -> Dict[str, Any]:
             raise QrScanError("Product points must be greater than zero", code="zero_points")
 
         note_text = payload.note.strip()
-        base_note = f"QR scan: {product_name} x{quantity}"
+        base_note = f"QR skan: {product_name} x{quantity}"
         transaction_note = f"{base_note} | {note_text}" if note_text else base_note
 
         points_core._insert_bonus_transaction(

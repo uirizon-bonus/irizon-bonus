@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { Activity, Customer, Gift as GiftType, Language, RedemptionRequest } from '../types';
 import LoadingGlass from './LoadingGlass';
+import { formatDateTime } from '../utils/formatDate';
 import { SESSION_TOKEN_KEY } from '../index';
 
 interface UserPortalProps {
@@ -523,7 +524,7 @@ const UserPortal: React.FC<UserPortalProps> = ({ customerId, onSwitchView, onAut
                 </div>
                 <div>
                   <p className="font-bold text-slate-800">{activity.description}</p>
-                  <p className="text-xs text-slate-400 font-medium tracking-tight">{activity.time}</p>
+                  <p className="text-xs text-slate-400 font-medium tracking-tight">{formatDateTime(activity.time)}</p>
                 </div>
               </div>
               <span className={`text-lg font-black ${(activity.points ?? 0) >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
