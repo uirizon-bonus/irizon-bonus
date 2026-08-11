@@ -813,19 +813,7 @@ const CustomersView: React.FC<CustomersViewProps> = ({ lang, onOpenReconciliatio
                     className="h-4 w-4 cursor-pointer rounded border-slate-300 text-cyan-600 focus:ring-cyan-500/30"
                   />
                 </th>
-                {/* ID Column */}
-                <th className="w-24 px-4 py-3 relative">
-                  <div className="flex items-center gap-2 group cursor-pointer" onClick={() => handleSort('id')}>
-                    <span className={`text-[10px] font-black uppercase tracking-widest ${sortConfig.key === 'id' ? 'text-cyan-600' : 'text-slate-400'}`}>
-                      ID
-                    </span>
-                    {sortConfig.key === 'id' && (
-                      sortConfig.direction === 'asc' ? <ArrowUp className="w-3 h-3 text-cyan-500" /> : <ArrowDown className="w-3 h-3 text-cyan-500" />
-                    )}
-                  </div>
-                </th>
-
-                {/* Full Name Column */}
+                {/* Full Name Column (with ID beneath) */}
                 <th className="w-[34%] px-4 py-3 relative">
                   <div className="flex items-center gap-2 group cursor-pointer" onClick={() => handleSort('fullName')}>
                     <span className={`text-[10px] font-black uppercase tracking-widest ${sortConfig.key === 'fullName' ? 'text-cyan-600' : 'text-slate-400'}`}>
@@ -1024,13 +1012,13 @@ const CustomersView: React.FC<CustomersViewProps> = ({ lang, onOpenReconciliatio
             <tbody className="divide-y divide-slate-100">
               {isLoading ? (
                 <tr>
-                  <td colSpan={9} className="px-4 py-12 text-sm text-slate-400">
+                  <td colSpan={8} className="px-4 py-12 text-sm text-slate-400">
                     <LoadingGlass label={t.loading} />
                   </td>
                 </tr>
               ) : filteredAndSortedCustomers.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-4 py-12 text-center text-sm text-slate-400">{t.no_data}</td>
+                  <td colSpan={8} className="px-4 py-12 text-center text-sm text-slate-400">{t.no_data}</td>
                 </tr>
               ) : paginatedCustomers.map((customer) => (
                 <React.Fragment key={customer.id}>
@@ -1046,12 +1034,10 @@ const CustomersView: React.FC<CustomersViewProps> = ({ lang, onOpenReconciliatio
                         className="h-4 w-4 cursor-pointer rounded border-slate-300 text-cyan-600 focus:ring-cyan-500/30"
                       />
                     </td>
-                    <td className="px-4 py-2.5">
-                      <span className="text-[11px] font-bold text-slate-400 uppercase tracking-tight">{customer.id}</span>
-                    </td>
                     <td className="w-[34%] px-4 py-2.5">
                       <div className="min-w-0">
                         <span className="block truncate text-sm font-semibold text-slate-700 leading-tight">{customer.fullName}</span>
+                        <span className="block truncate text-[10px] font-medium text-slate-400 tracking-tight">{customer.id}</span>
                       </div>
                     </td>
                     <td className="w-36 px-4 py-2.5">
@@ -1079,7 +1065,7 @@ const CustomersView: React.FC<CustomersViewProps> = ({ lang, onOpenReconciliatio
                   </tr>
                   {expandedRowId === customer.id && (
                     <tr>
-                      <td colSpan={9} className="border-t border-slate-100 bg-slate-50/70 px-8 py-4">
+                      <td colSpan={8} className="border-t border-slate-100 bg-slate-50/70 px-8 py-4">
                         <div className="flex items-center justify-end gap-3">
                           <button
                             type="button"
