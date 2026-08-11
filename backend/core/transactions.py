@@ -34,7 +34,9 @@ def _load_requests() -> List[Dict[str, Any]]:
     finally:
         connection.close()
 
-    return [_serialize_request_row(row) for row in rows]
+    requests = [_serialize_request_row(row) for row in rows]
+    _overlay_current_client_names(requests, id_key="customerId", name_key="customerName")
+    return requests
 
 
 def _serialize_request_row(row: Any) -> Dict[str, Any]:
@@ -71,7 +73,21 @@ def _load_request_by_id(public_id: str) -> Optional[Dict[str, Any]]:
         connection.close()
     if row is None:
         return None
-    return _serialize_request_row(row)
+    record = _serialize_request_row(row)
+    _overlay_current_client_names([record], id_key="customerId", name_key="customerName")
+    return record
+
+
+def _overlay_current_client_names(records: List[Dict[str, Any]], *, id_key: str, name_key: str) -> None:
+    """Overwrite each record's denormalized name with the customer's current
+    name (resolved by id), keeping the stored snapshot when the id is unknown."""
+    if not records:
+        return
+    names = customer_core._resolve_current_client_names([record.get(id_key) for record in records])
+    for record in records:
+        current = names.get(str(record.get(id_key)))
+        if current:
+            record[name_key] = current
 
 
 def _load_qr_scan_events(
@@ -132,6 +148,7 @@ def _load_qr_scan_events(
         }
         for row in rows
     ]
+    _overlay_current_client_names(events, id_key="customerId", name_key="customerName")
     return {"count": int(total_row["count"] or 0), "events": events}
 
 
@@ -540,6 +557,7 @@ def _load_orders(*, offset: int = 0, limit: int = 100, search: str = "", status:
                 "note": str(row["note"] or ""),
             }
         )
+    _overlay_current_client_names(orders, id_key="customerId", name_key="customerName")
     return orders, total_count
 
 
@@ -605,7 +623,7 @@ def _load_order_by_id(public_id: str) -> Optional[Dict[str, Any]]:
         }
         for row in item_rows
     ]
-    return {
+    order = {
         "id": str(order_row["public_id"]),
         "date": str(order_row["created_at"]),
         "customerId": str(order_row["customer_id"]),
@@ -617,6 +635,8 @@ def _load_order_by_id(public_id: str) -> Optional[Dict[str, Any]]:
         "items": items,
         "note": str(order_row["note"] or ""),
     }
+    _overlay_current_client_names([order], id_key="customerId", name_key="customerName")
+    return order
 
 
 def _generate_order_public_id(connection: sqlite3.Connection) -> str:
@@ -1006,7 +1026,9 @@ def _load_market_orders(
     finally:
         connection.close()
 
-    return ([_serialize_market_order_row(row) for row in rows], total_count)
+    market_orders = [_serialize_market_order_row(row) for row in rows]
+    _overlay_current_client_names(market_orders, id_key="clientId", name_key="clientName")
+    return (market_orders, total_count)
 
 
 def _load_market_stats() -> Dict[str, Any]:
@@ -1142,4 +1164,6 @@ def _update_market_order_status(public_id: str, payload: MarketOrderStatusPayloa
         reload_connection.close()
     if next_row is None:
         return None
-    return _serialize_market_order_row(next_row)
+    market_order = _serialize_market_order_row(next_row)
+    _overlay_current_client_names([market_order], id_key="clientId", name_key="clientName")
+    return market_order

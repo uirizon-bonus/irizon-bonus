@@ -561,6 +561,29 @@ def _get_cached_client_by_id(client_id: str) -> Optional[Dict[str, Any]]:
     return None
 
 
+def _resolve_current_client_names(ids: List[str]) -> Dict[str, str]:
+    """Map client_id -> current full_name from the customers table (single query).
+
+    Lets list serializers overlay the canonical name onto their denormalized
+    name snapshots, so renaming a customer shows everywhere without rewriting
+    historical rows. Ids not in the customers table are simply absent (callers
+    keep the stored snapshot as fallback).
+    """
+    unique = sorted({str(i).strip() for i in ids if str(i).strip()})
+    if not unique:
+        return {}
+    connection = bonus_db()
+    try:
+        placeholders = ",".join(["?"] * len(unique))
+        rows = connection.execute(
+            f"SELECT id, full_name FROM customers WHERE id IN ({placeholders})",
+            tuple(unique),
+        ).fetchall()
+    finally:
+        connection.close()
+    return {str(row["id"]): str(row["full_name"]) for row in rows}
+
+
 def _find_client_by_phone_remote(phone: str) -> Optional[Dict[str, Any]]:
     from backend import legacy as _legacy
 
