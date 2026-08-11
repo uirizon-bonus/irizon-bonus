@@ -116,10 +116,10 @@ def _load_qr_scan_events(
         )
         params.extend([needle, needle, needle, needle])
     if str(date_from or "").strip():
-        where_clauses.append("SUBSTR(created_at, 1, 10) >= ?")
+        where_clauses.append("SUBSTR(CAST(created_at AS TEXT), 1, 10) >= ?")
         params.append(str(date_from).strip())
     if str(date_to or "").strip():
-        where_clauses.append("SUBSTR(created_at, 1, 10) <= ?")
+        where_clauses.append("SUBSTR(CAST(created_at AS TEXT), 1, 10) <= ?")
         params.append(str(date_to).strip())
 
     where_sql = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
@@ -1025,10 +1025,10 @@ def _load_market_orders(
         from_day = str(date_from or "").strip()
         to_day = str(date_to or "").strip()
         if from_day:
-            clauses.append("SUBSTR(created_at, 1, 10) >= ?")
+            clauses.append("SUBSTR(CAST(created_at AS TEXT), 1, 10) >= ?")
             params.append(from_day)
         if to_day:
-            clauses.append("SUBSTR(created_at, 1, 10) <= ?")
+            clauses.append("SUBSTR(CAST(created_at AS TEXT), 1, 10) <= ?")
             params.append(to_day)
 
         where_sql = f"WHERE {' AND '.join(clauses)}" if clauses else ""

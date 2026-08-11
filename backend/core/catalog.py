@@ -329,10 +329,10 @@ def _load_product_qr_codes(
         needle = f"%{search.strip().lower()}%"
         params.extend([needle, needle])
     if str(date_from or "").strip():
-        where_sql += " AND SUBSTR(created_at, 1, 10) >= ?"
+        where_sql += " AND SUBSTR(CAST(created_at AS TEXT), 1, 10) >= ?"
         params.append(str(date_from).strip())
     if str(date_to or "").strip():
-        where_sql += " AND SUBSTR(created_at, 1, 10) <= ?"
+        where_sql += " AND SUBSTR(CAST(created_at AS TEXT), 1, 10) <= ?"
         params.append(str(date_to).strip())
 
     connection = bonus_db()
