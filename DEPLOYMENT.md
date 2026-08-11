@@ -7,18 +7,35 @@ Node dashboard runs under **pm2**.
 > ⚠️ Secrets (`.env`, `firebase-service-account.json`) and the virtualenv (`venv/`)
 > are **not** in git. They live only on the server and must be preserved across updates.
 
+## 0. Single-repo deploy model (READ FIRST)
+
+One repo feeds **both** halves of production:
+
+- **Canonical repo: `abdukarimmirzayev48-cmyk/irizon-bonus-v0.1`** (branch `main`).
+  - **Admin panel (frontend)** → hosted on **Vercel**, which **auto-deploys** on every push to this repo's `main`. Calls the backend at `https://api.irizon.uz`; login via `POST /api/admin/login`.
+  - **Backend API** → the **VPS** pulls this same repo (`/opt/irizon-backend/irizon-bonus-v0.1`).
+- `uirizon-bonus/irizon-bonus` is kept only as a **backup mirror** (not used by Vercel or the VPS).
+
+**Deploy = one push, then pull the backend if backend changed:**
+```bash
+git push origin main            # origin = irizon-bonus-v0.1  →  Vercel auto-builds the panel
+# then, only if backend code changed:
+ssh root@185.217.131.71 'cd /opt/irizon-backend/irizon-bonus-v0.1 && git pull && systemctl restart irizon-bonus-api'
+```
+Frontend-only changes need no VPS step — Vercel handles them.
+
 ---
 
 ## 1. What runs where (service → repo → port → domain)
 
 | systemd service | Domain | Port | Directory | ASGI app | GitHub repo | User |
 |---|---|---|---|---|---|---|
-| **`irizon-bonus-api`** | **api.irizon.uz** | 8006 | `/opt/irizon-backend/irizon-bonus-v0.1` | `clients_api:app` | **`uirizon-bonus/irizon-bonus`** | root |
-| `irizon-bonus-api2` | *(internal)* | 8007 | `/opt/irizon-backend/irizon-bonus-v0.1` | `app:app` | `uirizon-bonus/irizon-bonus` | root |
+| **`irizon-bonus-api`** | **api.irizon.uz** | 8006 | `/opt/irizon-backend/irizon-bonus-v0.1` | `clients_api:app` | **`abdukarimmirzayev48-cmyk/irizon-bonus-v0.1`** | root |
+| `irizon-bonus-api2` | *(internal)* | 8007 | `/opt/irizon-backend/irizon-bonus-v0.1` | `app:app` | `abdukarimmirzayev48-cmyk/irizon-bonus-v0.1` | root |
 | `irizon-api` | abc.irizon.uz + catch‑all | 8080 | `/var/www/irizon-abc-github/irizon-abc-github` | `app:app` | `abdukarimmirzayev48-cmyk/irizon-abc-github` | root |
 | `irizon-backend` | api.megalmaz.uz | 8000 | `/var/www/irizon-bonus` | `clients_api:app` | `abdukarimmirzayev48-cmyk/irizon-bonus` | www-data |
 
-**Your mobile app + admin backend = `irizon-bonus-api` (api.irizon.uz, :8006), from `uirizon-bonus/irizon-bonus`.**
+**Your mobile app + admin backend = `irizon-bonus-api` (api.irizon.uz, :8006), from `abdukarimmirzayev48-cmyk/irizon-bonus-v0.1`.**
 `irizon-bonus-api2` (:8007) shares the **same folder** but runs the legacy standalone `app:app`, so
 updating that folder affects **both** services — restart both after a deploy.
 
@@ -33,7 +50,7 @@ updating that folder affects **both** services — restart both after a deploy.
 
 ## 2. Update `api.irizon.uz` from GitHub (the common task)
 
-Repo: `uirizon-bonus/irizon-bonus` → dir `/opt/irizon-backend/irizon-bonus-v0.1`.
+Repo: `abdukarimmirzayev48-cmyk/irizon-bonus-v0.1` → dir `/opt/irizon-backend/irizon-bonus-v0.1`.
 
 ```bash
 cd /opt/irizon-backend/irizon-bonus-v0.1
@@ -110,7 +127,7 @@ When a deploy is confirmed healthy, delete old backups to reclaim space:
 
 ```bash
 cd /opt/irizon-backend
-git clone https://github.com/uirizon-bonus/irizon-bonus.git irizon-bonus-v0.1
+git clone https://github.com/abdukarimmirzayev48-cmyk/irizon-bonus-v0.1.git irizon-bonus-v0.1
 cd irizon-bonus-v0.1
 
 # create the two secret files (NOT in git):
@@ -165,7 +182,7 @@ nginx proxies `api.irizon.uz` → `http://127.0.0.1:8006`
 
 ## 7. Mobile app / admin panel builds (from the same repo)
 
-- **Admin panel** (root of repo): `npm install && npm run build` → static `dist/`.
+- **Admin panel** (root of repo): deployed on **Vercel**, which auto-builds (`npm run build` → `dist/`) on every push to `main` of `abdukarimmirzayev48-cmyk/irizon-bonus-v0.1`. Env vars (e.g. `VITE_API_BASE_URL=https://api.irizon.uz`) live in the Vercel project settings, not the repo. No manual build/upload needed.
 - **Mobile app** (`mobile-app/`): `npm run build && npx cap sync android|ios`, then build
   the APK (`cd android && ./gradlew assembleDebug`) or open Xcode (`npx cap open ios`).
 - Mobile API target is baked in at build time via `mobile-app/irizon-mobile-ui/.env`
