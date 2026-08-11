@@ -348,25 +348,34 @@ def _load_product_qr_codes(
     finally:
         connection.close()
 
-    return {
-        "count": int(total_row["count"] or 0),
-        "codes": [
-            {
-                "id": int(row["id"] or 0),
-                "qrCode": str(row["qr_code"] or ""),
-                "productId": str(row["product_id"] or ""),
-                "productName": str(row["product_name"] or ""),
-                "pointsPerUnit": int(row["points_per_unit"] or 0),
-                "isUsed": bool(row["is_used"]),
-                "usedByClientId": str(row["used_by_client_id"] or ""),
-                "usedAt": str(row["used_at"] or ""),
-                "isRevoked": bool(row["is_revoked"]),
-                "revokedAt": str(row["revoked_at"] or ""),
-                "createdAt": str(row["created_at"] or ""),
-            }
-            for row in rows
-        ],
-    }
+    codes = [
+        {
+            "id": int(row["id"] or 0),
+            "qrCode": str(row["qr_code"] or ""),
+            "productId": str(row["product_id"] or ""),
+            "productName": str(row["product_name"] or ""),
+            "pointsPerUnit": int(row["points_per_unit"] or 0),
+            "isUsed": bool(row["is_used"]),
+            "usedByClientId": str(row["used_by_client_id"] or ""),
+            "usedByClientName": "",
+            "usedAt": str(row["used_at"] or ""),
+            "isRevoked": bool(row["is_revoked"]),
+            "revokedAt": str(row["revoked_at"] or ""),
+            "createdAt": str(row["created_at"] or ""),
+        }
+        for row in rows
+    ]
+    _fill_used_by_client_names(codes)
+    return {"count": int(total_row["count"] or 0), "codes": codes}
+
+
+def _fill_used_by_client_names(codes: List[Dict[str, Any]]) -> None:
+    """Add usedByClientName to QR code rows, resolved from the customers table."""
+    from backend.core import customers as _customer_core
+
+    names = _customer_core._resolve_current_client_names([code.get("usedByClientId") for code in codes])
+    for code in codes:
+        code["usedByClientName"] = names.get(str(code.get("usedByClientId") or ""), "")
 
 
 def _load_all_qr_codes(

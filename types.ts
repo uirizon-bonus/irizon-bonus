@@ -118,6 +118,7 @@ export interface ProductQrCode {
   pointsPerUnit: number;
   isUsed: boolean;
   usedByClientId: string;
+  usedByClientName?: string;
   usedAt: string;
   isRevoked: boolean;
   revokedAt: string;

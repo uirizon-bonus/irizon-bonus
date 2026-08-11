@@ -640,7 +640,14 @@ const QrManageView: React.FC<QrManageViewProps> = ({ lang }) => {
                         </div>
                       </td>
                       <td className={`px-4 py-3 text-xs font-bold ${stateClass}`}>{stateLabel}</td>
-                      <td className="px-4 py-3 text-xs text-slate-600">{row.usedByClientId || '-'}</td>
+                      <td className="px-4 py-3 text-xs text-slate-600">
+                        {row.usedByClientId ? (
+                          <div className="flex flex-col">
+                            <span className="font-semibold text-slate-700">{row.usedByClientName || row.usedByClientId}</span>
+                            {row.usedByClientName ? <span className="text-[10px] text-slate-400">{row.usedByClientId}</span> : null}
+                          </div>
+                        ) : '-'}
+                      </td>
                       <td className="px-4 py-3 text-xs text-slate-600">{formatDate(row.createdAt)}</td>
                       <td className="px-4 py-3 text-xs text-slate-600">{formatDate(row.usedAt || row.revokedAt)}</td>
                       <td className="px-4 py-3">
