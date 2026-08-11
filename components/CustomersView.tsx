@@ -309,19 +309,13 @@ const CustomersView: React.FC<CustomersViewProps> = ({ lang, onOpenReconciliatio
       setLoadError(null);
 
       try {
-        if (cachedCustomers) {
-          const pointEntries = await loadCustomerPoints();
-          if (!isCancelled) {
-            setCustomers((currentCustomers) => {
-              const nextCustomers = applyPointEntriesToCustomers(currentCustomers, pointEntries);
-              persistCustomersCache(nextCustomers);
-              return nextCustomers;
-            });
-          }
-          return;
+        // Always revalidate the FULL list (stale-while-revalidate). The cache
+        // above is only for an instant first paint; without re-fetching the
+        // list, customers added after the cache was written never appear until
+        // a manual refresh. Show the spinner only when there is no cache yet.
+        if (!cachedCustomers) {
+          setIsLoading(true);
         }
-
-        setIsLoading(true);
         const nextCustomers = await fetchCustomersFromApi(false);
         if (!isCancelled) {
           setCustomers(nextCustomers);
