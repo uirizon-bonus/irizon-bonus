@@ -9,15 +9,15 @@ from backend.db import bonus_db
 from backend.models.schemas import OrderCreatePayload, OrderStatusPayload
 
 
-def get_orders_payload(offset: int, limit: int, search: str, status: str = ""):
+def get_orders_payload(offset: int, limit: int, search: str, status: str = "", date_from: str = "", date_to: str = ""):
     started = time.time()
-    cache_key = f"{search.strip().lower()}|{status.strip()}|{int(offset)}|{int(limit)}"
+    cache_key = f"{search.strip().lower()}|{status.strip()}|{date_from.strip()}|{date_to.strip()}|{int(offset)}|{int(limit)}"
     cached_entry = legacy._ORDERS_CACHE.get(cache_key)
     if cached_entry:
         cached_at = float(cached_entry.get("ts") or 0.0)
         if (time.time() - cached_at) <= legacy.ORDERS_CACHE_TTL_SEC:
             return cached_entry["payload"]
-    orders, total_count = transaction_core._load_orders(offset=int(offset), limit=int(limit), search=search, status=status)
+    orders, total_count = transaction_core._load_orders(offset=int(offset), limit=int(limit), search=search, status=status, date_from=date_from, date_to=date_to)
     payload = {"count": int(total_count), "orders": orders, "offset": int(offset), "limit": int(limit)}
     legacy._ORDERS_CACHE[cache_key] = {"ts": time.time(), "payload": payload}
     legacy.logger.info("Loaded /api/orders in %.2fs", time.time() - started)

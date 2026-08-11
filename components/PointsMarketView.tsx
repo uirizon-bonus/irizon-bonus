@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, Clock3, Filter, Plus, RefreshCw, Search, XCircle } from 'lucide-react';
 import { Customer, Language } from '../types';
 import LoadingGlass from './LoadingGlass';
+import DateRangeFilter from './DateRangeFilter';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000';
 const PAGE_SIZE = 50;
@@ -142,6 +143,8 @@ const PointsMarketView: React.FC<{ lang: Language }> = () => {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
   const [page, setPage] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -180,6 +183,8 @@ const PointsMarketView: React.FC<{ lang: Language }> = () => {
         status: statusFilter,
         order_type: typeFilter,
       });
+      if (dateFrom) params.set('date_from', dateFrom);
+      if (dateTo) params.set('date_to', dateTo);
       const [ordersRes, statsRes] = await Promise.all([
         fetch(`${API_BASE_URL}/api/market/orders?${params.toString()}`),
         fetch(`${API_BASE_URL}/api/market/stats`),
@@ -212,11 +217,11 @@ const PointsMarketView: React.FC<{ lang: Language }> = () => {
 
   useEffect(() => {
     void loadData(false);
-  }, [page, search, statusFilter, typeFilter]);
+  }, [page, search, statusFilter, typeFilter, dateFrom, dateTo]);
 
   useEffect(() => {
     setPage(0);
-  }, [search, statusFilter, typeFilter]);
+  }, [search, statusFilter, typeFilter, dateFrom, dateTo]);
 
   const totalPages = useMemo(() => Math.max(1, Math.ceil(totalCount / PAGE_SIZE)), [totalCount]);
 
@@ -423,6 +428,7 @@ const PointsMarketView: React.FC<{ lang: Language }> = () => {
             <option value="sell">{t.sell}</option>
           </select>
         </div>
+        <DateRangeFilter from={dateFrom} to={dateTo} onChange={(from, to) => { setDateFrom(from); setDateTo(to); }} className="w-full lg:w-auto" />
       </div>
 
       <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">

@@ -14,6 +14,7 @@ import { TRANSLATIONS } from '../constants';
 import { Language, Order } from '../types';
 import { API_CACHE_KEYS, clearApiCache } from '../utils/apiCache';
 import CreateOrderWorkflow from './CreateOrderWorkflow';
+import DateRangeFilter from './DateRangeFilter';
 import LoadingGlass from './LoadingGlass';
 
 interface OrdersViewProps {
@@ -45,6 +46,8 @@ const OrdersView: React.FC<OrdersViewProps> = ({ lang, initialSelectedId }) => {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'Confirmed' | 'Reversed'>('all');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
   const [page, setPage] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
   const [isCreating, setIsCreating] = useState(false);
@@ -70,6 +73,8 @@ const OrdersView: React.FC<OrdersViewProps> = ({ lang, initialSelectedId }) => {
         if (statusFilter !== 'all') {
           params.set('status', statusFilter);
         }
+        if (dateFrom) params.set('date_from', dateFrom);
+        if (dateTo) params.set('date_to', dateTo);
         const response = await fetch(`${API_BASE_URL}/api/orders?${params.toString()}`);
         const payload = await response.json() as OrdersApiResponse | { error?: string };
         if (!response.ok) {
@@ -102,11 +107,11 @@ const OrdersView: React.FC<OrdersViewProps> = ({ lang, initialSelectedId }) => {
     return () => {
       isCancelled = true;
     };
-  }, [initialSelectedId, page, search, statusFilter]);
+  }, [initialSelectedId, page, search, statusFilter, dateFrom, dateTo]);
 
   useEffect(() => {
     setPage(0);
-  }, [search, statusFilter]);
+  }, [search, statusFilter, dateFrom, dateTo]);
 
   const handleStatusChange = async () => {
     if (!pendingStatus) {
@@ -209,6 +214,7 @@ const OrdersView: React.FC<OrdersViewProps> = ({ lang, initialSelectedId }) => {
             </select>
           </div>
         </div>
+        <DateRangeFilter from={dateFrom} to={dateTo} onChange={(from, to) => { setDateFrom(from); setDateTo(to); }} className="w-full md:w-auto" />
       </div>
 
       <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden flex-1">

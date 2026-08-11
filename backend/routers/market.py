@@ -15,8 +15,10 @@ def get_market_orders(
     search: str = Query(""),
     status: str = Query("all"),
     order_type: str = Query("all"),
+    date_from: str = Query(""),
+    date_to: str = Query(""),
 ):
-    return market_service.get_market_orders_payload(offset, limit, search, status, order_type)
+    return market_service.get_market_orders_payload(offset, limit, search, status, order_type, date_from, date_to)
 
 
 @router.get("/api/market/stats", dependencies=[Depends(deps.require_admin)])

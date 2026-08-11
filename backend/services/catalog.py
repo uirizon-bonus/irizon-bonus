@@ -24,22 +24,26 @@ def get_product_qr_payload(product_id: str):
     }
 
 
-def get_product_qr_codes_payload(product_id: str, offset: int, limit: int, state: str, search: str):
+def get_product_qr_codes_payload(product_id: str, offset: int, limit: int, state: str, search: str, date_from: str = "", date_to: str = ""):
     return legacy._load_product_qr_codes(
         str(product_id),
         offset=int(offset),
         limit=int(limit),
         state=state,
         search=search,
+        date_from=date_from,
+        date_to=date_to,
     )
 
 
-def get_all_qr_codes_payload(offset: int, limit: int, state: str, search: str):
+def get_all_qr_codes_payload(offset: int, limit: int, state: str, search: str, date_from: str = "", date_to: str = ""):
     return legacy._load_all_qr_codes(
         offset=int(offset),
         limit=int(limit),
         state=state,
         search=search,
+        date_from=date_from,
+        date_to=date_to,
     )
 
 

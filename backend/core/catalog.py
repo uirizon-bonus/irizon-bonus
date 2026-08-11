@@ -307,6 +307,8 @@ def _load_product_qr_codes(
     limit: int = 200,
     state: str = "all",
     search: str = "",
+    date_from: str = "",
+    date_to: str = "",
 ) -> Dict[str, Any]:
     normalized_product_id = str(product_id or "").strip().lower()
     if not normalized_product_id or normalized_product_id == "all":
@@ -326,6 +328,12 @@ def _load_product_qr_codes(
         where_sql += " AND (LOWER(qr_code) LIKE ? OR LOWER(used_by_client_id) LIKE ?)"
         needle = f"%{search.strip().lower()}%"
         params.extend([needle, needle])
+    if str(date_from or "").strip():
+        where_sql += " AND SUBSTR(created_at, 1, 10) >= ?"
+        params.append(str(date_from).strip())
+    if str(date_to or "").strip():
+        where_sql += " AND SUBSTR(created_at, 1, 10) <= ?"
+        params.append(str(date_to).strip())
 
     connection = bonus_db()
     try:
@@ -384,6 +392,8 @@ def _load_all_qr_codes(
     limit: int = 200,
     state: str = "all",
     search: str = "",
+    date_from: str = "",
+    date_to: str = "",
 ) -> Dict[str, Any]:
     return _load_product_qr_codes(
         "all",
@@ -391,6 +401,8 @@ def _load_all_qr_codes(
         limit=limit,
         state=state,
         search=search,
+        date_from=date_from,
+        date_to=date_to,
     )
 
 

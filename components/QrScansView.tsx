@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { QrCode, RefreshCw, Search } from 'lucide-react';
 import { Language, QrScanEvent } from '../types';
 import LoadingGlass from './LoadingGlass';
+import DateRangeFilter from './DateRangeFilter';
 
 interface QrScansViewProps {
   lang: Language;
@@ -62,6 +63,8 @@ const QrScansView: React.FC<QrScansViewProps> = () => {
   const [search, setSearch] = useState('');
   const [customerId, setCustomerId] = useState('');
   const [productId, setProductId] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
 
   const loadEvents = async (nextOffset: number) => {
     setLoading(true);
@@ -74,6 +77,8 @@ const QrScansView: React.FC<QrScansViewProps> = () => {
       if (search.trim()) params.set('search', search.trim());
       if (customerId.trim()) params.set('customer_id', customerId.trim());
       if (productId.trim()) params.set('product_id', productId.trim());
+      if (dateFrom) params.set('date_from', dateFrom);
+      if (dateTo) params.set('date_to', dateTo);
 
       const response = await fetch(`${API_BASE_URL}/api/qr-scans?${params.toString()}`);
       const payload = await response.json() as QrScansApiResponse | { error?: string };
@@ -93,7 +98,8 @@ const QrScansView: React.FC<QrScansViewProps> = () => {
 
   useEffect(() => {
     void loadEvents(0);
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dateFrom, dateTo]);
 
   const pageStart = count === 0 ? 0 : offset + 1;
   const pageEnd = Math.min(offset + events.length, count);
@@ -147,12 +153,17 @@ const QrScansView: React.FC<QrScansViewProps> = () => {
             setSearch('');
             setCustomerId('');
             setProductId('');
+            setDateFrom('');
+            setDateTo('');
             void loadEvents(0);
           }}
           className="px-4 py-2 text-sm font-semibold text-slate-700 bg-slate-100 rounded-xl hover:bg-slate-200 transition-all"
         >
           {copy.reset}
         </button>
+        <div className="md:col-span-4">
+          <DateRangeFilter from={dateFrom} to={dateTo} onChange={(from, to) => { setDateFrom(from); setDateTo(to); }} />
+        </div>
       </div>
 
       {error && (

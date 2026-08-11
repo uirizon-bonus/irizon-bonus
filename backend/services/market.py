@@ -7,13 +7,15 @@ from backend.db import bonus_db
 from backend.models.schemas import MarketOrderCreatePayload, MarketOrderStatusPayload
 
 
-def get_market_orders_payload(offset: int, limit: int, search: str, status: str, order_type: str):
+def get_market_orders_payload(offset: int, limit: int, search: str, status: str, order_type: str, date_from: str = "", date_to: str = ""):
     orders, total_count = transaction_core._load_market_orders(
         offset=int(offset),
         limit=int(limit),
         search=search,
         status=status,
         order_type=order_type,
+        date_from=date_from,
+        date_to=date_to,
     )
     return {"count": int(total_count), "orders": orders, "offset": int(offset), "limit": int(limit)}
 

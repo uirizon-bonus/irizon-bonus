@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Download, QrCode, RefreshCw, RotateCcw, Search, ShieldBan, X } from 'lucide-react';
 import { QRCodeCanvas } from 'qrcode.react';
 import LoadingGlass from './LoadingGlass';
+import DateRangeFilter from './DateRangeFilter';
 import { Language, Product, ProductQrCode } from '../types';
 
 interface QrManageViewProps {
@@ -105,6 +106,8 @@ const QrManageView: React.FC<QrManageViewProps> = ({ lang }) => {
   const [selectedProductId, setSelectedProductId] = useState('all');
   const [stateFilter, setStateFilter] = useState<'all' | 'unused' | 'used' | 'revoked'>('all');
   const [search, setSearch] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
   const [offset, setOffset] = useState(0);
   const [count, setCount] = useState(0);
   const [codes, setCodes] = useState<ProductQrCode[]>([]);
@@ -154,6 +157,8 @@ const QrManageView: React.FC<QrManageViewProps> = ({ lang }) => {
         state: stateFilter,
       });
       if (search.trim()) params.set('search', search.trim());
+      if (dateFrom) params.set('date_from', dateFrom);
+      if (dateTo) params.set('date_to', dateTo);
 
       const codesUrl = selectedProductId === 'all'
         ? `${API_BASE_URL}/api/qr-codes?${params.toString()}`
@@ -196,7 +201,7 @@ const QrManageView: React.FC<QrManageViewProps> = ({ lang }) => {
     if (selectedProductId) {
       void loadCodes(0);
     }
-  }, [selectedProductId, stateFilter]);
+  }, [selectedProductId, stateFilter, dateFrom, dateTo]);
 
   const runGenerate = async () => {
     if (!selectedProductId || selectedProductId === 'all') return;
@@ -502,6 +507,9 @@ const QrManageView: React.FC<QrManageViewProps> = ({ lang }) => {
           <button onClick={() => void runGenerate()} disabled={busy || !selectedProductId || selectedProductId === 'all'} className="rounded-xl bg-cyan-600 text-white px-4 py-2 text-sm font-semibold disabled:opacity-50">{copy.generate}</button>
         </div>
         <button onClick={() => void loadCodes(0)} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700">{copy.refresh}</button>
+        <div className="md:col-span-5">
+          <DateRangeFilter from={dateFrom} to={dateTo} onChange={(from, to) => { setDateFrom(from); setDateTo(to); }} />
+        </div>
       </div>
 
       <div className="rounded-2xl border border-slate-100 bg-white p-4 flex flex-wrap gap-2">

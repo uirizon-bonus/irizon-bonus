@@ -25,8 +25,10 @@ def get_product_qr_codes(
     limit: int = Query(200, ge=1, le=5000),
     state: str = Query("all", description="all|unused|used|revoked"),
     search: str = Query("", description="Search by QR value or used client ID"),
+    date_from: str = Query("", description="Filter created date >= YYYY-MM-DD"),
+    date_to: str = Query("", description="Filter created date <= YYYY-MM-DD"),
 ):
-    return catalog_service.get_product_qr_codes_payload(product_id, offset, limit, state, search)
+    return catalog_service.get_product_qr_codes_payload(product_id, offset, limit, state, search, date_from, date_to)
 
 
 @router.get("/api/qr-codes", dependencies=[Depends(deps.require_admin)])
@@ -35,8 +37,10 @@ def get_all_qr_codes(
     limit: int = Query(200, ge=1, le=5000),
     state: str = Query("all", description="all|unused|used|revoked"),
     search: str = Query("", description="Search by QR value or used client ID"),
+    date_from: str = Query("", description="Filter created date >= YYYY-MM-DD"),
+    date_to: str = Query("", description="Filter created date <= YYYY-MM-DD"),
 ):
-    return catalog_service.get_all_qr_codes_payload(offset, limit, state, search)
+    return catalog_service.get_all_qr_codes_payload(offset, limit, state, search, date_from, date_to)
 
 
 @router.post("/api/products/{product_id}/qr-codes/generate", dependencies=[Depends(deps.require_admin)])

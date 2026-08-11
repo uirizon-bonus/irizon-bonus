@@ -31,6 +31,7 @@ import { TRANSLATIONS } from '../constants';
 import { RedemptionRequest, RequestStatus, Customer, Gift, Language } from '../types';
 import { API_CACHE_KEYS, API_CACHE_TTLS, clearApiCache, readApiCache, writeApiCache } from '../utils/apiCache';
 import LoadingGlass from './LoadingGlass';
+import DateRangeFilter from './DateRangeFilter';
 
 interface NewRequestModalProps {
   onClose: () => void;
@@ -385,6 +386,8 @@ const RequestsView: React.FC<RequestsViewProps> = ({ lang, initialSelectedId }) 
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
   const [activeTab, setActiveTab] = useState<RequestStatus | 'All'>('All');
   const [expandedRowId, setExpandedRowId] = useState<string | null>(initialSelectedId || null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -511,16 +514,19 @@ const RequestsView: React.FC<RequestsViewProps> = ({ lang, initialSelectedId }) 
   
   const filteredRequests = useMemo(() => {
     return requests.filter(req => {
-      const matchesSearch = 
-        req.customerName.toLowerCase().includes(searchQuery.toLowerCase()) || 
+      const matchesSearch =
+        req.customerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
         req.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
         req.giftName.toLowerCase().includes(searchQuery.toLowerCase());
-      
+
       const matchesTab = activeTab === 'All' || req.status === activeTab;
-      
-      return matchesSearch && matchesTab;
+
+      const day = (req.date || '').slice(0, 10);
+      const matchesDate = (!dateFrom || day >= dateFrom) && (!dateTo || day <= dateTo);
+
+      return matchesSearch && matchesTab && matchesDate;
     });
-  }, [requests, searchQuery, activeTab]);
+  }, [requests, searchQuery, activeTab, dateFrom, dateTo]);
 
   const toggleRow = (id: string) => {
     setExpandedRowId(expandedRowId === id ? null : id);
@@ -700,6 +706,7 @@ const RequestsView: React.FC<RequestsViewProps> = ({ lang, initialSelectedId }) 
               </button>
             ))}
           </div>
+          <DateRangeFilter from={dateFrom} to={dateTo} onChange={(from, to) => { setDateFrom(from); setDateTo(to); }} className="w-full md:w-auto" />
         </div>
 
         {selectedIds.length > 0 && (

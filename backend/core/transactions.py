@@ -97,6 +97,8 @@ def _load_qr_scan_events(
     customer_id: str = "",
     product_id: str = "",
     search: str = "",
+    date_from: str = "",
+    date_to: str = "",
 ) -> Dict[str, Any]:
     where_clauses: List[str] = []
     params: List[Any] = []
@@ -113,6 +115,12 @@ def _load_qr_scan_events(
             "(LOWER(client_id) LIKE ? OR LOWER(client_name) LIKE ? OR LOWER(product_id) LIKE ? OR LOWER(product_name) LIKE ?)"
         )
         params.extend([needle, needle, needle, needle])
+    if str(date_from or "").strip():
+        where_clauses.append("SUBSTR(created_at, 1, 10) >= ?")
+        params.append(str(date_from).strip())
+    if str(date_to or "").strip():
+        where_clauses.append("SUBSTR(created_at, 1, 10) <= ?")
+        params.append(str(date_to).strip())
 
     where_sql = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
     connection = bonus_db()
@@ -402,7 +410,7 @@ def _update_requests_status_bulk(payload: RedemptionRequestBulkStatusPayload) ->
     return [rows_by_id[request_id] for request_id in updated_ids if request_id in rows_by_id]
 
 
-def _load_orders(*, offset: int = 0, limit: int = 100, search: str = "", status: str = "") -> Tuple[List[Dict[str, Any]], int]:
+def _load_orders(*, offset: int = 0, limit: int = 100, search: str = "", status: str = "", date_from: str = "", date_to: str = "") -> Tuple[List[Dict[str, Any]], int]:
     connection = bonus_db()
     try:
         order_params: List[Any] = []
@@ -476,6 +484,13 @@ def _load_orders(*, offset: int = 0, limit: int = 100, search: str = "", status:
         status_filter = str(status or "").strip()
         if status_filter:
             combined_rows = [entry for entry in combined_rows if entry["status"] == status_filter]
+
+        from_day = str(date_from or "").strip()
+        to_day = str(date_to or "").strip()
+        if from_day:
+            combined_rows = [entry for entry in combined_rows if entry["created_at"][:10] >= from_day]
+        if to_day:
+            combined_rows = [entry for entry in combined_rows if entry["created_at"][:10] <= to_day]
 
         total_count = len(combined_rows)
         combined_rows.sort(key=lambda entry: (entry["created_at"], entry["sort_id"]), reverse=True)
@@ -982,6 +997,8 @@ def _load_market_orders(
     search: str = "",
     status: str = "all",
     order_type: str = "all",
+    date_from: str = "",
+    date_to: str = "",
 ) -> Tuple[List[Dict[str, Any]], int]:
     connection = bonus_db()
     try:
@@ -1004,6 +1021,15 @@ def _load_market_orders(
         if normalized_type and normalized_type != "all":
             clauses.append("LOWER(type) = ?")
             params.append(normalized_type)
+
+        from_day = str(date_from or "").strip()
+        to_day = str(date_to or "").strip()
+        if from_day:
+            clauses.append("SUBSTR(created_at, 1, 10) >= ?")
+            params.append(from_day)
+        if to_day:
+            clauses.append("SUBSTR(created_at, 1, 10) <= ?")
+            params.append(to_day)
 
         where_sql = f"WHERE {' AND '.join(clauses)}" if clauses else ""
         count_row = connection.execute(

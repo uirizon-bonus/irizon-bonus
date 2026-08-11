@@ -14,5 +14,7 @@ def get_qr_scans(
     customer_id: str = Query("", description="Filter by customer ID"),
     product_id: str = Query("", description="Filter by product ID"),
     search: str = Query("", description="Search by customer or product"),
+    date_from: str = Query("", description="Filter scan date >= YYYY-MM-DD"),
+    date_to: str = Query("", description="Filter scan date <= YYYY-MM-DD"),
 ):
-    return qr_scans_service.get_qr_scans_payload(offset, limit, customer_id, product_id, search)
+    return qr_scans_service.get_qr_scans_payload(offset, limit, customer_id, product_id, search, date_from, date_to)
