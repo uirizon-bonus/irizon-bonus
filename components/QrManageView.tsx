@@ -125,9 +125,12 @@ const QrManageView: React.FC<QrManageViewProps> = ({ lang }) => {
   const [revokeConfirmOpen, setRevokeConfirmOpen] = useState(false);
   const [qrPreview, setQrPreview] = useState<ProductQrCode | null>(null);
   const qrCanvasRef = useRef<HTMLCanvasElement>(null);
+  // Off-screen high-resolution copy: the visible preview is only 220px, which is
+  // too coarse to print. Downloads come from this one instead.
+  const qrPrintCanvasRef = useRef<HTMLCanvasElement>(null);
 
   const downloadQrPng = () => {
-    const canvas = qrCanvasRef.current;
+    const canvas = qrPrintCanvasRef.current ?? qrCanvasRef.current;
     if (!canvas || !qrPreview) return;
     const link = document.createElement('a');
     link.href = canvas.toDataURL('image/png');
@@ -718,6 +721,17 @@ const QrManageView: React.FC<QrManageViewProps> = ({ lang }) => {
                   marginSize={2}
                   fgColor="#0F4C81"
                   bgColor="#ffffff"
+                />
+                {/* Hidden print-resolution copy used by the PNG download. */}
+                <QRCodeCanvas
+                  ref={qrPrintCanvasRef}
+                  value={qrPreview.qrCode}
+                  size={1000}
+                  level="H"
+                  marginSize={2}
+                  fgColor="#0F4C81"
+                  bgColor="#ffffff"
+                  style={{ display: 'none' }}
                 />
               </div>
               <span

@@ -5,10 +5,8 @@ import math
 import secrets
 import zipfile
 from typing import Any, Dict, List, Optional
-from urllib.parse import quote
-
 import pandas as pd
-import requests
+import segno
 
 from backend.config import (
     DEFAULT_BEGIN_DATE,
@@ -726,6 +724,32 @@ def _apply_qr_scan(client_id: str, payload: QrScanPayload) -> Dict[str, Any]:
     }
 
 
+QR_PNG_DARK = "#0F4C81"
+QR_PNG_LIGHT = "#ffffff"
+QR_PNG_BORDER = 4
+
+
+def _render_qr_png(value: str, *, size: int = 600) -> bytes:
+    """Render a QR code PNG locally (segno) — no external service.
+
+    `size` is the desired pixel width; the module scale is derived from it, so
+    the real output lands on the nearest whole-module multiple.
+    """
+    qr = segno.make(str(value or ""), error="h")
+    modules = qr.symbol_size(scale=1, border=QR_PNG_BORDER)[0]
+    scale = max(1, round(int(size) / modules))
+    buffer = io.BytesIO()
+    qr.save(
+        buffer,
+        kind="png",
+        scale=scale,
+        border=QR_PNG_BORDER,
+        dark=QR_PNG_DARK,
+        light=QR_PNG_LIGHT,
+    )
+    return buffer.getvalue()
+
+
 def _export_product_qr_zip(*, size: int = 600) -> bytes:
     products = _load_products()
     image_size = max(200, min(int(size), 2000))
@@ -744,13 +768,7 @@ def _export_product_qr_zip(*, size: int = 600) -> bytes:
 
             status = "ok"
             try:
-                image_url = (
-                    f"https://api.qrserver.com/v1/create-qr-code/?size={image_size}x{image_size}"
-                    f"&data={quote(qr_value, safe='')}"
-                )
-                response = requests.get(image_url, timeout=20)
-                response.raise_for_status()
-                archive.writestr(file_name, response.content)
+                archive.writestr(file_name, _render_qr_png(qr_value, size=image_size))
             except Exception as exc:
                 status = f"error:{str(exc).replace(',', ';')}"
                 archive.writestr(
@@ -944,13 +962,7 @@ def _export_product_saved_qr_zip(
             qr_value = str(row["qrCode"])
             file_name = f"{safe_product_id}_{int(row['id'])}.png"
             try:
-                image_url = (
-                    f"https://api.qrserver.com/v1/create-qr-code/?size={image_size}x{image_size}"
-                    f"&data={quote(qr_value, safe='')}"
-                )
-                response = requests.get(image_url, timeout=20)
-                response.raise_for_status()
-                archive.writestr(file_name, response.content)
+                archive.writestr(file_name, _render_qr_png(qr_value, size=image_size))
             except Exception as exc:
                 archive.writestr(f"{safe_product_id}_{int(row['id'])}.txt", f"QR image build failed\n{str(exc)}\n")
 
@@ -979,13 +991,7 @@ def _export_all_saved_qr_zip(
             safe_product_id = _slugify_catalog_text(row["productId"]) or "product"
             file_name = f"{safe_product_id}_{int(row['id'])}.png"
             try:
-                image_url = (
-                    f"https://api.qrserver.com/v1/create-qr-code/?size={image_size}x{image_size}"
-                    f"&data={quote(str(row['qrCode']), safe='')}"
-                )
-                response = requests.get(image_url, timeout=20)
-                response.raise_for_status()
-                archive.writestr(file_name, response.content)
+                archive.writestr(file_name, _render_qr_png(str(row["qrCode"]), size=image_size))
             except Exception as exc:
                 archive.writestr(f"{safe_product_id}_{int(row['id'])}.txt", f"QR image build failed\n{str(exc)}\n")
 

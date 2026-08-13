@@ -7,3 +7,4 @@ python-dotenv
 pyarrow
 psycopg[binary]
 firebase-admin
+segno
