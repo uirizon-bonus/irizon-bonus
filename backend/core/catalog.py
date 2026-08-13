@@ -11,7 +11,6 @@ import segno
 from backend.config import (
     DEFAULT_BEGIN_DATE,
     GIFTS_XLSX_PATH,
-    ITEM_QR_CODE_PREFIX,
     PRODUCTS_XLSX_PATH,
     QR_CODE_PREFIX,
     QR_CODE_SECRET,
@@ -294,8 +293,19 @@ def _parse_product_qr_code(qr_code: str) -> Optional[str]:
 
 
 def _build_item_qr_code() -> str:
-    token = secrets.token_urlsafe(18)
-    return f"{ITEM_QR_CODE_PREFIX}:{token}"
+    """A one-time QR value: just the random token, no prefix.
+
+    Scanning is an exact lookup against product_qr_codes.qr_code, so the old
+    "IRIZON-ITEM:" prefix was decorative — it was never parsed. Dropping it
+    shortens the payload 36 -> 24 chars, which takes the symbol from QR
+    version 5 (37x37 modules) down to version 3 (29x29), i.e. ~21% larger
+    modules at the same printed size and therefore easier scanning.
+    Previously-issued prefixed codes keep working unchanged.
+
+    NOTE: 24 chars is exactly the version-3 capacity at error level H. Making
+    the token longer pushes the symbol back up to version 4.
+    """
+    return secrets.token_urlsafe(18)
 
 
 def _load_product_qr_codes(
