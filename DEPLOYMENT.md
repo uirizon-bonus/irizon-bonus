@@ -170,7 +170,9 @@ nginx proxies `api.irizon.uz` → `http://127.0.0.1:8006`
 ## 6. Environment / secrets (`.env`)
 
 - Lives at `<service-dir>/.env`, loaded by systemd via `EnvironmentFile=`.
-- `DATABASE_URL` = Supabase Postgres → the app uses Postgres (no local SQLite in prod).
+- `DATABASE_URL` = **local PostgreSQL 14 on this same VPS** (`postgresql://…@localhost:5432/irizon_bonus`)
+  → the app uses Postgres (no local SQLite in prod). Postgres binds `127.0.0.1` only, so it is
+  not reachable from the internet. (It is **not** hosted/managed — see backups below.)
 - Key vars: `DATABASE_URL`, `ADMIN_API_KEY`, `OTP_PROVIDER` (`eskiz`|`mock`),
   `ESKIZ_SMS_TOKEN`, `ESKIZ_SMS_FROM`, `OTP_SIGNING_SECRET`, `SMARTUP_LOGIN/PASSWORD`,
   `FIREBASE_SERVICE_ACCOUNT`, `CORS_ALLOW_ORIGINS`.
@@ -180,7 +182,41 @@ nginx proxies `api.irizon.uz` → `http://127.0.0.1:8006`
 
 ---
 
-## 7. Mobile app / admin panel builds (from the same repo)
+## 7. Database backups
+
+The database is **self-hosted on this VPS**, so backups are our responsibility.
+
+> ⚠️ **`cron` is NOT installed on this server.** Scheduling uses **systemd timers**.
+> A crontab entry here silently never runs — this is why no backups existed before 2026-08-13.
+
+| | |
+|---|---|
+| Script | `/usr/local/bin/irizon-db-backup.sh` (reads `DATABASE_URL` from the app `.env`) |
+| Output | `/var/backups/irizon/irizon_bonus_<YYYY-MM-DD_HHMM>.sql.gz` (~108 KB, mode 600) |
+| Schedule | `irizon-db-backup.timer` → daily **03:00**, `Persistent=true` (catches up after downtime) |
+| Retention | 14 days (older dumps auto-deleted) |
+| Log | `/var/log/irizon-db-backup.log` |
+
+```bash
+# check schedule / last run
+systemctl list-timers irizon-db-backup.timer --no-pager
+tail -5 /var/log/irizon-db-backup.log
+
+# run a backup right now
+systemctl start irizon-db-backup.service
+
+# RESTORE (into a scratch DB first — never straight over production)
+sudo -u postgres psql -c "CREATE DATABASE restore_check"
+zcat /var/backups/irizon/irizon_bonus_<STAMP>.sql.gz | sudo -u postgres psql restore_check
+```
+
+**Still missing: off-site copies.** These dumps live on the same disk as the database, so they
+protect against corruption / bad migrations / accidental deletes, but **not** against losing the
+VPS itself. Copying dumps to another host or object storage is the remaining gap.
+
+---
+
+## 8. Mobile app / admin panel builds (from the same repo)
 
 - **Admin panel** (root of repo): deployed on **Vercel**, which auto-builds (`npm run build` → `dist/`) on every push to `main` of `abdukarimmirzayev48-cmyk/irizon-bonus-v0.1`. Env vars (e.g. `VITE_API_BASE_URL=https://api.irizon.uz`) live in the Vercel project settings, not the repo. No manual build/upload needed.
 - **Mobile app** (`mobile-app/`): `npm run build && npx cap sync android|ios`, then build
