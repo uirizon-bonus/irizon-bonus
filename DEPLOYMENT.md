@@ -41,11 +41,11 @@ If Python deps changed, also run `venv/bin/python -m pip install -r requirements
 | systemd service | Domain | Port | Directory | ASGI app | GitHub repo | User |
 |---|---|---|---|---|---|---|
 | **`irizon-bonus-api`** | **api.irizon.uz** | 8006 | `/opt/irizon-backend/irizon-bonus-v0.1` | `clients_api:app` | **`uirizon-bonus/irizon-bonus`** | root |
-| `irizon-bonus-api2` | *(internal)* | 8007 | `/opt/irizon-backend/irizon-bonus-v0.1` | `app:app` | `abdukarimmirzayev48-cmyk/irizon-bonus-v0.1` | root |
+| `irizon-bonus-api2` | *(internal)* | 8007 | `/opt/irizon-backend/irizon-bonus-v0.1` | `app:app` | `uirizon-bonus/irizon-bonus` | root |
 | `irizon-api` | abc.irizon.uz + catch‑all | 8080 | `/var/www/irizon-abc-github/irizon-abc-github` | `app:app` | `abdukarimmirzayev48-cmyk/irizon-abc-github` | root |
 | `irizon-backend` | api.megalmaz.uz | 8000 | `/var/www/irizon-bonus` | `clients_api:app` | `abdukarimmirzayev48-cmyk/irizon-bonus` | www-data |
 
-**Your mobile app + admin backend = `irizon-bonus-api` (api.irizon.uz, :8006), from `abdukarimmirzayev48-cmyk/irizon-bonus-v0.1`.**
+**Your mobile app + admin backend = `irizon-bonus-api` (api.irizon.uz, :8006), pulled from the public `uirizon-bonus/irizon-bonus`.**
 `irizon-bonus-api2` (:8007) shares the **same folder** but runs the legacy standalone `app:app`, so
 updating that folder affects **both** services — restart both after a deploy.
 
@@ -60,7 +60,8 @@ updating that folder affects **both** services — restart both after a deploy.
 
 ## 2. Update `api.irizon.uz` from GitHub (the common task)
 
-Repo: `abdukarimmirzayev48-cmyk/irizon-bonus-v0.1` → dir `/opt/irizon-backend/irizon-bonus-v0.1`.
+Repo (public — the VPS can only read a public repo): `uirizon-bonus/irizon-bonus`
+→ dir `/opt/irizon-backend/irizon-bonus-v0.1`.
 
 ```bash
 cd /opt/irizon-backend/irizon-bonus-v0.1
@@ -71,7 +72,7 @@ git fetch origin main
 git reset --hard origin/main
 
 # install any new Python deps (no-op if unchanged)
-./venv/bin/pip install -r requirements.txt
+venv/bin/python -m pip install -r requirements.txt   # NOT ./venv/bin/pip (not executable here)
 
 # restart BOTH services that use this folder
 systemctl restart irizon-bonus-api irizon-bonus-api2
@@ -137,7 +138,7 @@ When a deploy is confirmed healthy, delete old backups to reclaim space:
 
 ```bash
 cd /opt/irizon-backend
-git clone https://github.com/abdukarimmirzayev48-cmyk/irizon-bonus-v0.1.git irizon-bonus-v0.1
+git clone https://github.com/uirizon-bonus/irizon-bonus.git irizon-bonus-v0.1
 cd irizon-bonus-v0.1
 
 # create the two secret files (NOT in git):
@@ -148,7 +149,7 @@ nano firebase-service-account.json     # paste the service-account JSON
 
 # python env
 python3 -m venv venv
-./venv/bin/pip install -r requirements.txt
+venv/bin/python -m pip install -r requirements.txt   # NOT ./venv/bin/pip (not executable here)
 
 # systemd unit (example for the main API on :8006)
 cat >/etc/systemd/system/irizon-bonus-api.service <<'UNIT'
