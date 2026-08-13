@@ -7,22 +7,32 @@ Node dashboard runs under **pm2**.
 > ⚠️ Secrets (`.env`, `firebase-service-account.json`) and the virtualenv (`venv/`)
 > are **not** in git. They live only on the server and must be preserved across updates.
 
-## 0. Single-repo deploy model (READ FIRST)
+## 0. Deploy model (READ FIRST)
 
-One repo feeds **both** halves of production:
+Both repos hold **identical content** (the same branch is pushed to both). They differ only in
+who reads them:
 
-- **Canonical repo: `abdukarimmirzayev48-cmyk/irizon-bonus-v0.1`** (branch `main`).
-  - **Admin panel (frontend)** → hosted on **Vercel**, which **auto-deploys** on every push to this repo's `main`. Calls the backend at `https://api.irizon.uz`; login via `POST /api/admin/login`.
-  - **Backend API** → the **VPS** pulls this same repo (`/opt/irizon-backend/irizon-bonus-v0.1`).
-- `uirizon-bonus/irizon-bonus` is kept only as a **backup mirror** (not used by Vercel or the VPS).
+| Repo | Visibility | Read by |
+|---|---|---|
+| `abdukarimmirzayev48-cmyk/irizon-bonus-v0.1` | **private** | **Vercel** — admin panel, auto-deploys on push to `main` |
+| `uirizon-bonus/irizon-bonus` | **public** | **The VPS** — backend `git pull` |
 
-**Deploy = one push, then pull the backend if backend changed:**
+> ⚠️ **Why two?** The VPS pulls over HTTPS with **no stored credentials**, so it can only read a
+> **public** repo. Pointing it at the private `-v0.1` fails with
+> `fatal: could not read Username for 'https://github.com'`. To collapse to a single repo, add a
+> **deploy key** (or token) to the VPS for the private repo — until then, keep both in sync.
+
+**Deploy — push both remotes (same branch, no cherry-picking):**
 ```bash
-git push origin main            # origin = irizon-bonus-v0.1  →  Vercel auto-builds the panel
+git push origin clean-main:main    # -v0.1 (private)  → Vercel auto-builds the panel
+git push github clean-main:main    # uirizon (public) → what the VPS pulls
+
 # then, only if backend code changed:
 ssh root@185.217.131.71 'cd /opt/irizon-backend/irizon-bonus-v0.1 && git pull && systemctl restart irizon-bonus-api'
 ```
 Frontend-only changes need no VPS step — Vercel handles them.
+If Python deps changed, also run `venv/bin/python -m pip install -r requirements.txt` on the VPS
+(note: `venv/bin/pip` is **not executable** on this host — always use `python -m pip`).
 
 ---
 
@@ -30,7 +40,7 @@ Frontend-only changes need no VPS step — Vercel handles them.
 
 | systemd service | Domain | Port | Directory | ASGI app | GitHub repo | User |
 |---|---|---|---|---|---|---|
-| **`irizon-bonus-api`** | **api.irizon.uz** | 8006 | `/opt/irizon-backend/irizon-bonus-v0.1` | `clients_api:app` | **`abdukarimmirzayev48-cmyk/irizon-bonus-v0.1`** | root |
+| **`irizon-bonus-api`** | **api.irizon.uz** | 8006 | `/opt/irizon-backend/irizon-bonus-v0.1` | `clients_api:app` | **`uirizon-bonus/irizon-bonus`** | root |
 | `irizon-bonus-api2` | *(internal)* | 8007 | `/opt/irizon-backend/irizon-bonus-v0.1` | `app:app` | `abdukarimmirzayev48-cmyk/irizon-bonus-v0.1` | root |
 | `irizon-api` | abc.irizon.uz + catch‑all | 8080 | `/var/www/irizon-abc-github/irizon-abc-github` | `app:app` | `abdukarimmirzayev48-cmyk/irizon-abc-github` | root |
 | `irizon-backend` | api.megalmaz.uz | 8000 | `/var/www/irizon-bonus` | `clients_api:app` | `abdukarimmirzayev48-cmyk/irizon-bonus` | www-data |
