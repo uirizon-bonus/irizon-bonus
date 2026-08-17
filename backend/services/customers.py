@@ -7,6 +7,7 @@ from backend import legacy
 from backend.core import dashboard as dashboard_core
 from backend.core import customers as customer_core
 from backend.core import points as points_core
+from backend.core.catalog import QrScanError
 from backend.db import bonus_db
 from backend.models.schemas import BonusCreatePayload, CustomerUpsertPayload, DeviceTokenPayload, QrScanPayload
 
@@ -161,7 +162,7 @@ def create_customer_qr_points_payload(client_id: str, payload: QrScanPayload, cu
         raise HTTPException(status_code=403, detail="Access denied")
     try:
         result = legacy._apply_qr_scan(str(client_id), payload)
-    except legacy.QrScanError as exc:
+    except QrScanError as exc:
         body: Dict[str, Any] = {"error": str(exc), "code": exc.code}
         if exc.used_at:
             body["usedAt"] = exc.used_at
