@@ -18,12 +18,25 @@ import {
   AlertCircle,
   ArrowUpRight,
   ArrowDownRight,
+  UserPlus,
+  Zap,
+  UserX,
+  Award,
 } from 'lucide-react';
 import { COLORS, TRANSLATIONS } from '../constants';
 import { Activity, Language } from '../types';
 import { formatDateTime } from '../utils/formatDate';
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000').replace(/\/$/, '');
+
+type LoyaltySummary = {
+  totalCustomers: number;
+  newThisMonth: number;
+  notReturned90d: number;
+  activeLast30d: number;
+  tiers: { Premium: number; Gold: number; Silver: number };
+  segments: Record<string, number>;
+};
 
 type DashboardStats = {
   totalCustomers: number;
@@ -113,6 +126,47 @@ const formatCompact = (value: number): string => {
   return `${value}`;
 };
 
+const SEGMENT_ORDER = ['Champion', 'Loyal', 'New', 'At-Risk', 'Dormant', 'Inactive'] as const;
+const SEGMENT_COLORS: Record<string, string> = {
+  Champion: '#10B981',
+  Loyal: '#06B6D4',
+  New: '#3B82F6',
+  'At-Risk': '#F59E0B',
+  Dormant: '#F43F5E',
+  Inactive: '#CBD5E1',
+};
+
+const DistributionCard: React.FC<{
+  title: string;
+  total: number;
+  rows: { label: string; value: number; color: string }[];
+}> = ({ title, total, rows }) => (
+  <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
+    <h3 className="font-bold text-slate-800 mb-5">{title}</h3>
+    <div className="space-y-3">
+      {rows.map((row) => {
+        const pct = total > 0 ? Math.round((row.value / total) * 100) : 0;
+        return (
+          <div key={row.label}>
+            <div className="flex items-center justify-between mb-1">
+              <div className="flex items-center gap-2">
+                <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: row.color }} />
+                <span className="text-xs font-bold text-slate-600">{row.label}</span>
+              </div>
+              <span className="text-xs font-semibold text-slate-400">
+                {row.value.toLocaleString()} · {pct}%
+              </span>
+            </div>
+            <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
+              <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: row.color }} />
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  </div>
+);
+
 const DashboardView: React.FC<{ lang: Language }> = ({ lang }) => {
   const t = TRANSLATIONS[lang];
 
@@ -128,6 +182,7 @@ const DashboardView: React.FC<{ lang: Language }> = ({ lang }) => {
   const [giftStats, setGiftStats] = useState<GiftCategoryPoint[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [topCustomers, setTopCustomers] = useState<TopCustomerRow[]>([]);
+  const [loyalty, setLoyalty] = useState<LoyaltySummary | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -167,6 +222,18 @@ const DashboardView: React.FC<{ lang: Language }> = ({ lang }) => {
         setGiftStats(nextGiftStats);
         setTopCustomers(nextTopCustomers);
         setActivities(normalizedActivities);
+
+        // Loyalty analytics is a best-effort enrichment — a failure here must
+        // never blank out the core dashboard, so it's fetched separately.
+        try {
+          const analyticsRes = await fetch(`${API_BASE_URL}/api/customer-analytics`);
+          if (analyticsRes.ok) {
+            const analyticsJson = await analyticsRes.json();
+            if (!cancelled && analyticsJson?.summary) setLoyalty(analyticsJson.summary as LoyaltySummary);
+          }
+        } catch {
+          /* leave loyalty null; the section simply doesn't render */
+        }
       } catch (err) {
         if (cancelled) return;
         setError(err instanceof Error ? err.message : t.error);
@@ -224,6 +291,63 @@ const DashboardView: React.FC<{ lang: Language }> = ({ lang }) => {
           t={t}
         />
       </div>
+
+      {loyalty && (
+        <div className="space-y-6">
+          <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest">{t.loyalty_analytics}</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+            <KPICard
+              title={t.new_this_month}
+              value={formatCompact(loyalty.newThisMonth)}
+              icon={<UserPlus className="w-5 h-5" />}
+              color={{ bg: 'bg-blue-50', text: 'text-blue-600' }}
+              t={t}
+            />
+            <KPICard
+              title={t.active_30d}
+              value={formatCompact(loyalty.activeLast30d)}
+              icon={<Zap className="w-5 h-5" />}
+              color={{ bg: 'bg-emerald-50', text: 'text-emerald-600' }}
+              t={t}
+            />
+            <KPICard
+              title={t.not_returned_90d}
+              value={formatCompact(loyalty.notReturned90d)}
+              icon={<UserX className="w-5 h-5" />}
+              color={{ bg: 'bg-rose-50', text: 'text-rose-600' }}
+              t={t}
+            />
+            <KPICard
+              title="Premium"
+              value={formatCompact(loyalty.tiers.Premium)}
+              icon={<Award className="w-5 h-5" />}
+              color={{ bg: 'bg-amber-50', text: 'text-amber-600' }}
+              t={t}
+            />
+          </div>
+
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+            <DistributionCard
+              title={t.tier_distribution}
+              total={loyalty.totalCustomers}
+              rows={[
+                { label: 'Premium', value: loyalty.tiers.Premium, color: '#F59E0B' },
+                { label: 'Gold', value: loyalty.tiers.Gold, color: '#EAB308' },
+                { label: 'Silver', value: loyalty.tiers.Silver, color: '#94A3B8' },
+              ]}
+            />
+            <DistributionCard
+              title={t.customer_segments}
+              total={loyalty.totalCustomers}
+              rows={SEGMENT_ORDER.map((key) => ({
+                label: (t[`seg_${key}` as keyof typeof t] as string) || key,
+                value: loyalty.segments[key] || 0,
+                color: SEGMENT_COLORS[key],
+              }))}
+            />
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
         <div className="xl:col-span-2 bg-white p-8 rounded-3xl border border-slate-100 shadow-sm">

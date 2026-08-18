@@ -185,6 +185,9 @@ const CustomersView: React.FC<CustomersViewProps> = ({ lang, onOpenReconciliatio
   });
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'blocked'>('all');
 
+  // Loyalty tier per customer (best-effort enrichment from /api/customer-analytics)
+  const [tierByClient, setTierByClient] = useState<Record<string, string>>({});
+
   // Bulk selection
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isBulkDeleteOpen, setIsBulkDeleteOpen] = useState(false);
@@ -336,10 +339,32 @@ const CustomersView: React.FC<CustomersViewProps> = ({ lang, onOpenReconciliatio
 
     void loadCustomers();
 
+    // Best-effort loyalty tiers — a failure just leaves badges off, never blocks the list.
+    const loadTiers = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/customer-analytics`);
+        if (!response.ok) return;
+        const payload = await response.json() as { customers?: { clientId: string; tier: string }[] };
+        if (isCancelled || !Array.isArray(payload.customers)) return;
+        const map: Record<string, string> = {};
+        payload.customers.forEach((row) => { map[row.clientId] = row.tier; });
+        setTierByClient(map);
+      } catch {
+        /* leave tiers empty */
+      }
+    };
+    void loadTiers();
+
     return () => {
       isCancelled = true;
     };
   }, []);
+
+  const TIER_BADGE: Record<string, string> = {
+    Premium: 'bg-amber-100 text-amber-700',
+    Gold: 'bg-yellow-100 text-yellow-700',
+    Silver: 'bg-slate-100 text-slate-500',
+  };
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -1076,7 +1101,14 @@ const CustomersView: React.FC<CustomersViewProps> = ({ lang, onOpenReconciliatio
                     </td>
                     <td className="w-[34%] px-4 py-2.5">
                       <div className="min-w-0">
-                        <span className="block truncate text-sm font-semibold text-slate-700 leading-tight">{customer.fullName}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="truncate text-sm font-semibold text-slate-700 leading-tight">{customer.fullName}</span>
+                          {tierByClient[customer.id] && (
+                            <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide ${TIER_BADGE[tierByClient[customer.id]] || 'bg-slate-100 text-slate-500'}`}>
+                              {tierByClient[customer.id]}
+                            </span>
+                          )}
+                        </div>
                         <span className="block truncate text-[10px] font-medium text-slate-400 tracking-tight">{customer.id}</span>
                       </div>
                     </td>
