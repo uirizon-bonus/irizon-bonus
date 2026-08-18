@@ -50,6 +50,11 @@ def get_customer_points():
     return customer_service.customer_points_payload()
 
 
+@router.get("/api/customer-analytics", dependencies=[Depends(deps.require_admin)])
+def get_customer_analytics():
+    return customer_service.customer_analytics_payload()
+
+
 @router.get("/api/customers/{client_id}/portal")
 def get_customer_portal(client_id: str, current_id: str = Depends(deps.require_customer)):
     return customer_service.customer_portal_payload(client_id, current_id)

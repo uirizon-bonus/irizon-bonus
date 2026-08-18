@@ -97,6 +97,17 @@ CATALOG_SEED_DEFAULTS = os.getenv("CATALOG_SEED_DEFAULTS", "false").strip().lowe
     "on",
 }
 
+# ─── Loyalty tiers & RFM segmentation (computed — no schema change) ──────────
+# Tier is derived from the points balance; thresholds are inclusive minimums.
+TIER_GOLD_MIN = int(os.getenv("TIER_GOLD_MIN", "10000"))
+TIER_PREMIUM_MIN = int(os.getenv("TIER_PREMIUM_MIN", "50000"))
+# Segment windows, in days since last activity (recency).
+SEGMENT_NEW_DAYS = int(os.getenv("SEGMENT_NEW_DAYS", "30"))
+SEGMENT_ACTIVE_DAYS = int(os.getenv("SEGMENT_ACTIVE_DAYS", "90"))
+SEGMENT_ATRISK_DAYS = int(os.getenv("SEGMENT_ATRISK_DAYS", "180"))
+# A "Champion" is recently active (<= NEW_DAYS) with at least this many events.
+SEGMENT_CHAMPION_MIN_EVENTS = int(os.getenv("SEGMENT_CHAMPION_MIN_EVENTS", "5"))
+
 
 def _build_demo_accounts() -> Dict[str, str]:
     result: Dict[str, str] = {}

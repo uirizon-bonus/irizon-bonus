@@ -66,6 +66,12 @@ def customer_points_payload():
     return {"count": len(points), "points": points}
 
 
+def customer_analytics_payload():
+    from backend.core import analytics as analytics_core
+
+    return analytics_core._load_customer_analytics()
+
+
 def customer_reconciliation_payload(client_id: str, start_date: str, end_date: str):
     if start_date > end_date:
         return JSONResponse({"error": "start_date must be less than or equal to end_date"}, status_code=400)
