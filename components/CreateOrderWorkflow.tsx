@@ -60,6 +60,12 @@ const CreateOrderWorkflow: React.FC<CreateOrderWorkflowProps> = ({ lang, onCance
   const [items, setItems] = useState<Partial<OrderItem>[]>([{ id: '1', quantity: 1 }]);
   const [productQueryById, setProductQueryById] = useState<Record<string, string>>({});
   const [productPickerRowId, setProductPickerRowId] = useState<string | null>(null);
+  const [pickerAnchor, setPickerAnchor] = useState<{ x: number; y: number; width: number; openUp: boolean } | null>(null);
+  const computeAnchor = (el: HTMLInputElement) => {
+    const rect = el.getBoundingClientRect();
+    const openUp = window.innerHeight - rect.bottom < 260;
+    return { x: rect.left, y: openUp ? rect.top - 6 : rect.bottom + 6, width: rect.width, openUp };
+  };
   const [quantityInputById, setQuantityInputById] = useState<Record<string, string>>({});
   const [adminNote, setAdminNote] = useState('');
   const [isFinalConfirmationChecked, setIsFinalConfirmationChecked] = useState(false);
@@ -494,7 +500,7 @@ const CreateOrderWorkflow: React.FC<CreateOrderWorkflowProps> = ({ lang, onCance
                               className="w-full p-3 pl-10 bg-slate-50 border border-slate-100 rounded-xl text-sm outline-none focus:ring-2 focus:ring-cyan-500/10 focus:bg-white transition-all font-medium"
                               value={productQueryById[item.id || ''] ?? item.productName ?? ''}
                               placeholder={t.select_product}
-                              onFocus={() => setProductPickerRowId(item.id || null)}
+                              onFocus={(event) => { setProductPickerRowId(item.id || null); setPickerAnchor(computeAnchor(event.currentTarget)); }}
                               onBlur={() => window.setTimeout(() => setProductPickerRowId((current) => (current === item.id ? null : current)), 150)}
                               onChange={(event) => {
                                 const value = event.target.value;
@@ -503,6 +509,7 @@ const CreateOrderWorkflow: React.FC<CreateOrderWorkflowProps> = ({ lang, onCance
                                   [item.id || '']: value,
                                 }));
                                 setProductPickerRowId(item.id || null);
+                                setPickerAnchor(computeAnchor(event.currentTarget));
                               }}
                               onKeyDown={(event) => {
                                 if (event.key !== 'Enter') return;
@@ -513,30 +520,6 @@ const CreateOrderWorkflow: React.FC<CreateOrderWorkflowProps> = ({ lang, onCance
                                 }
                               }}
                             />
-                            {productPickerRowId === item.id && (
-                              <div className="absolute left-0 right-0 top-full z-20 mt-2 max-h-56 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-xl">
-                                {products.filter((product) => product.isActive)
-                                  .filter((product) => {
-                                    const query = (productQueryById[item.id || ''] || '').trim().toLowerCase();
-                                    if (!query) return true;
-                                    const combined = `${product.id} ${product.name[lang]}`.toLowerCase();
-                                    return combined.includes(query);
-                                  })
-                                  .map((product) => (
-                                    <button
-                                      key={product.id}
-                                      onClick={() => {
-                                        updateItem(item.id!, product.id);
-                                        setProductPickerRowId(null);
-                                      }}
-                                      className="w-full px-3 py-2 text-left text-xs hover:bg-slate-50"
-                                    >
-                                      <span className="block font-semibold text-slate-700">{product.id}</span>
-                                      <span className="block text-[11px] text-slate-400">{product.name[lang]}</span>
-                                    </button>
-                                  ))}
-                              </div>
-                            )}
                           </div>
                         </td>
                         <td className="py-6 px-4 text-center">
@@ -735,6 +718,39 @@ const CreateOrderWorkflow: React.FC<CreateOrderWorkflowProps> = ({ lang, onCance
           </div>
         )}
       </div>
+
+      {/* Product picker — fixed to the viewport so it is never clipped by the
+          card's overflow, and flips upward near the bottom edge. */}
+      {productPickerRowId && pickerAnchor && (() => {
+        const query = (productQueryById[productPickerRowId] || '').trim().toLowerCase();
+        const matches = products
+          .filter((product) => product.isActive)
+          .filter((product) => !query || `${product.id} ${product.name[lang]}`.toLowerCase().includes(query));
+        return (
+          <div
+            className="fixed z-[80] max-h-64 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-2xl custom-scrollbar"
+            style={pickerAnchor.openUp
+              ? { left: pickerAnchor.x, width: pickerAnchor.width, bottom: window.innerHeight - pickerAnchor.y }
+              : { left: pickerAnchor.x, width: pickerAnchor.width, top: pickerAnchor.y }}
+            onMouseDown={(e) => e.preventDefault()}
+          >
+            {matches.length === 0 ? (
+              <div className="px-3 py-3 text-xs text-slate-400">—</div>
+            ) : (
+              matches.map((product) => (
+                <button
+                  key={product.id}
+                  onClick={() => { updateItem(productPickerRowId, product.id); setProductPickerRowId(null); }}
+                  className="w-full px-3 py-2 text-left text-xs hover:bg-slate-50"
+                >
+                  <span className="block font-semibold text-slate-700">{product.id}</span>
+                  <span className="block text-[11px] text-slate-400">{product.name[lang]}</span>
+                </button>
+              ))
+            )}
+          </div>
+        );
+      })()}
     </div>
   );
 };

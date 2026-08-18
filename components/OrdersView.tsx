@@ -54,7 +54,7 @@ const OrdersView: React.FC<OrdersViewProps> = ({ lang, initialSelectedId }) => {
   const [pendingStatus, setPendingStatus] = useState<{ order: Order; target: OrderStatusTarget } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
-  const [activeActionMenu, setActiveActionMenu] = useState<string | null>(null);
+  const [actionMenu, setActionMenu] = useState<{ order: Order; x: number; y: number; openUp: boolean } | null>(null);
 
   useEffect(() => {
     let isCancelled = false;
@@ -281,41 +281,18 @@ const OrdersView: React.FC<OrdersViewProps> = ({ lang, initialSelectedId }) => {
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        setActiveActionMenu(activeActionMenu === order.id ? null : order.id);
+                        if (actionMenu?.order.id === order.id) {
+                          setActionMenu(null);
+                          return;
+                        }
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        const openUp = window.innerHeight - rect.bottom < 160;
+                        setActionMenu({ order, x: rect.right, y: openUp ? rect.top - 4 : rect.bottom + 4, openUp });
                       }}
                       className="p-2 text-slate-400 hover:text-cyan-600 transition-all rounded-lg hover:bg-slate-100"
                     >
                       <MoreHorizontal className="w-5 h-5" />
                     </button>
-
-                    {activeActionMenu === order.id && (
-                      <>
-                        <div className="fixed inset-0 z-40" onClick={() => setActiveActionMenu(null)}></div>
-                        <div className="absolute right-6 top-12 w-48 bg-white rounded-2xl shadow-2xl border border-slate-100 z-50 py-2 animate-in zoom-in-95 duration-200">
-                          <button
-                            onClick={(e) => { e.stopPropagation(); setSelectedOrder(order); setActiveActionMenu(null); }}
-                            className="w-full px-4 py-2.5 text-left text-xs font-bold text-slate-600 hover:bg-slate-50 flex items-center gap-2 transition-all"
-                          >
-                            <Eye className="w-4 h-4 text-slate-400" /> {t.view_order}
-                          </button>
-                          {order.status === 'Reversed' ? (
-                            <button
-                              onClick={(e) => { e.stopPropagation(); setPendingStatus({ order, target: 'Confirmed' }); setActiveActionMenu(null); }}
-                              className="w-full px-4 py-2.5 text-left text-xs font-bold text-emerald-600 hover:bg-emerald-50 flex items-center gap-2 transition-all"
-                            >
-                              <RotateCcw className="w-4 h-4" /> Buyurtmani tiklash
-                            </button>
-                          ) : (
-                            <button
-                              onClick={(e) => { e.stopPropagation(); setPendingStatus({ order, target: 'Reversed' }); setActiveActionMenu(null); }}
-                              className="w-full px-4 py-2.5 text-left text-xs font-bold text-rose-500 hover:bg-rose-50 flex items-center gap-2 transition-all"
-                            >
-                              <Undo2 className="w-4 h-4" /> Buyurtmani bekor qilish
-                            </button>
-                          )}
-                        </div>
-                      </>
-                    )}
                   </td>
                 </tr>
               ))}
@@ -344,6 +321,42 @@ const OrdersView: React.FC<OrdersViewProps> = ({ lang, initialSelectedId }) => {
           </div>
         </div>
       </div>
+
+      {/* Row action menu — fixed to the viewport so it is never clipped by the
+          table's scroll container, and flips upward near the bottom edge. */}
+      {actionMenu && (
+        <div className="fixed inset-0 z-[70]" onClick={() => setActionMenu(null)}>
+          <div
+            className="absolute w-48 bg-white rounded-2xl shadow-2xl border border-slate-100 py-2 animate-in zoom-in-95 duration-150"
+            style={actionMenu.openUp
+              ? { left: Math.max(8, actionMenu.x - 192), bottom: window.innerHeight - actionMenu.y }
+              : { left: Math.max(8, actionMenu.x - 192), top: actionMenu.y }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => { setSelectedOrder(actionMenu.order); setActionMenu(null); }}
+              className="w-full px-4 py-2.5 text-left text-xs font-bold text-slate-600 hover:bg-slate-50 flex items-center gap-2 transition-all"
+            >
+              <Eye className="w-4 h-4 text-slate-400" /> {t.view_order}
+            </button>
+            {actionMenu.order.status === 'Reversed' ? (
+              <button
+                onClick={() => { setPendingStatus({ order: actionMenu.order, target: 'Confirmed' }); setActionMenu(null); }}
+                className="w-full px-4 py-2.5 text-left text-xs font-bold text-emerald-600 hover:bg-emerald-50 flex items-center gap-2 transition-all"
+              >
+                <RotateCcw className="w-4 h-4" /> Buyurtmani tiklash
+              </button>
+            ) : (
+              <button
+                onClick={() => { setPendingStatus({ order: actionMenu.order, target: 'Reversed' }); setActionMenu(null); }}
+                className="w-full px-4 py-2.5 text-left text-xs font-bold text-rose-500 hover:bg-rose-50 flex items-center gap-2 transition-all"
+              >
+                <Undo2 className="w-4 h-4" /> Buyurtmani bekor qilish
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {selectedOrder && (
         <div className="fixed inset-0 z-[60] flex justify-end">
