@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
+  Download,
   Eye,
   FileText,
   Filter,
@@ -54,6 +55,7 @@ const OrdersView: React.FC<OrdersViewProps> = ({ lang, initialSelectedId }) => {
   const [reloadKey, setReloadKey] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
   const [totalPointsSum, setTotalPointsSum] = useState(0);
+  const [isExporting, setIsExporting] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [pendingStatus, setPendingStatus] = useState<{ order: Order; target: OrderStatusTarget } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -164,6 +166,59 @@ const OrdersView: React.FC<OrdersViewProps> = ({ lang, initialSelectedId }) => {
     }
   };
 
+  const statusLabel = (status: string) =>
+    status === 'Confirmed' ? t.confirmed
+    : status === 'Cancelled' ? t.cancelled
+    : status === 'Reversed' ? 'Bekor qilingan'
+    : t.draft;
+
+  const handleExportCsv = async () => {
+    setIsExporting(true);
+    setLoadError(null);
+    try {
+      // Export the whole filtered set, not just the current page.
+      const params = new URLSearchParams({ offset: '0', limit: String(Math.max(totalCount, 1)) });
+      if (search.trim()) params.set('search', search.trim());
+      if (statusFilter !== 'all') params.set('status', statusFilter);
+      if (dateFrom) params.set('date_from', dateFrom);
+      if (dateTo) params.set('date_to', dateTo);
+      const response = await fetch(`${API_BASE_URL}/api/orders?${params.toString()}`);
+      const payload = await response.json() as OrdersApiResponse | { error?: string };
+      if (!response.ok) {
+        throw new Error('error' in payload && payload.error ? payload.error : 'Failed to export');
+      }
+      const rows = Array.isArray((payload as OrdersApiResponse).orders) ? (payload as OrdersApiResponse).orders : [];
+      const csvRows = [
+        [t.order_id, t.date_time, t.customer, 'ID', t.points_added, t.status, t.created_by, t.note || 'Izoh'],
+        ...rows.map((order) => [
+          order.id,
+          formatDateTime(order.date),
+          order.customerName,
+          order.customerId,
+          String(order.totalPoints),
+          statusLabel(order.status),
+          order.createdBy,
+          order.note || '',
+        ]),
+      ];
+      const escapeCell = (value: string) => `"${String(value).replace(/"/g, '""')}"`;
+      const csvContent = csvRows.map((row) => row.map(escapeCell).join(',')).join('\n');
+      const blob = new Blob([`\uFEFF${csvContent}`], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `bonus-issuance-${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : 'Failed to export');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   if (isCreating) {
     return (
       <CreateOrderWorkflow
@@ -193,6 +248,14 @@ const OrdersView: React.FC<OrdersViewProps> = ({ lang, initialSelectedId }) => {
           <p className="text-sm text-slate-500">{t.manage_bonus}</p>
         </div>
         <div className="flex items-center gap-3">
+          <button
+            onClick={() => void handleExportCsv()}
+            disabled={isExporting || totalCount === 0}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Download className="w-4 h-4" />
+            {isExporting ? t.loading : `${t.export} CSV`}
+          </button>
           <button
             onClick={() => setIsCreating(true)}
             className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-cyan-600 rounded-xl shadow-lg shadow-cyan-600/20 hover:bg-cyan-700 hover:-translate-y-0.5 transition-all"
