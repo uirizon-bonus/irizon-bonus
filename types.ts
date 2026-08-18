@@ -1,10 +1,12 @@
 
-export type Language = 'RU' | 'UZ' | 'EN';
+// The app is UZ-only (RU/EN were removed in the UZ-only cleanup).
+// API payloads may still carry RU/EN strings, so they stay as optional.
+export type Language = 'UZ';
 
 export interface MultiLangString {
-  RU: string;
   UZ: string;
-  EN: string;
+  RU?: string;
+  EN?: string;
 }
 
 export interface Customer {

@@ -74,8 +74,21 @@ interface CustomerPointsApiResponse {
   points: CustomerPointsEntry[];
 }
 
+interface AuditActivity {
+  id: string;
+  type: string;
+  description: string;
+  time: string;
+  user: string;
+}
+
+interface AuditApiResponse {
+  activities: AuditActivity[];
+}
+
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000';
 const CUSTOMERS_CACHE_KEY = 'irizon_customers_cache';
+const PAGE_SIZE = 25;
 
 const NewRequestModal: React.FC<NewRequestModalProps> = ({ onClose, lang, customers, gifts, onCreated }) => {
   const t = TRANSLATIONS[lang];
@@ -391,6 +404,9 @@ const RequestsView: React.FC<RequestsViewProps> = ({ lang, initialSelectedId }) 
   const [activeTab, setActiveTab] = useState<RequestStatus | 'All'>('All');
   const [expandedRowId, setExpandedRowId] = useState<string | null>(initialSelectedId || null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [statusMenu, setStatusMenu] = useState<{ requestId: string; x: number; y: number; openUp: boolean } | null>(null);
+  const [historyByRequest, setHistoryByRequest] = useState<Record<string, AuditActivity[]>>({});
+  const [page, setPage] = useState(1);
   const [isNewRequestOpen, setIsNewRequestOpen] = useState(false);
   const [isStatusSubmitting, setIsStatusSubmitting] = useState(false);
   
@@ -439,6 +455,35 @@ const RequestsView: React.FC<RequestsViewProps> = ({ lang, initialSelectedId }) 
       : [];
     writeApiCache(API_CACHE_KEYS.customerPoints, pointEntries);
     return applyPointEntriesToCustomers(baseCustomers, pointEntries);
+  };
+
+  // Approving/rejecting changes gift stock server-side; re-fetch so the UI shows it.
+  const refreshGifts = async () => {
+    const response = await fetch(`${API_BASE_URL}/api/gifts`);
+    const payload = await response.json() as GiftsApiResponse | { error?: string };
+    if (!response.ok) {
+      throw new Error('error' in payload && payload.error ? payload.error : 'Failed to load gifts');
+    }
+    const nextGifts = Array.isArray((payload as GiftsApiResponse).gifts) ? (payload as GiftsApiResponse).gifts : [];
+    writeApiCache(API_CACHE_KEYS.gifts, nextGifts);
+    setGifts(nextGifts);
+  };
+
+  // Real transition history for the expanded row's timeline (best-effort).
+  const loadRequestHistory = async (requestId: string) => {
+    try {
+      const params = new URLSearchParams({ limit: '500', search: requestId, activity_type: 'all' });
+      const response = await fetch(`${API_BASE_URL}/api/audit?${params.toString()}`);
+      const payload = await response.json() as AuditApiResponse | { error?: string };
+      if (!response.ok) {
+        return;
+      }
+      const activities = Array.isArray((payload as AuditApiResponse).activities) ? (payload as AuditApiResponse).activities : [];
+      const chronological = [...activities].sort((a, b) => a.time.localeCompare(b.time));
+      setHistoryByRequest((prev) => ({ ...prev, [requestId]: chronological }));
+    } catch {
+      // The static fallback entry still renders.
+    }
   };
 
   useEffect(() => {
@@ -528,21 +573,41 @@ const RequestsView: React.FC<RequestsViewProps> = ({ lang, initialSelectedId }) 
     });
   }, [requests, searchQuery, activeTab, dateFrom, dateTo]);
 
+  useEffect(() => {
+    setPage(1);
+  }, [searchQuery, activeTab, dateFrom, dateTo]);
+
+  useEffect(() => {
+    if (initialSelectedId) {
+      void loadRequestHistory(initialSelectedId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const totalPages = Math.max(1, Math.ceil(filteredRequests.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const pageRequests = filteredRequests.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+
   const toggleRow = (id: string) => {
-    setExpandedRowId(expandedRowId === id ? null : id);
+    const next = expandedRowId === id ? null : id;
+    setExpandedRowId(next);
+    if (next && !historyByRequest[next]) {
+      void loadRequestHistory(next);
+    }
   };
 
   const toggleSelect = (id: string) => {
-    setSelectedIds(prev => 
+    setSelectedIds(prev =>
       prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
     );
   };
 
   const toggleSelectAll = () => {
-    if (selectedIds.length === filteredRequests.length) {
-      setSelectedIds([]);
+    const pageIds = pageRequests.map(r => r.id);
+    if (pageIds.every(id => selectedIds.includes(id))) {
+      setSelectedIds(prev => prev.filter(id => !pageIds.includes(id)));
     } else {
-      setSelectedIds(filteredRequests.map(r => r.id));
+      setSelectedIds(prev => [...new Set([...prev, ...pageIds])]);
     }
   };
 
@@ -593,13 +658,21 @@ const RequestsView: React.FC<RequestsViewProps> = ({ lang, initialSelectedId }) 
       }
       const updatedRequest = (payload as RequestMutationResponse).request;
       clearApiCache(API_CACHE_KEYS.customerPoints, API_CACHE_KEYS.gifts);
-      const refreshedCustomers = await loadCustomerPoints(customers);
+      const [refreshedCustomers] = await Promise.all([loadCustomerPoints(customers), refreshGifts()]);
       setRequests((currentRequests) => {
         const nextRequests = currentRequests.map((request) => request.id === updatedRequest.id ? updatedRequest : request);
         writeApiCache(API_CACHE_KEYS.requests, nextRequests);
         return nextRequests;
       });
       setCustomers(refreshedCustomers);
+      setHistoryByRequest((prev) => {
+        const next = { ...prev };
+        delete next[updatedRequest.id];
+        return next;
+      });
+      if (expandedRowId === updatedRequest.id) {
+        void loadRequestHistory(updatedRequest.id);
+      }
       setStatusChangeModal(null);
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : 'Failed to update request');
@@ -634,7 +707,7 @@ const RequestsView: React.FC<RequestsViewProps> = ({ lang, initialSelectedId }) 
         : [];
 
       clearApiCache(API_CACHE_KEYS.customerPoints, API_CACHE_KEYS.gifts);
-      const refreshedCustomers = await loadCustomerPoints(customers);
+      const [refreshedCustomers] = await Promise.all([loadCustomerPoints(customers), refreshGifts()]);
       setRequests((currentRequests) => {
         const updates = new Map(updatedRequests.map((request) => [request.id, request]));
         const nextRequests = currentRequests.map((request) => updates.get(request.id) ?? request);
@@ -642,6 +715,11 @@ const RequestsView: React.FC<RequestsViewProps> = ({ lang, initialSelectedId }) 
         return nextRequests;
       });
       setCustomers(refreshedCustomers);
+      setHistoryByRequest((prev) => {
+        const next = { ...prev };
+        updatedRequests.forEach((request) => { delete next[request.id]; });
+        return next;
+      });
       setSelectedIds([]);
       setBulkStatusModal(null);
     } catch (error) {
@@ -742,10 +820,10 @@ const RequestsView: React.FC<RequestsViewProps> = ({ lang, initialSelectedId }) 
             <thead>
               <tr className="bg-slate-50/50 text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">
                 <th className="px-6 py-4 w-10">
-                  <input 
-                    type="checkbox" 
+                  <input
+                    type="checkbox"
                     className="w-4 h-4 rounded border-slate-300 text-cyan-600 focus:ring-cyan-500"
-                    checked={selectedIds.length === filteredRequests.length && filteredRequests.length > 0}
+                    checked={pageRequests.length > 0 && pageRequests.every(r => selectedIds.includes(r.id))}
                     onChange={toggleSelectAll}
                   />
                 </th>
@@ -766,7 +844,7 @@ const RequestsView: React.FC<RequestsViewProps> = ({ lang, initialSelectedId }) 
                     <LoadingGlass label={t.loading} />
                   </td>
                 </tr>
-              ) : filteredRequests.map(req => {
+              ) : pageRequests.map(req => {
                 const isExpanded = expandedRowId === req.id;
                 const gift = gifts.find(g => g.id === req.giftId);
                 const customer = customers.find(c => c.id === req.customerId);
@@ -813,34 +891,32 @@ const RequestsView: React.FC<RequestsViewProps> = ({ lang, initialSelectedId }) 
                         <span className="text-xs font-bold text-slate-400">{balanceAfter.toLocaleString()}</span>
                       </td>
                       <td className="px-6 py-3" onClick={e => e.stopPropagation()}>
-                        <div className="relative group/status">
-                          <button 
-                            className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest border transition-all flex items-center gap-1.5 ${STATUS_THEMES[req.status]}`}
-                          >
-                            {statusLabel(req.status)}
-                            <ChevronDown className="w-3 h-3 opacity-50 group-hover/status:opacity-100" />
-                          </button>
-                          
-                          {/* Inline Status Dropdown */}
-                          <div className="absolute left-0 top-full mt-1 w-32 bg-white rounded-xl shadow-xl border border-slate-100 z-50 py-1 opacity-0 invisible group-hover/status:opacity-100 group-hover/status:visible transition-all">
-                            {tabs.filter(t => t !== 'All').map(status => (
-                              <button
-                                key={status}
-                                onClick={() => handleStatusChange(req, status as RequestStatus)}
-                                className={`w-full px-3 py-1.5 text-left text-[10px] font-bold uppercase tracking-widest hover:bg-slate-50 transition-colors flex items-center justify-between ${
-                                  req.status === status ? 'text-cyan-600 bg-cyan-50/30' : 'text-slate-500'
-                                }`}
-                              >
-                                {statusLabel(status as RequestStatus)}
-                                {req.status === status && <Check className="w-3 h-3" />}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
+                        {/* Click-toggled menu rendered with fixed positioning (see below the
+                            table) so it works on touchscreens and is never clipped by the
+                            table's scroll container. */}
+                        <button
+                          onClick={(e) => {
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            const openUp = window.innerHeight - rect.bottom < 240;
+                            setStatusMenu({
+                              requestId: req.id,
+                              x: rect.left,
+                              y: openUp ? rect.top - 4 : rect.bottom + 4,
+                              openUp,
+                            });
+                          }}
+                          className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest border transition-all flex items-center gap-1.5 ${STATUS_THEMES[req.status]}`}
+                        >
+                          {statusLabel(req.status)}
+                          <ChevronDown className="w-3 h-3 opacity-50" />
+                        </button>
                       </td>
                       <td className="px-6 py-3 text-right">
                         <div className="flex items-center justify-end gap-2">
-                          <button className="p-1.5 text-slate-400 hover:text-cyan-600 transition-all rounded-lg hover:bg-white">
+                          <button
+                            onClick={(e) => { e.stopPropagation(); toggleRow(req.id); }}
+                            className="p-1.5 text-slate-400 hover:text-cyan-600 transition-all rounded-lg hover:bg-white"
+                          >
                             <Eye className="w-4 h-4" />
                           </button>
                           {isExpanded ? <ChevronUp className="w-4 h-4 text-slate-300" /> : <ChevronDown className="w-4 h-4 text-slate-300" />}
@@ -912,7 +988,16 @@ const RequestsView: React.FC<RequestsViewProps> = ({ lang, initialSelectedId }) 
                                         <p className="text-[10px] text-slate-400">{formatDate(req.date)}</p>
                                       </div>
                                     </div>
-                                    {req.operator && (
+                                    {(historyByRequest[req.id] ?? []).map((event) => (
+                                      <div key={event.id} className="flex gap-4 relative z-10">
+                                        <div className="w-4 h-4 rounded-full bg-slate-800 border-2 border-white shadow-sm"></div>
+                                        <div>
+                                          <p className="text-[10px] font-bold text-slate-700">{event.description}</p>
+                                          <p className="text-[10px] text-slate-400">{t.processed_by}: {event.user} · {formatDate(event.time)}</p>
+                                        </div>
+                                      </div>
+                                    ))}
+                                    {!(historyByRequest[req.id]?.length) && req.operator && (
                                       <div className="flex gap-4 relative z-10">
                                         <div className="w-4 h-4 rounded-full bg-slate-800 border-2 border-white shadow-sm"></div>
                                         <div>
@@ -944,14 +1029,59 @@ const RequestsView: React.FC<RequestsViewProps> = ({ lang, initialSelectedId }) 
         {/* Pagination Footer */}
         <div className="p-4 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between">
           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-            {t.showing} 1-{filteredRequests.length} {t.of} {filteredRequests.length}
+            {t.showing} {filteredRequests.length === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1}-{Math.min(currentPage * PAGE_SIZE, filteredRequests.length)} {t.of} {filteredRequests.length}
           </span>
           <div className="flex gap-2">
-            <button className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-[10px] font-bold text-slate-400 cursor-not-allowed">{t.prev}</button>
-            <button className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-[10px] font-bold text-slate-400 cursor-not-allowed">{t.next}</button>
+            <button
+              disabled={currentPage <= 1}
+              onClick={() => setPage(currentPage - 1)}
+              className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-[10px] font-bold text-slate-600 hover:border-cyan-300 transition-all disabled:text-slate-300 disabled:hover:border-slate-200 disabled:cursor-not-allowed"
+            >
+              {t.prev}
+            </button>
+            <button
+              disabled={currentPage >= totalPages}
+              onClick={() => setPage(currentPage + 1)}
+              className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-[10px] font-bold text-slate-600 hover:border-cyan-300 transition-all disabled:text-slate-300 disabled:hover:border-slate-200 disabled:cursor-not-allowed"
+            >
+              {t.next}
+            </button>
           </div>
         </div>
       </div>
+
+      {/* Status Dropdown (fixed-position: escapes the table's scroll clipping, works on touch) */}
+      {statusMenu && (() => {
+        const menuRequest = requests.find((request) => request.id === statusMenu.requestId);
+        if (!menuRequest) return null;
+        return (
+          <div className="fixed inset-0 z-[150]" onClick={() => setStatusMenu(null)}>
+            <div
+              className="absolute w-44 bg-white rounded-xl shadow-xl border border-slate-100 py-1 animate-in fade-in zoom-in-95 duration-100"
+              style={statusMenu.openUp
+                ? { left: statusMenu.x, bottom: window.innerHeight - statusMenu.y }
+                : { left: statusMenu.x, top: statusMenu.y }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {tabs.filter((status) => status !== 'All').map((status) => (
+                <button
+                  key={status}
+                  onClick={() => {
+                    setStatusMenu(null);
+                    handleStatusChange(menuRequest, status as RequestStatus);
+                  }}
+                  className={`w-full px-3 py-2 text-left text-[10px] font-bold uppercase tracking-widest hover:bg-slate-50 transition-colors flex items-center justify-between ${
+                    menuRequest.status === status ? 'text-cyan-600 bg-cyan-50/30' : 'text-slate-500'
+                  }`}
+                >
+                  {statusLabel(status as RequestStatus)}
+                  {menuRequest.status === status && <Check className="w-3 h-3" />}
+                </button>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Status Change Confirmation Modal */}
       {statusChangeModal && (

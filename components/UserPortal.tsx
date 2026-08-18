@@ -70,20 +70,6 @@ interface PortalRequestOtpResponse {
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000';
 
 const statusLabels: Record<Language, Record<RedemptionRequest['status'], string>> = {
-  EN: {
-    Pending: 'Pending',
-    Approved: 'Approved',
-    Rejected: 'Rejected',
-    Shipped: 'Shipped',
-    Completed: 'Completed',
-  },
-  RU: {
-    Pending: 'Ожидает',
-    Approved: 'Одобрен',
-    Rejected: 'Отклонен',
-    Shipped: 'Отправлен',
-    Completed: 'Завершен',
-  },
   UZ: {
     Pending: 'Kutilmoqda',
     Approved: 'Tasdiqlangan',

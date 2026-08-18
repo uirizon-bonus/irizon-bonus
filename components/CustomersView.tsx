@@ -623,7 +623,7 @@ const CustomersView: React.FC<CustomersViewProps> = ({ lang, onOpenReconciliatio
   const handleBulkDelete = async () => {
     setIsBulkDeleting(true);
     setLoadError(null);
-    const ids = Array.from(selectedIds);
+    const ids: string[] = Array.from(selectedIds.values());
     const failed: string[] = [];
     for (const id of ids) {
       try {

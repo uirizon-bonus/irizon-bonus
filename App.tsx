@@ -188,9 +188,6 @@ const App: React.FC = () => {
   };
 
   const changeLang = (newLang: Language) => {
-    if (isPortalApp && newLang === 'EN') {
-      return;
-    }
     setLang(newLang);
     localStorage.setItem(APP_LANG_KEY, newLang);
   };
