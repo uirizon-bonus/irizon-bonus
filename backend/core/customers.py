@@ -153,10 +153,13 @@ def _bootstrap_customers_from_cache(connection: Any) -> None:
             full_name = excluded.full_name,
             phone_raw = excluded.phone_raw,
             phone_norm = excluded.phone_norm,
-            status = excluded.status,
             last_updated = excluded.last_updated,
             updated_at = CURRENT_TIMESTAMP
         """,
+        # NOTE: status is intentionally NOT updated on conflict. It is local-only
+        # state (active/blocked) that the SmartUp sync does not carry — the seed
+        # always supplies "active", so overwriting here silently reverted every
+        # admin-set block on the next customer read. New rows still default active.
         seed_rows,
     )
 

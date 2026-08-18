@@ -183,7 +183,7 @@ const CustomersView: React.FC<CustomersViewProps> = ({ lang, onOpenReconciliatio
     pointsRedeemedMin: '',
     pointsRedeemedMax: '',
   });
-  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'blocked'>('all');
 
   // Bulk selection
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -765,12 +765,12 @@ const CustomersView: React.FC<CustomersViewProps> = ({ lang, onOpenReconciliatio
         </div>
         <select
           value={statusFilter}
-          onChange={(e) => { setStatusFilter(e.target.value as 'all' | 'active' | 'inactive'); setCurrentPage(1); }}
+          onChange={(e) => { setStatusFilter(e.target.value as 'all' | 'active' | 'blocked'); setCurrentPage(1); }}
           className="sm:w-44 bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 text-sm font-medium text-slate-600 focus:ring-2 focus:ring-cyan-500/10 focus:bg-white transition-all outline-none"
         >
           <option value="all">{t.status}: Hammasi</option>
           <option value="active">Faol</option>
-          <option value="inactive">Nofaol</option>
+          <option value="blocked">Nofaol</option>
         </select>
       </div>
 
