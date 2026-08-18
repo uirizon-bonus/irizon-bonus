@@ -164,10 +164,59 @@ def _bootstrap_customers_from_cache(connection: Any) -> None:
     )
 
 
+def _ensure_ledger_holders_present(connection: Any) -> None:
+    """Guarantee every client_id with ledger entries also exists as a customer
+    row, so points can never become invisible.
+
+    Orphans arise when a bonus is recorded for a client_id that is not in the
+    seeded customer set — e.g. a manual bonus by ID, or a customer who later
+    dropped out of the SmartUp active cache. Without a customer row the frontend
+    has nothing to attach their points to, so the displayed total silently
+    diverges from the ledger. Details come from the phone index when known, else
+    from the ledger's own client_name. Idempotent and a no-op once all holders
+    exist, so it is cheap to call on every customer-list load."""
+    orphan_rows = connection.execute(
+        """
+        SELECT bt.client_id AS client_id,
+               COALESCE(MIN(pi.full_name), MIN(bt.client_name), bt.client_id) AS full_name,
+               COALESCE(MIN(pi.phone_raw), '') AS phone_raw,
+               COALESCE(MIN(pi.phone_norm), '') AS phone_norm
+        FROM bonus_transactions bt
+        LEFT JOIN clients_phone_index pi ON pi.client_id = bt.client_id
+        WHERE bt.client_id <> ''
+          AND NOT EXISTS (SELECT 1 FROM customers c WHERE c.id = bt.client_id)
+        GROUP BY bt.client_id
+        """
+    ).fetchall()
+    if not orphan_rows:
+        return
+    seed = [
+        (
+            str(row["client_id"]),
+            str(row["full_name"] or row["client_id"]).strip() or str(row["client_id"]),
+            str(row["phone_raw"] or ""),
+            str(row["phone_norm"] or "") or _normalize_phone(row["phone_raw"] or ""),
+            "active",
+            _now_text(),
+        )
+        for row in orphan_rows
+    ]
+    connection.executemany(
+        """
+        INSERT INTO customers (id, full_name, phone_raw, phone_norm, status, last_updated)
+        VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO NOTHING
+        """,
+        seed,
+    )
+    connection.commit()
+
+
 def _load_customers_base(*, offset: int = 0, limit: int = 5000) -> List[Dict[str, Any]]:
     connection = bonus_db()
     try:
         _bootstrap_customers_from_cache(connection)
+        _ensure_ledger_holders_present(connection)
         rows = connection.execute(
             """
             SELECT id, full_name, phone_raw, status, last_updated, updated_at
