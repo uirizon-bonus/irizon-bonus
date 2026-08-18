@@ -49,6 +49,7 @@ const OrdersView: React.FC<OrdersViewProps> = ({ lang, initialSelectedId }) => {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [page, setPage] = useState(0);
+  const [reloadKey, setReloadKey] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
   const [isCreating, setIsCreating] = useState(false);
   const [pendingStatus, setPendingStatus] = useState<{ order: Order; target: OrderStatusTarget } | null>(null);
@@ -107,7 +108,7 @@ const OrdersView: React.FC<OrdersViewProps> = ({ lang, initialSelectedId }) => {
     return () => {
       isCancelled = true;
     };
-  }, [initialSelectedId, page, search, statusFilter, dateFrom, dateTo]);
+  }, [initialSelectedId, page, search, statusFilter, dateFrom, dateTo, reloadKey]);
 
   useEffect(() => {
     setPage(0);
@@ -153,12 +154,15 @@ const OrdersView: React.FC<OrdersViewProps> = ({ lang, initialSelectedId }) => {
         lang={lang}
         onCancel={() => setIsCreating(false)}
         onCreated={(createdOrder) => {
-          setOrders((currentOrders) => {
-            const nextOrders = [createdOrder, ...currentOrders];
-            return nextOrders;
-          });
           clearApiCache(API_CACHE_KEYS.customerPoints);
-          setSelectedOrder(createdOrder);
+          if (createdOrder) {
+            setOrders((currentOrders) => [createdOrder, ...currentOrders]);
+            setSelectedOrder(createdOrder);
+          } else {
+            // Manual bonus: no order object — reload the list so the new MAN-… row shows.
+            setPage(0);
+            setReloadKey((key) => key + 1);
+          }
           setIsCreating(false);
         }}
       />

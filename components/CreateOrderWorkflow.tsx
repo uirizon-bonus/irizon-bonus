@@ -22,7 +22,7 @@ interface CreateOrderWorkflowProps {
   lang: Language;
   onCancel: () => void;
   initialCustomer?: Customer | null;
-  onCreated?: (order: Order) => void;
+  onCreated?: (order?: Order) => void;
 }
 
 interface ProductsApiResponse {
@@ -52,6 +52,7 @@ const CUSTOMERS_CACHE_KEY = 'irizon_customers_cache';
 
 const CreateOrderWorkflow: React.FC<CreateOrderWorkflowProps> = ({ lang, onCancel, initialCustomer, onCreated }) => {
   const t = TRANSLATIONS[lang];
+  const MANUAL_ID = 'MANUAL';
   const [step, setStep] = useState(initialCustomer ? 2 : 1);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(initialCustomer || null);
   const [customers, setCustomers] = useState<Customer[]>(initialCustomer ? [initialCustomer] : []);
@@ -222,6 +223,17 @@ const CreateOrderWorkflow: React.FC<CreateOrderWorkflowProps> = ({ lang, onCance
   };
 
   const updateItem = (id: string, productId: string) => {
+    // Manual bonus: no catalogue product; the admin types the points directly.
+    if (productId === MANUAL_ID) {
+      setItems((currentItems) => currentItems.map((item) =>
+        item.id !== id
+          ? item
+          : { ...item, productId: MANUAL_ID, productName: t.manual_bonus, pointsPerUnit: 0, totalPoints: 0 }
+      ));
+      setProductQueryById((current) => ({ ...current, [id]: t.manual_bonus }));
+      return;
+    }
+
     const product = products.find((candidate) => candidate.id === productId);
     if (!product) {
       return;
@@ -243,6 +255,16 @@ const CreateOrderWorkflow: React.FC<CreateOrderWorkflowProps> = ({ lang, onCance
     setProductQueryById((current) => ({
       ...current,
       [id]: `${product.id} - ${product.name[lang]}`,
+    }));
+  };
+
+  // For a manual-bonus row the points-per-unit is user-entered.
+  const updateManualPoints = (id: string, points: number) => {
+    setItems((currentItems) => currentItems.map((item) => {
+      if (item.id !== id) return item;
+      const safePoints = Number.isFinite(points) && points > 0 ? Math.floor(points) : 0;
+      const quantity = item.quantity || 1;
+      return { ...item, pointsPerUnit: safePoints, totalPoints: safePoints * quantity };
     }));
   };
 
@@ -282,8 +304,12 @@ const CreateOrderWorkflow: React.FC<CreateOrderWorkflowProps> = ({ lang, onCance
     }
 
     const validItems = items.filter((item) => item.productId && (item.quantity || 0) > 0);
-    if (validItems.length === 0) {
-      setSubmitError('Add at least one product.');
+    // Split: manual-bonus lines go to the bonus endpoint (matching how every
+    // existing record was created); catalogue lines become a real order.
+    const manualItems = validItems.filter((item) => item.productId === MANUAL_ID && (item.pointsPerUnit || 0) > 0);
+    const catalogueItems = validItems.filter((item) => item.productId !== MANUAL_ID);
+    if (manualItems.length === 0 && catalogueItems.length === 0) {
+      setSubmitError(t.enter_points);
       return;
     }
 
@@ -291,31 +317,55 @@ const CreateOrderWorkflow: React.FC<CreateOrderWorkflowProps> = ({ lang, onCance
     setSubmitError(null);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/orders`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          customerId: selectedCustomer.id,
-          customerName: selectedCustomer.fullName,
-          note: adminNote,
-          createdBy: 'Admin',
-          items: validItems.map((item) => ({
-            productId: item.productId,
-            quantity: item.quantity,
-          })),
-        }),
-      });
+      let lastResult: unknown = null;
 
-      const payload = await response.json() as CreateOrderResponse | { error?: string };
-      if (!response.ok) {
-        throw new Error('error' in payload && payload.error ? payload.error : 'Failed to create order');
+      // Manual bonuses — one per manual line.
+      for (const item of manualItems) {
+        const points = (item.pointsPerUnit || 0) * (item.quantity || 1);
+        const response = await fetch(`${API_BASE_URL}/api/customers/${selectedCustomer.id}/bonus`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            points,
+            note: adminNote || t.manual_bonus,
+            full_name: selectedCustomer.fullName,
+            phone: selectedCustomer.phone || '',
+            current_total_points: selectedCustomer.totalPoints || 0,
+          }),
+        });
+        const payload = await response.json() as { error?: string };
+        if (!response.ok) {
+          throw new Error(payload.error || 'Failed to create manual bonus');
+        }
+        lastResult = payload;
+      }
+
+      // Catalogue order.
+      if (catalogueItems.length > 0) {
+        const response = await fetch(`${API_BASE_URL}/api/orders`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            customerId: selectedCustomer.id,
+            customerName: selectedCustomer.fullName,
+            note: adminNote,
+            createdBy: 'Admin',
+            items: catalogueItems.map((item) => ({ productId: item.productId, quantity: item.quantity })),
+          }),
+        });
+        const payload = await response.json() as CreateOrderResponse | { error?: string };
+        if (!response.ok) {
+          throw new Error('error' in payload && payload.error ? payload.error : 'Failed to create order');
+        }
+        lastResult = payload;
       }
 
       clearApiCache(API_CACHE_KEYS.customerPoints, API_CACHE_KEYS.orders);
       if (onCreated) {
-        onCreated((payload as CreateOrderResponse).order);
+        const order = lastResult && typeof lastResult === 'object' && 'order' in lastResult
+          ? (lastResult as CreateOrderResponse).order
+          : undefined;
+        onCreated(order);
       }
       onCancel();
     } catch (error) {
@@ -523,7 +573,19 @@ const CreateOrderWorkflow: React.FC<CreateOrderWorkflowProps> = ({ lang, onCance
                           </div>
                         </td>
                         <td className="py-6 px-4 text-center">
-                          <span className="text-sm font-bold text-slate-400">{item.pointsPerUnit || '—'}</span>
+                          {item.productId === MANUAL_ID ? (
+                            <input
+                              type="number"
+                              min="1"
+                              autoFocus
+                              placeholder={t.enter_points}
+                              className="w-28 p-3 bg-amber-50 border border-amber-200 rounded-xl text-sm text-center font-bold outline-none focus:ring-2 focus:ring-amber-500/20 transition-all"
+                              value={item.pointsPerUnit ? String(item.pointsPerUnit) : ''}
+                              onChange={(e) => updateManualPoints(item.id!, Number(e.target.value))}
+                            />
+                          ) : (
+                            <span className="text-sm font-bold text-slate-400">{item.pointsPerUnit || '—'}</span>
+                          )}
                         </td>
                         <td className="py-6 px-4 text-center">
                           <input
@@ -726,6 +788,9 @@ const CreateOrderWorkflow: React.FC<CreateOrderWorkflowProps> = ({ lang, onCance
         const matches = products
           .filter((product) => product.isActive)
           .filter((product) => !query || `${product.id} ${product.name[lang]}`.toLowerCase().includes(query));
+        // "Manual bonus" is always offered (100% of real orders are manual), and
+        // stays visible when searching "manual" / "qo'lda" / "bonus".
+        const showManual = !query || ['manual', "qo'l", 'qol', 'bonus', t.manual_bonus.toLowerCase()].some((k) => k.includes(query) || query.includes(k));
         return (
           <div
             className="fixed z-[80] max-h-64 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-2xl custom-scrollbar"
@@ -734,7 +799,16 @@ const CreateOrderWorkflow: React.FC<CreateOrderWorkflowProps> = ({ lang, onCance
               : { left: pickerAnchor.x, width: pickerAnchor.width, top: pickerAnchor.y }}
             onMouseDown={(e) => e.preventDefault()}
           >
-            {matches.length === 0 ? (
+            {showManual && (
+              <button
+                onClick={() => { updateItem(productPickerRowId, MANUAL_ID); setProductPickerRowId(null); }}
+                className="w-full px-3 py-2 text-left text-xs hover:bg-amber-50 border-b border-slate-100 bg-amber-50/40"
+              >
+                <span className="block font-black text-amber-700">{t.manual_bonus}</span>
+                <span className="block text-[11px] text-amber-600/70">{t.manual_bonus_hint}</span>
+              </button>
+            )}
+            {matches.length === 0 && !showManual ? (
               <div className="px-3 py-3 text-xs text-slate-400">—</div>
             ) : (
               matches.map((product) => (
