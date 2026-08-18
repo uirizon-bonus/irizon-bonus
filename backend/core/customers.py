@@ -1055,6 +1055,22 @@ def _verify_otp(phone: str, otp: str) -> Dict[str, Any]:
             "lastBonusAt": "",
             "createdAt": "",
         }
+    # Record the customer's first activity on first successful login. Only fills a
+    # NULL, so an earlier (backfilled) activity date is never overwritten.
+    try:
+        stamp_conn = bonus_db()
+        try:
+            stamp_conn.execute(
+                "UPDATE customers SET first_activity_at = CURRENT_TIMESTAMP "
+                "WHERE id = ? AND first_activity_at IS NULL",
+                (client_id,),
+            )
+            stamp_conn.commit()
+        finally:
+            stamp_conn.close()
+    except Exception:
+        pass  # never block login on this bookkeeping
+
     customer = _load_customer_snapshot(client_id)
     if customer is None:
         raise ValueError("Customer not found")

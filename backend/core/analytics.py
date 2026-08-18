@@ -75,7 +75,9 @@ def _load_customer_analytics() -> Dict[str, Any]:
     summary the dashboard can render directly."""
     connection = bonus_db()
     try:
-        customers = connection.execute("SELECT id, full_name, status FROM customers").fetchall()
+        customers = connection.execute(
+            "SELECT id, full_name, status, first_activity_at FROM customers"
+        ).fetchall()
         bonus = connection.execute(
             """
             SELECT client_id, COALESCE(SUM(points), 0) AS pts, COUNT(*) AS cnt,
@@ -118,9 +120,12 @@ def _load_customer_analytics() -> Dict[str, Any]:
         "newThisMonth": 0,
         "notReturned90d": 0,
         "activeLast30d": 0,
+        "avgLifetimeDays": 0,
         "tiers": {"Premium": 0, "Gold": 0, "Silver": 0},
         "segments": {"Champion": 0, "Loyal": 0, "New": 0, "At-Risk": 0, "Dormant": 0, "Inactive": 0},
     }
+    lifetime_days_total = 0
+    lifetime_count = 0
 
     for customer in customers:
         cid = str(customer["id"])
@@ -135,7 +140,9 @@ def _load_customer_analytics() -> Dict[str, Any]:
             _parse_dt(r["last_at"]) if r else None,
             _parse_dt(se["last_at"]) if se else None,
         )
-        first_at = _min_dt(
+        # Prefer the persisted registration stamp; fall back to the earliest
+        # derived activity (covers rows predating the first_activity_at backfill).
+        first_at = _parse_dt(customer["first_activity_at"]) or _min_dt(
             _parse_dt(b["first_at"]) if b else None,
             _parse_dt(s["first_at"]) if s else None,
             _parse_dt(r["first_at"]) if r else None,
@@ -171,6 +178,10 @@ def _load_customer_analytics() -> Dict[str, Any]:
             summary["activeLast30d"] += 1
         if recency_days is not None and recency_days > SEGMENT_ACTIVE_DAYS:
             summary["notReturned90d"] += 1
+        if first_at and last_at and last_at >= first_at:
+            lifetime_days_total += (last_at - first_at).days
+            lifetime_count += 1
 
+    summary["avgLifetimeDays"] = round(lifetime_days_total / lifetime_count) if lifetime_count else 0
     rows.sort(key=lambda item: item["pointsBalance"], reverse=True)
     return {"count": len(rows), "generatedAt": now.isoformat(), "summary": summary, "customers": rows}

@@ -579,6 +579,41 @@ def _init_bonus_db() -> None:
         connection.execute("CREATE INDEX IF NOT EXISTS idx_market_orders_client_created ON points_market_orders (client_id, created_at)")
         connection.execute("CREATE INDEX IF NOT EXISTS idx_market_orders_status_created ON points_market_orders (status, created_at)")
         connection.execute("CREATE INDEX IF NOT EXISTS idx_catalog_deleted_items_type_id ON catalog_deleted_items (item_type, item_id)")
+
+        # first_activity_at: when the customer first became active in the loyalty
+        # program (first bonus / scan / redemption / login). NULL = never active.
+        # Seed-time created_at is meaningless (all rows share the migration date),
+        # so this is the real basis for "new this month" and lifetime metrics.
+        if DB_BACKEND == "postgres":
+            customer_columns = {
+                str(row["column_name"])
+                for row in connection.execute(
+                    "SELECT column_name FROM information_schema.columns "
+                    "WHERE table_schema = 'public' AND table_name = 'customers'"
+                ).fetchall()
+            }
+        else:
+            customer_columns = {
+                str(row["name"]) for row in connection.execute("PRAGMA table_info(customers)").fetchall()
+            }
+        if "first_activity_at" not in customer_columns:
+            nullable_ts = "TIMESTAMP" if DB_BACKEND == "postgres" else "TEXT"
+            connection.execute(f"ALTER TABLE customers ADD COLUMN first_activity_at {nullable_ts}")
+            # One-time backfill from the earliest recorded activity per customer.
+            connection.execute(
+                """
+                UPDATE customers SET first_activity_at = sub.first_at
+                FROM (
+                    SELECT client_id, MIN(created_at) AS first_at FROM (
+                        SELECT client_id, created_at FROM bonus_transactions
+                        UNION ALL SELECT client_id, created_at FROM qr_scan_events
+                        UNION ALL SELECT customer_id AS client_id, created_at FROM redemption_requests
+                        UNION ALL SELECT client_id, created_at FROM customer_sessions
+                    ) act GROUP BY client_id
+                ) sub
+                WHERE customers.id = sub.client_id AND customers.first_activity_at IS NULL
+                """
+            )
         connection.execute(
             """
             DELETE FROM products
