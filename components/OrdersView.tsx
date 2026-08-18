@@ -217,8 +217,8 @@ const OrdersView: React.FC<OrdersViewProps> = ({ lang, initialSelectedId }) => {
         <DateRangeFilter from={dateFrom} to={dateTo} onChange={(from, to) => { setDateFrom(from); setDateTo(to); }} className="w-full md:w-auto" />
       </div>
 
-      <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden flex-1">
-        <div className="overflow-x-auto">
+      <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden flex-1 flex flex-col min-h-0">
+        <div className="overflow-auto flex-1 custom-scrollbar">
           <table className="w-full text-left">
             <thead>
               <tr className="bg-slate-50/50 border-b border-slate-100">
@@ -322,7 +322,7 @@ const OrdersView: React.FC<OrdersViewProps> = ({ lang, initialSelectedId }) => {
             </tbody>
           </table>
         </div>
-        <div className="flex items-center justify-between px-6 py-4 border-t border-slate-100 text-xs text-slate-500">
+        <div className="shrink-0 flex items-center justify-between px-6 py-4 border-t border-slate-100 text-xs text-slate-500 bg-white">
           <span>
             {t.showing} {totalCount === 0 ? 0 : page * PAGE_SIZE + 1}-{Math.min((page + 1) * PAGE_SIZE, totalCount)} {t.of} {totalCount}
           </span>
