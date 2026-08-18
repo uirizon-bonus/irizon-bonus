@@ -708,7 +708,7 @@ const CustomersView: React.FC<CustomersViewProps> = ({ lang, onOpenReconciliatio
           <h2 className="text-2xl font-bold text-slate-800">{t.customers}</h2>
           <p className="text-sm text-slate-500">{t.track_manage_loyalty}</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center justify-end gap-3">
           <button
             onClick={openCreateCustomerModal}
             className="flex items-center gap-2 rounded-xl bg-cyan-600 px-4 py-2 text-sm font-semibold text-white transition-all hover:bg-cyan-700"
@@ -850,7 +850,7 @@ const CustomersView: React.FC<CustomersViewProps> = ({ lang, onOpenReconciliatio
                 </th>
 
                 {/* Phone Column */}
-                <th className="w-36 px-4 py-3 relative">
+                <th className="w-32 px-4 py-3 relative">
                   <div className="flex items-center gap-2 group cursor-pointer" onClick={() => handleSort('phone')}>
                     <span className={`text-[10px] font-black uppercase tracking-widest ${sortConfig.key === 'phone' ? 'text-cyan-600' : 'text-slate-400'}`}>
                       {t.phone}
@@ -862,7 +862,7 @@ const CustomersView: React.FC<CustomersViewProps> = ({ lang, onOpenReconciliatio
                 </th>
 
                 {/* Total Points Column */}
-                <th className="w-32 px-4 py-3 relative">
+                <th className="w-28 px-4 py-3 relative">
                   <div className="flex items-center gap-2 group cursor-pointer" onClick={() => handleSort('totalPoints')}>
                     <span className={`text-[10px] font-black uppercase tracking-widest ${sortConfig.key === 'totalPoints' ? 'text-cyan-600' : 'text-slate-400'}`}>
                       {t.total_points}
@@ -912,7 +912,7 @@ const CustomersView: React.FC<CustomersViewProps> = ({ lang, onOpenReconciliatio
                 </th>
 
                 {/* Earned Column */}
-                <th className="w-32 px-4 py-3 relative">
+                <th className="w-28 px-4 py-3 relative">
                   <div className="flex items-center gap-2 group cursor-pointer" onClick={() => handleSort('pointsEarned')}>
                     <span className={`text-[10px] font-black uppercase tracking-widest ${sortConfig.key === 'pointsEarned' ? 'text-cyan-600' : 'text-slate-400'}`}>
                       {t.earned}
@@ -958,7 +958,7 @@ const CustomersView: React.FC<CustomersViewProps> = ({ lang, onOpenReconciliatio
                 </th>
 
                 {/* Redeemed Column */}
-                <th className="w-32 px-4 py-3 relative">
+                <th className="w-28 px-4 py-3 relative">
                   <div className="flex items-center gap-2 group cursor-pointer" onClick={() => handleSort('pointsRedeemed')}>
                     <span className={`text-[10px] font-black uppercase tracking-widest ${sortConfig.key === 'pointsRedeemed' ? 'text-cyan-600' : 'text-slate-400'}`}>
                       {t.redeemed}
@@ -1004,7 +1004,7 @@ const CustomersView: React.FC<CustomersViewProps> = ({ lang, onOpenReconciliatio
                 </th>
 
                 <th className="w-28 px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">{t.status}</th>
-                <th className="w-20 px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">{t.actions}</th>
+                <th className="w-28 px-3 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right whitespace-nowrap">{t.actions}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">

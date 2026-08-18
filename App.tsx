@@ -119,6 +119,19 @@ const App: React.FC = () => {
     setLang('UZ');
   }, [APP_LANG_KEY]);
 
+  // Auto-collapse the sidebar on narrow screens so the content area (and its
+  // wide tables) keep usable room. Only forces collapse when narrow; on wide
+  // screens the user's manual toggle is left alone.
+  useEffect(() => {
+    if (isPortalApp) return;
+    const applyNarrow = () => {
+      if (window.innerWidth < 1024) setIsSidebarOpen(false);
+    };
+    applyNarrow();
+    window.addEventListener('resize', applyNarrow);
+    return () => window.removeEventListener('resize', applyNarrow);
+  }, [isPortalApp]);
+
   useEffect(() => {
     const savedPortalCustomerId = localStorage.getItem(PORTAL_CUSTOMER_ID_KEY);
     if (savedPortalCustomerId) {
@@ -379,7 +392,7 @@ const App: React.FC = () => {
         </header>
 
         {/* Main Workspace Container */}
-        <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 custom-scrollbar">
           {renderAdminContent()}
         </div>
       </main>
