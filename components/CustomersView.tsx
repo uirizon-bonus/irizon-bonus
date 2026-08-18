@@ -618,12 +618,6 @@ const CustomersView: React.FC<CustomersViewProps> = ({ lang, onOpenReconciliatio
     return result;
   }, [customers, search, filters, sortConfig, statusFilter]);
 
-  const allFilteredSelected = filteredAndSortedCustomers.length > 0 && filteredAndSortedCustomers.every((c) => selectedIds.has(c.id));
-  const toggleSelectAll = () => {
-    if (allFilteredSelected) clearSelection();
-    else setSelectedIds(new Set(filteredAndSortedCustomers.map((c) => c.id)));
-  };
-
   const handleBulkDelete = async () => {
     setIsBulkDeleting(true);
     setLoadError(null);
@@ -681,6 +675,31 @@ const CustomersView: React.FC<CustomersViewProps> = ({ lang, onOpenReconciliatio
     const startIndex = (safeCurrentPage - 1) * ROWS_PER_PAGE;
     return filteredAndSortedCustomers.slice(startIndex, startIndex + ROWS_PER_PAGE);
   }, [filteredAndSortedCustomers, safeCurrentPage]);
+
+  // Selection is scoped to the CURRENT PAGE by default. The header checkbox only
+  // toggles the rows you can see; selecting the whole filtered set is a separate,
+  // explicit action (the banner below the header), so a destructive bulk delete
+  // can never be armed against all 950 customers by one header click.
+  const pageIds = useMemo(() => paginatedCustomers.map((c) => c.id), [paginatedCustomers]);
+  const allPageSelected = pageIds.length > 0 && pageIds.every((id) => selectedIds.has(id));
+  const somePageSelected = pageIds.some((id) => selectedIds.has(id));
+  const allFilteredSelected =
+    filteredAndSortedCustomers.length > 0 &&
+    selectedIds.size >= filteredAndSortedCustomers.length &&
+    filteredAndSortedCustomers.every((c) => selectedIds.has(c.id));
+
+  const toggleSelectPage = () => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (allPageSelected) pageIds.forEach((id) => next.delete(id));
+      else pageIds.forEach((id) => next.add(id));
+      return next;
+    });
+  };
+  const selectAllFiltered = () => setSelectedIds(new Set(filteredAndSortedCustomers.map((c) => c.id)));
+  const headerCheckboxRef = (el: HTMLInputElement | null) => {
+    if (el) el.indeterminate = somePageSelected && !allPageSelected;
+  };
 
   useEffect(() => {
     setCurrentPage(1);
@@ -775,25 +794,46 @@ const CustomersView: React.FC<CustomersViewProps> = ({ lang, onOpenReconciliatio
       </div>
 
       {selectedIds.size > 0 && (
-        <div className="flex items-center justify-between gap-3 rounded-2xl border border-cyan-200 bg-cyan-50 px-4 py-3">
-          <span className="text-sm font-bold text-cyan-700">{selectedIds.size} tanlangan</span>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handleExportSelectedCsv}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-50"
-            >
-              <Download className="h-3.5 w-3.5" /> Eksport
-            </button>
-            <button
-              onClick={() => setIsBulkDeleteOpen(true)}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-rose-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-rose-700"
-            >
-              <Trash2 className="h-3.5 w-3.5" /> {t.delete}
-            </button>
-            <button onClick={clearSelection} className="rounded-xl p-1.5 text-slate-400 hover:bg-white hover:text-slate-600">
-              <X className="h-4 w-4" />
-            </button>
+        <div className="flex flex-col gap-2 rounded-2xl border border-cyan-200 bg-cyan-50 px-4 py-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <span className="text-sm font-bold text-cyan-700">
+              {allFilteredSelected
+                ? `Barcha ${filteredAndSortedCustomers.length.toLocaleString()} ta mijoz tanlandi`
+                : `${selectedIds.size.toLocaleString()} ta mijoz tanlandi`}
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleExportSelectedCsv}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-50"
+              >
+                <Download className="h-3.5 w-3.5" /> Eksport
+              </button>
+              <button
+                onClick={() => setIsBulkDeleteOpen(true)}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-rose-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-rose-700"
+              >
+                <Trash2 className="h-3.5 w-3.5" /> {t.delete} ({selectedIds.size.toLocaleString()})
+              </button>
+              <button onClick={clearSelection} className="rounded-xl p-1.5 text-slate-400 hover:bg-white hover:text-slate-600">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
           </div>
+          {/* Escalation: selecting beyond the visible page is a deliberate second step,
+              so a header click can never arm a delete over the whole filtered set. */}
+          {allPageSelected && !allFilteredSelected && filteredAndSortedCustomers.length > pageIds.length && (
+            <div className="flex flex-wrap items-center gap-2 border-t border-cyan-200/70 pt-2 text-xs text-cyan-700">
+              <span>Ushbu sahifadagi {pageIds.length} ta mijoz tanlandi.</span>
+              <button
+                onClick={selectAllFiltered}
+                className="font-bold underline underline-offset-2 hover:text-cyan-900"
+              >
+                {filteredAndSortedCustomers.length < customers.length
+                  ? `Mos keluvchi barcha ${filteredAndSortedCustomers.length.toLocaleString()} tani tanlash`
+                  : `Barcha ${filteredAndSortedCustomers.length.toLocaleString()} mijozni tanlash`}
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -806,8 +846,10 @@ const CustomersView: React.FC<CustomersViewProps> = ({ lang, onOpenReconciliatio
                 <th className="w-10 px-4 py-3">
                   <input
                     type="checkbox"
-                    checked={allFilteredSelected}
-                    onChange={toggleSelectAll}
+                    ref={headerCheckboxRef}
+                    checked={allPageSelected}
+                    onChange={toggleSelectPage}
+                    title="Ushbu sahifadagi mijozlarni tanlash"
                     className="h-4 w-4 cursor-pointer rounded border-slate-300 text-cyan-600 focus:ring-cyan-500/30"
                   />
                 </th>
