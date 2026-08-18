@@ -665,7 +665,7 @@ const CreateOrderWorkflow: React.FC<CreateOrderWorkflowProps> = ({ lang, onCance
                   <button
                     disabled={totalOrderPoints <= 0}
                     onClick={() => setStep(3)}
-                    className="px-10 py-4 bg-cyan-500 hover:bg-cyan-600 text-white font-bold rounded-2xl shadow-xl shadow-cyan-500/30 transition-all flex items-center gap-2"
+                    className="px-10 py-4 bg-cyan-500 hover:bg-cyan-600 text-white font-bold rounded-2xl shadow-xl shadow-cyan-500/30 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-cyan-500 transition-all flex items-center gap-2"
                   >
                     {t.next}: {t.review_confirm} <CheckCircle2 className="w-5 h-5" />
                   </button>
