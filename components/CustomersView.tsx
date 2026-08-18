@@ -1112,6 +1112,13 @@ const CustomersView: React.FC<CustomersViewProps> = ({ lang, onOpenReconciliatio
                   )}
                 </React.Fragment>
               ))}
+              {/* Spacer so the last row can scroll clear of the sticky totals
+                  footer below (which floats over the tbody); height ≈ footer. */}
+              {filteredAndSortedCustomers.length > 0 && (
+                <tr aria-hidden="true">
+                  <td colSpan={8} className="h-14 border-0 p-0"></td>
+                </tr>
+              )}
             </tbody>
             {/* Sticky Totals Footer - Minimal Style */}
             <tfoot className="sticky bottom-0 z-30 bg-white border-t border-slate-200 shadow-[0_-2px_10px_rgba(0,0,0,0.02)]">
