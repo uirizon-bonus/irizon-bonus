@@ -293,6 +293,16 @@ export const TRANSLATIONS = {
     status_change_warning: 'Tasdiqlanganda mijoz balansidan ballar yechiladi va sovg\'a zaxirasi kamayadi. Rad etilganda ballar qaytariladi.',
     confirm_action_correct: 'Amal to\'g\'riligini tasdiqlayman',
     reject_reason_placeholder: 'Rad etish sababini yozing...',
+    new_bonus_order: 'Yangi bonus buyurtmasi',
+    product: 'Mahsulot',
+    quantity: 'Miqdor',
+    balance: 'Balans',
+    review: 'Ko\'rib chiqish',
+    review_confirm: 'Ko\'rib chiqish va tasdiqlash',
+    admin_note_placeholder: 'Admin eslatmasi (ixtiyoriy)...',
+    confirm_verify_issuance: 'Ma\'lumotlar to\'g\'riligini tekshirdim va berishni tasdiqlayman',
+    view_order: 'Buyurtmani ko\'rish',
+    reset_all: 'Davrni tiklash',
   }
 };
 
