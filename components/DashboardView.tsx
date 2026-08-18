@@ -34,6 +34,7 @@ type LoyaltySummary = {
   newThisMonth: number;
   notReturned90d: number;
   activeLast30d: number;
+  avgLifetimeDays: number;
   tiers: { Premium: number; Gold: number; Silver: number };
   segments: Record<string, number>;
 };
@@ -318,8 +319,8 @@ const DashboardView: React.FC<{ lang: Language }> = ({ lang }) => {
               t={t}
             />
             <KPICard
-              title="Premium"
-              value={formatCompact(loyalty.tiers.Premium)}
+              title={t.avg_lifetime}
+              value={`${loyalty.avgLifetimeDays} ${t.day_short || 'kun'}`}
               icon={<Award className="w-5 h-5" />}
               color={{ bg: 'bg-amber-50', text: 'text-amber-600' }}
               t={t}

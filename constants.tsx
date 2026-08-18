@@ -297,6 +297,7 @@ export const TRANSLATIONS = {
     new_this_month: 'Bu oy yangi',
     active_30d: 'Faol (30 kun)',
     not_returned_90d: '90+ kun qaytmagan',
+    avg_lifetime: 'O\'rtacha faollik muddati',
     tier_distribution: 'Darajalar',
     customer_segments: 'Segmentlar',
     seg_Champion: 'Chempion',
