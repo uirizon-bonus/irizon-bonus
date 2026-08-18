@@ -968,7 +968,7 @@ const RequestsView: React.FC<RequestsViewProps> = ({ lang, initialSelectedId }) 
             
             <h3 className="text-2xl font-black text-slate-800 mb-2">{t.confirm_status_change}</h3>
             <p className="text-slate-500 text-sm mb-6 font-medium">
-              {t.transitioned_to} <span className="font-bold text-slate-800">{statusChangeModal.newStatus}</span>
+              {t.transitioned_to} <span className="font-bold text-slate-800">{statusLabel(statusChangeModal.newStatus)}</span>
             </p>
 
             {statusChangeModal.newStatus === 'Approved' && (
@@ -1055,7 +1055,7 @@ const RequestsView: React.FC<RequestsViewProps> = ({ lang, initialSelectedId }) 
               {bulkCopy.bulkStatusDescription}
             </p>
             <p className="text-sm text-slate-500 mb-6 font-medium">
-              {t.transitioned_to} <span className="font-bold text-slate-800">{bulkStatusModal.newStatus}</span>
+              {t.transitioned_to} <span className="font-bold text-slate-800">{statusLabel(bulkStatusModal.newStatus)}</span>
             </p>
 
             {bulkStatusModal.newStatus === 'Approved' && (

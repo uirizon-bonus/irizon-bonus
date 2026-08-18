@@ -277,6 +277,22 @@ export const TRANSLATIONS = {
     details: 'Tafsilotlar',
     user_agent: 'User Agent',
     ip_address: 'IP manzil',
+    all: 'Barchasi',
+    request_id: 'So\'rov ID',
+    gift: 'Sovg\'a',
+    unit: 'dona',
+    balance_after_redemption: 'Almashishdan keyingi balans',
+    client_balance_info: 'Mijoz balansi',
+    available_points: 'Mavjud ballar',
+    out_of_stock: 'Tugagan',
+    process_timeline: 'Jarayon tarixi',
+    request_initiated: 'So\'rov yaratildi:',
+    processed_by: 'Bajaruvchi',
+    transitioned_to: 'Yangi status:',
+    confirm_status_change: 'Status o\'zgarishini tasdiqlang',
+    status_change_warning: 'Tasdiqlanganda mijoz balansidan ballar yechiladi va sovg\'a zaxirasi kamayadi. Rad etilganda ballar qaytariladi.',
+    confirm_action_correct: 'Amal to\'g\'riligini tasdiqlayman',
+    reject_reason_placeholder: 'Rad etish sababini yozing...',
   }
 };
 
