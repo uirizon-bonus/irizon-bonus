@@ -115,6 +115,18 @@ const OrdersView: React.FC<OrdersViewProps> = ({ lang, initialSelectedId }) => {
     setPage(0);
   }, [search, statusFilter, dateFrom, dateTo]);
 
+  // Escape closes the top-most overlay (menu -> confirm modal -> detail drawer).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      if (actionMenu) setActionMenu(null);
+      else if (pendingStatus) setPendingStatus(null);
+      else if (selectedOrder) setSelectedOrder(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [actionMenu, pendingStatus, selectedOrder]);
+
   const handleStatusChange = async () => {
     if (!pendingStatus) {
       return;
@@ -199,7 +211,7 @@ const OrdersView: React.FC<OrdersViewProps> = ({ lang, initialSelectedId }) => {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <input
             type="text"
-            placeholder={t.search_placeholder}
+            aria-label={t.search_placeholder} placeholder={t.search_placeholder}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-10 pr-4 py-2 w-full bg-slate-50 border border-slate-100 rounded-xl text-sm outline-none focus:ring-2 focus:ring-cyan-500/10 transition-all"
@@ -209,6 +221,7 @@ const OrdersView: React.FC<OrdersViewProps> = ({ lang, initialSelectedId }) => {
           <div className="relative">
             <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
             <select
+              aria-label={t.filter_status}
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value as 'all' | 'Confirmed' | 'Reversed')}
               className="pl-9 pr-8 py-2 w-full md:w-52 bg-slate-50 border border-slate-100 rounded-xl text-sm font-medium text-slate-600 outline-none focus:ring-2 focus:ring-cyan-500/10 transition-all appearance-none cursor-pointer"
@@ -227,13 +240,13 @@ const OrdersView: React.FC<OrdersViewProps> = ({ lang, initialSelectedId }) => {
           <table className="w-full text-left">
             <thead>
               <tr className="bg-slate-50/50 border-b border-slate-100">
-                <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">{t.order_id}</th>
-                <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">{t.date_time}</th>
-                <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">{t.customer}</th>
-                <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">{t.items}</th>
-                <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">{t.points_added}</th>
-                <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">{t.status}</th>
-                <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-right">{t.actions}</th>
+                <th scope="col" className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">{t.order_id}</th>
+                <th scope="col" className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">{t.date_time}</th>
+                <th scope="col" className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">{t.customer}</th>
+                <th scope="col" className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">{t.items}</th>
+                <th scope="col" className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">{t.points_added}</th>
+                <th scope="col" className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">{t.status}</th>
+                <th scope="col" className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-right">{t.actions}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
@@ -294,7 +307,7 @@ const OrdersView: React.FC<OrdersViewProps> = ({ lang, initialSelectedId }) => {
                         const openUp = window.innerHeight - rect.bottom < 160;
                         setActionMenu({ order, x: rect.right, y: openUp ? rect.top - 4 : rect.bottom + 4, openUp });
                       }}
-                      className="p-2 text-slate-400 hover:text-cyan-600 transition-all rounded-lg hover:bg-slate-100"
+                      aria-label={t.actions} className="p-2 text-slate-400 hover:text-cyan-600 transition-all rounded-lg hover:bg-slate-100"
                     >
                       <MoreHorizontal className="w-5 h-5" />
                     </button>
@@ -384,7 +397,7 @@ const OrdersView: React.FC<OrdersViewProps> = ({ lang, initialSelectedId }) => {
                   <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">{selectedOrder.id}</p>
                 </div>
               </div>
-              <button onClick={() => setSelectedOrder(null)} className="p-2 text-slate-400 hover:text-rose-600 transition-all">
+              <button aria-label={t.close || "Yopish"} onClick={() => setSelectedOrder(null)} className="p-2 text-slate-400 hover:text-rose-600 transition-all">
                 <X className="w-6 h-6" />
               </button>
             </div>
@@ -409,10 +422,10 @@ const OrdersView: React.FC<OrdersViewProps> = ({ lang, initialSelectedId }) => {
                   <table className="w-full text-left">
                     <thead className="bg-slate-50 text-[10px] font-bold text-slate-400 uppercase">
                       <tr>
-                        <th className="px-6 py-3">{t.products}</th>
-                        <th className="px-6 py-3 text-center">{t.unit_points}</th>
-                        <th className="px-6 py-3 text-center">{t.qty}</th>
-                        <th className="px-6 py-3 text-right">{t.total}</th>
+                        <th scope="col" className="px-6 py-3">{t.products}</th>
+                        <th scope="col" className="px-6 py-3 text-center">{t.unit_points}</th>
+                        <th scope="col" className="px-6 py-3 text-center">{t.qty}</th>
+                        <th scope="col" className="px-6 py-3 text-right">{t.total}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-50 text-sm">

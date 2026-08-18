@@ -117,6 +117,7 @@ export const TRANSLATIONS = {
     status: 'Holat',
     last_updated: 'Yangilangan',
     actions: 'Harakatlar',
+    close: 'Yopish',
     active: 'Faol',
     blocked: 'Bloklangan',
     points: 'Ballar',

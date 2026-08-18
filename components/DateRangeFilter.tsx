@@ -33,6 +33,7 @@ const DateRangeFilter: React.FC<DateRangeFilterProps> = ({ from, to, onChange, c
       <div className="relative">
         <Calendar className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
         <input
+          aria-label="Boshlanish sanasi"
           type="date"
           value={from}
           max={to || undefined}
@@ -42,6 +43,7 @@ const DateRangeFilter: React.FC<DateRangeFilterProps> = ({ from, to, onChange, c
       </div>
       <span className="text-slate-300 text-xs">—</span>
       <input
+        aria-label="Tugash sanasi"
         type="date"
         value={to}
         min={from || undefined}
