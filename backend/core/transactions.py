@@ -493,6 +493,10 @@ def _load_orders(*, offset: int = 0, limit: int = 100, search: str = "", status:
             combined_rows = [entry for entry in combined_rows if entry["created_at"][:10] <= to_day]
 
         total_count = len(combined_rows)
+        total_points_sum = sum(
+            int(entry["row"]["points"] or 0) if entry["kind"] == "manual" else int(entry["row"]["total_points"] or 0)
+            for entry in combined_rows
+        )
         combined_rows.sort(key=lambda entry: (entry["created_at"], entry["sort_id"]), reverse=True)
         paged_rows = combined_rows[int(offset):int(offset) + int(limit)]
 
@@ -573,7 +577,7 @@ def _load_orders(*, offset: int = 0, limit: int = 100, search: str = "", status:
             }
         )
     _overlay_current_client_names(orders, id_key="customerId", name_key="customerName")
-    return orders, total_count
+    return orders, total_count, total_points_sum
 
 
 def _serialize_manual_bonus_order(row: Any, *, is_reversed: bool) -> Dict[str, Any]:

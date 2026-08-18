@@ -17,8 +17,8 @@ def get_orders_payload(offset: int, limit: int, search: str, status: str = "", d
         cached_at = float(cached_entry.get("ts") or 0.0)
         if (time.time() - cached_at) <= legacy.ORDERS_CACHE_TTL_SEC:
             return cached_entry["payload"]
-    orders, total_count = transaction_core._load_orders(offset=int(offset), limit=int(limit), search=search, status=status, date_from=date_from, date_to=date_to)
-    payload = {"count": int(total_count), "orders": orders, "offset": int(offset), "limit": int(limit)}
+    orders, total_count, total_points_sum = transaction_core._load_orders(offset=int(offset), limit=int(limit), search=search, status=status, date_from=date_from, date_to=date_to)
+    payload = {"count": int(total_count), "totalPointsSum": int(total_points_sum), "orders": orders, "offset": int(offset), "limit": int(limit)}
     legacy._ORDERS_CACHE[cache_key] = {"ts": time.time(), "payload": payload}
     legacy.logger.info("Loaded /api/orders in %.2fs", time.time() - started)
     return payload

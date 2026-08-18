@@ -25,6 +25,7 @@ interface OrdersViewProps {
 
 interface OrdersApiResponse {
   count: number;
+  totalPointsSum?: number;
   orders: Order[];
   offset: number;
   limit: number;
@@ -52,6 +53,7 @@ const OrdersView: React.FC<OrdersViewProps> = ({ lang, initialSelectedId }) => {
   const [page, setPage] = useState(0);
   const [reloadKey, setReloadKey] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
+  const [totalPointsSum, setTotalPointsSum] = useState(0);
   const [isCreating, setIsCreating] = useState(false);
   const [pendingStatus, setPendingStatus] = useState<{ order: Order; target: OrderStatusTarget } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -89,6 +91,7 @@ const OrdersView: React.FC<OrdersViewProps> = ({ lang, initialSelectedId }) => {
             : [];
           setOrders(nextOrders);
           setTotalCount(Number((payload as OrdersApiResponse).count || 0));
+          setTotalPointsSum(Number((payload as OrdersApiResponse).totalPointsSum || 0));
           if (initialSelectedId) {
             setSelectedOrder(nextOrders.find((order) => order.id === initialSelectedId) ?? null);
           }
@@ -318,9 +321,16 @@ const OrdersView: React.FC<OrdersViewProps> = ({ lang, initialSelectedId }) => {
           </table>
         </div>
         <div className="shrink-0 flex items-center justify-between px-6 py-4 border-t border-slate-100 text-xs text-slate-500 bg-white">
-          <span>
+          <div className="flex items-center gap-4">
+            <span className="inline-flex items-baseline gap-1.5 rounded-lg bg-cyan-50 px-3 py-1.5">
+              <span className="text-[10px] font-black uppercase tracking-widest text-cyan-500">{t.totals}</span>
+              <span className="text-sm font-black text-cyan-700">{totalPointsSum.toLocaleString()}</span>
+              <span className="text-[10px] font-bold text-cyan-500/70">{t.points}</span>
+            </span>
+            <span>
             {t.showing} {totalCount === 0 ? 0 : page * PAGE_SIZE + 1}-{Math.min((page + 1) * PAGE_SIZE, totalCount)} {t.of} {totalCount}
-          </span>
+            </span>
+          </div>
           <div className="flex items-center gap-2">
             <button
               onClick={() => setPage((prev) => Math.max(0, prev - 1))}
