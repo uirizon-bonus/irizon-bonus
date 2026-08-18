@@ -16,6 +16,7 @@ import { API_CACHE_KEYS, clearApiCache } from '../utils/apiCache';
 import CreateOrderWorkflow from './CreateOrderWorkflow';
 import DateRangeFilter from './DateRangeFilter';
 import LoadingGlass from './LoadingGlass';
+import { formatDateTime } from '../utils/formatDate';
 
 interface OrdersViewProps {
   lang: Language;
@@ -252,7 +253,7 @@ const OrdersView: React.FC<OrdersViewProps> = ({ lang, initialSelectedId }) => {
                     <span className="text-xs font-bold text-cyan-600 bg-cyan-50 px-2 py-1 rounded-md">{order.id}</span>
                   </td>
                   <td className="px-6 py-4">
-                    <span className="text-xs font-medium text-slate-500">{order.date}</span>
+                    <span className="text-xs font-medium text-slate-500">{formatDateTime(order.date)}</span>
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex flex-col">
@@ -398,7 +399,7 @@ const OrdersView: React.FC<OrdersViewProps> = ({ lang, initialSelectedId }) => {
                 <div className="p-5 rounded-3xl bg-slate-50 border border-slate-100">
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">{t.created_by}</p>
                   <p className="text-sm font-bold text-slate-800">{selectedOrder.createdBy}</p>
-                  <p className="text-xs text-slate-400">{selectedOrder.date}</p>
+                  <p className="text-xs text-slate-400">{formatDateTime(selectedOrder.date)}</p>
                 </div>
               </div>
 

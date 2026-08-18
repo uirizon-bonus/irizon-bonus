@@ -17,6 +17,7 @@ import { Customer, Language, Order, OrderItem, Product } from '../types';
 import { API_CACHE_KEYS, API_CACHE_TTLS, clearApiCache, readApiCache, writeApiCache } from '../utils/apiCache';
 import { phoneMatches } from '../utils/phone';
 import LoadingGlass from './LoadingGlass';
+import { formatDateTime } from '../utils/formatDate';
 
 interface CreateOrderWorkflowProps {
   lang: Language;
@@ -451,7 +452,7 @@ const CreateOrderWorkflow: React.FC<CreateOrderWorkflowProps> = ({ lang, onCance
                     </div>
                     <div className="bg-white/10 p-4 rounded-2xl backdrop-blur-sm">
                       <p className="text-[10px] font-bold uppercase mb-1">{t.last_activity}</p>
-                      <p className="text-lg font-bold">{selectedCustomer.lastUpdated}</p>
+                      <p className="text-lg font-bold">{formatDateTime(selectedCustomer.lastUpdated)}</p>
                     </div>
                   </div>
                 </div>
