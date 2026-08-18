@@ -21,6 +21,7 @@ import {
 import { TRANSLATIONS } from '../constants';
 import { Customer, Language } from '../types';
 import { API_CACHE_KEYS, API_CACHE_TTLS, clearApiCache, readApiCache, writeApiCache } from '../utils/apiCache';
+import { phoneMatches } from '../utils/phone';
 import CreateOrderWorkflow from './CreateOrderWorkflow';
 import LoadingGlass from './LoadingGlass';
 
@@ -579,11 +580,14 @@ const CustomersView: React.FC<CustomersViewProps> = ({ lang, onOpenReconciliatio
   const filteredAndSortedCustomers = useMemo(() => {
     let result = [...customers];
 
-    // Search filter
+    // Search filter — name, ID, or phone. For phone, compare digit-only forms so
+    // "972473354", "998972473354" and "+998 97 247 33 54" all match one record.
     if (search) {
-      result = result.filter(c => 
-        c.fullName.toLowerCase().includes(search.toLowerCase()) || 
-        c.id.toLowerCase().includes(search.toLowerCase())
+      const q = search.toLowerCase();
+      result = result.filter(c =>
+        c.fullName.toLowerCase().includes(q) ||
+        c.id.toLowerCase().includes(q) ||
+        phoneMatches(c.phone, search)
       );
     }
 

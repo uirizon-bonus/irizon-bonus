@@ -30,6 +30,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { TRANSLATIONS } from '../constants';
 import { RedemptionRequest, RequestStatus, Customer, Gift, Language } from '../types';
 import { API_CACHE_KEYS, API_CACHE_TTLS, clearApiCache, readApiCache, writeApiCache } from '../utils/apiCache';
+import { phoneMatches } from '../utils/phone';
 import LoadingGlass from './LoadingGlass';
 import DateRangeFilter from './DateRangeFilter';
 
@@ -102,9 +103,11 @@ const NewRequestModal: React.FC<NewRequestModalProps> = ({ onClose, lang, custom
 
   const filteredCustomers = useMemo(() => {
     if (!customerSearch) return [];
-    return customers.filter(c => 
-      c.fullName.toLowerCase().includes(customerSearch.toLowerCase()) || 
-      c.id.toLowerCase().includes(customerSearch.toLowerCase())
+    const q = customerSearch.toLowerCase();
+    return customers.filter(c =>
+      c.fullName.toLowerCase().includes(q) ||
+      c.id.toLowerCase().includes(q) ||
+      phoneMatches(c.phone, customerSearch)
     );
   }, [customerSearch, customers]);
 

@@ -15,6 +15,7 @@ import {
 import { TRANSLATIONS } from '../constants';
 import { Customer, Language, Order, OrderItem, Product } from '../types';
 import { API_CACHE_KEYS, API_CACHE_TTLS, clearApiCache, readApiCache, writeApiCache } from '../utils/apiCache';
+import { phoneMatches } from '../utils/phone';
 import LoadingGlass from './LoadingGlass';
 
 interface CreateOrderWorkflowProps {
@@ -182,7 +183,8 @@ const CreateOrderWorkflow: React.FC<CreateOrderWorkflowProps> = ({ lang, onCance
     const normalizedSearch = customerSearch.toLowerCase();
     return customers.filter((customer) => (
       customer.fullName.toLowerCase().includes(normalizedSearch) ||
-      customer.id.toLowerCase().includes(normalizedSearch)
+      customer.id.toLowerCase().includes(normalizedSearch) ||
+      phoneMatches(customer.phone, customerSearch)
     ));
   }, [customerSearch, customers]);
 
