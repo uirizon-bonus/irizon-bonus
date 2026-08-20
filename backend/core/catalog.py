@@ -1092,6 +1092,17 @@ def _delete_product(product_id: str) -> bool:
         if existing is None and product_id not in deleted_ids:
             return False
         _mark_catalog_deleted(connection, "product", product_id)
+        # Revoke this product's still-live codes so a deleted product can never
+        # keep awarding points (prevents orphaned, scannable codes). Reversible:
+        # the codes are marked revoked, not removed, so they can be restored.
+        connection.execute(
+            """
+            UPDATE product_qr_codes
+            SET is_revoked = 1, revoked_at = CURRENT_TIMESTAMP
+            WHERE product_id = ? AND is_revoked = 0 AND is_used = 0
+            """,
+            (product_id,),
+        )
         cursor = connection.execute("DELETE FROM products WHERE id = ?", (product_id,))
         connection.commit()
         return cursor.rowcount > 0 or product_id in deleted_ids
