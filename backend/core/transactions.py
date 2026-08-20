@@ -146,6 +146,7 @@ def _load_qr_scan_events(
     page_codes = [str(row["qr_code"] or "") for row in rows if row["qr_code"]]
     reversed_codes: Dict[str, str] = {}
     qr_row_ids: Dict[str, int] = {}
+    qr_used_by_code: Dict[str, int] = {}
     if page_codes:
         connection = bonus_db()
         try:
@@ -161,10 +162,11 @@ def _load_qr_scan_events(
             ).fetchall()
             reversed_codes = {str(r["source_ref"]): str(r["note"] or "") for r in reversal_rows}
             code_rows = connection.execute(
-                f"SELECT qr_code, id FROM product_qr_codes WHERE qr_code IN ({placeholders})",
+                f"SELECT qr_code, id, is_used FROM product_qr_codes WHERE qr_code IN ({placeholders})",
                 tuple(page_codes),
             ).fetchall()
             qr_row_ids = {str(r["qr_code"]): int(r["id"] or 0) for r in code_rows}
+            qr_used_by_code = {str(r["qr_code"]): int(r["is_used"] or 0) for r in code_rows}
         finally:
             connection.close()
 
@@ -179,9 +181,10 @@ def _load_qr_scan_events(
             "qrCode": str(row["qr_code"] or ""),
             "quantity": int(row["quantity"] or 0),
             "pointsAwarded": int(row["points_awarded"] or 0),
-            "reversed": str(row["qr_code"] or "") in reversed_codes,
+            "reversed": qr_used_by_code.get(str(row["qr_code"] or ""), 0) == 0 and str(row["qr_code"] or "") in reversed_codes,
             "reversalNote": reversed_codes.get(str(row["qr_code"] or ""), ""),
             "qrRowId": qr_row_ids.get(str(row["qr_code"] or ""), 0),
+            "isUsed": qr_used_by_code.get(str(row["qr_code"] or ""), 0) == 1,
         }
         for row in rows
     ]

@@ -271,7 +271,7 @@ const QrScansView: React.FC<QrScansViewProps> = () => {
                       )}
                     </td>
                     <td className="px-6 py-4 text-right">
-                      {!event.reversed && (event.qrRowId ?? 0) > 0 && (
+                      {event.isUsed && (event.qrRowId ?? 0) > 0 && (
                         <button
                           onClick={() => { setReverseReason(''); setReverseTarget(event); }}
                           className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-bold text-rose-500 hover:bg-rose-50 hover:border-rose-200 transition-all"

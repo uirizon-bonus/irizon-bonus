@@ -114,6 +114,7 @@ export interface QrScanEvent {
   reversed?: boolean;
   reversalNote?: string;
   qrRowId?: number;
+  isUsed?: boolean;
 }
 
 export interface ProductQrCode {
