@@ -36,6 +36,7 @@ const COPY = {
   next: 'Keyingi',
   showing: 'Ko‘rsatilmoqda',
   of: 'dan',
+  reversed: 'Bekor qilingan',
 };
 
 const formatDate = (value: string) => {
@@ -209,13 +210,26 @@ const QrScansView: React.FC<QrScansViewProps> = () => {
                       <div className="flex items-center gap-2">
                         <QrCode className="w-4 h-4 text-slate-300" />
                         <div>
-                          <p className="text-sm font-semibold text-slate-800">{event.productName}</p>
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-semibold text-slate-800">{event.productName}</p>
+                            {event.reversed && (
+                              <span className="inline-flex items-center rounded-full border border-amber-100 bg-amber-50 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-amber-600" title={event.reversalNote || ''}>
+                                {COPY.reversed}
+                              </span>
+                            )}
+                          </div>
                           <p className="text-xs text-slate-400">{event.productId}</p>
                         </div>
                       </div>
                     </td>
                     <td className="px-6 py-4 text-center text-sm font-semibold text-slate-700">{event.quantity}</td>
-                    <td className="px-6 py-4 text-center text-sm font-black text-cyan-600">+{event.pointsAwarded}</td>
+                    <td className="px-6 py-4 text-center text-sm font-black">
+                      {event.reversed ? (
+                        <span className="text-slate-300 line-through">+{event.pointsAwarded}</span>
+                      ) : (
+                        <span className="text-cyan-600">+{event.pointsAwarded}</span>
+                      )}
+                    </td>
                   </tr>
                 ))
               )}

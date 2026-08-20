@@ -143,6 +143,25 @@ def _load_qr_scan_events(
     finally:
         connection.close()
 
+    page_codes = [str(row["qr_code"] or "") for row in rows if row["qr_code"]]
+    reversed_codes: Dict[str, str] = {}
+    if page_codes:
+        connection = bonus_db()
+        try:
+            placeholders = ",".join(["?"] * len(page_codes))
+            reversal_rows = connection.execute(
+                f"""
+                SELECT source_ref, MAX(note) AS note
+                FROM bonus_transactions
+                WHERE source_type = 'qr_unscan' AND source_ref IN ({placeholders})
+                GROUP BY source_ref
+                """,
+                tuple(page_codes),
+            ).fetchall()
+            reversed_codes = {str(r["source_ref"]): str(r["note"] or "") for r in reversal_rows}
+        finally:
+            connection.close()
+
     events = [
         {
             "id": int(row["id"] or 0),
@@ -154,6 +173,8 @@ def _load_qr_scan_events(
             "qrCode": str(row["qr_code"] or ""),
             "quantity": int(row["quantity"] or 0),
             "pointsAwarded": int(row["points_awarded"] or 0),
+            "reversed": str(row["qr_code"] or "") in reversed_codes,
+            "reversalNote": reversed_codes.get(str(row["qr_code"] or ""), ""),
         }
         for row in rows
     ]

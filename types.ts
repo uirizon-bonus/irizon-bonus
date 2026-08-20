@@ -111,6 +111,8 @@ export interface QrScanEvent {
   qrCode: string;
   quantity: number;
   pointsAwarded: number;
+  reversed?: boolean;
+  reversalNote?: string;
 }
 
 export interface ProductQrCode {
