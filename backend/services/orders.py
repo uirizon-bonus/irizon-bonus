@@ -101,3 +101,7 @@ def delete_order_payload(order_id: str):
     except Exception as exc:
         legacy.logger.exception("Failed to delete order %s", order_id)
         return JSONResponse({"error": f"Failed to delete order: {exc}"}, status_code=500)
+
+
+def get_points_summary_payload():
+    return transaction_core._load_points_summary()

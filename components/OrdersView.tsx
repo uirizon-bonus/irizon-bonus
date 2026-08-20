@@ -72,6 +72,7 @@ const OrdersView: React.FC<OrdersViewProps> = ({ lang, initialSelectedId }) => {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [actionMenu, setActionMenu] = useState<{ order: Order; x: number; y: number; openUp: boolean } | null>(null);
   const [reverseReason, setReverseReason] = useState('');
+  const [pointsSummary, setPointsSummary] = useState<{ manual: number; qr: number; order: number; total: number } | null>(null);
 
   useEffect(() => {
     let isCancelled = false;
@@ -147,6 +148,20 @@ const OrdersView: React.FC<OrdersViewProps> = ({ lang, initialSelectedId }) => {
     }
     setPage(0);
   }, [search, statusFilter, dateFrom, dateTo]);
+
+  // System-wide points reconciliation (manual vs QR-earned) so the ledger adds up.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/points-summary`);
+        if (!res.ok) return;
+        const data = await res.json() as { manual: number; qr: number; order: number; total: number };
+        if (!cancelled) setPointsSummary(data);
+      } catch { /* strip just doesn't render */ }
+    })();
+    return () => { cancelled = true; };
+  }, [reloadKey]);
 
   // Escape closes the top-most overlay (menu -> confirm modal -> detail drawer).
   useEffect(() => {
@@ -296,6 +311,19 @@ const OrdersView: React.FC<OrdersViewProps> = ({ lang, initialSelectedId }) => {
           </button>
         </div>
       </div>
+
+ {pointsSummary && pointsSummary.qr !== 0 && (
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-2xl border border-slate-100 bg-white px-5 py-3 text-xs shadow-sm">
+          <span className="font-black uppercase tracking-widest text-slate-400">{t.points_reconciliation || 'Ballar hisobi'}</span>
+          <span className="text-slate-600"><span className="font-bold text-slate-800">{pointsSummary.manual.toLocaleString()}</span> {t.manual_bonus.toLowerCase()}</span>
+          <span className="text-slate-300">+</span>
+          <button onClick={() => navigate('/qr-scans')} className="text-cyan-600 hover:text-cyan-800 hover:underline">
+            <span className="font-bold">{pointsSummary.qr.toLocaleString()}</span> QR →
+          </button>
+          <span className="text-slate-300">=</span>
+          <span className="text-slate-600"><span className="font-black text-slate-800">{pointsSummary.total.toLocaleString()}</span> {t.total.toLowerCase()}</span>
+        </div>
+      )}
 
       {loadError && (
         <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-600">

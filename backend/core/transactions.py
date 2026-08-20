@@ -9,6 +9,7 @@ from backend.core import catalog as catalog_core
 from backend.core import customers as customer_core
 from backend.core import points as points_core
 from backend.db import bonus_db
+from backend.config import ADMIN_USERNAME
 from backend.models.schemas import (
     MarketOrderCreatePayload,
     MarketOrderStatusPayload,
@@ -547,7 +548,7 @@ def _load_orders(*, offset: int = 0, limit: int = 100, search: str = "", status:
                     "customerName": str(row["client_name"]),
                     "totalPoints": points,
                     "itemsCount": 1,
-                    "createdBy": "Admin",
+                    "createdBy": ADMIN_USERNAME or "Admin",
                     "status": "Reversed" if is_reversed else "Confirmed",
                     "items": [
                         {
@@ -584,6 +585,24 @@ def _load_orders(*, offset: int = 0, limit: int = 100, search: str = "", status:
     return orders, total_count, total_points_sum
 
 
+def _load_points_summary() -> Dict[str, Any]:
+    """System-wide points reconciliation by category, so the manual-issuance
+    ledger and the QR-earned points can be seen to add up to the true total."""
+    connection = bonus_db()
+    try:
+        rows = connection.execute(
+            "SELECT source_type, COALESCE(SUM(points), 0) AS pts FROM bonus_transactions GROUP BY source_type"
+        ).fetchall()
+    finally:
+        connection.close()
+    by_type = {str(r["source_type"] or ""): int(r["pts"] or 0) for r in rows}
+    manual = by_type.get("manual", 0) + by_type.get("manual_reversal", 0)
+    qr = by_type.get("qr_scan", 0) + by_type.get("qr_unscan", 0)
+    order = by_type.get("order", 0) + by_type.get("order_reversal", 0) + by_type.get("order_restore", 0)
+    total = sum(by_type.values())
+    return {"manual": manual, "qr": qr, "order": order, "total": total, "byType": by_type}
+
+
 def _serialize_manual_bonus_order(row: Any, *, is_reversed: bool, reversal_reason: str = "") -> Dict[str, Any]:
     manual_id = f"MAN-{row['id']}"
     points = int(row["points"] or 0)
@@ -594,7 +613,7 @@ def _serialize_manual_bonus_order(row: Any, *, is_reversed: bool, reversal_reaso
         "customerName": str(row["client_name"]),
         "totalPoints": points,
         "itemsCount": 1,
-        "createdBy": "Admin",
+        "createdBy": ADMIN_USERNAME or "Admin",
         "status": "Reversed" if is_reversed else "Confirmed",
         "items": [
             {

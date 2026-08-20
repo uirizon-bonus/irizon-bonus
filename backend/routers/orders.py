@@ -20,6 +20,11 @@ def get_orders(
     return orders_service.get_orders_payload(offset, limit, search, status, date_from, date_to)
 
 
+@router.get("/api/points-summary", dependencies=[Depends(deps.require_admin)])
+def get_points_summary():
+    return orders_service.get_points_summary_payload()
+
+
 @router.post("/api/orders", dependencies=[Depends(deps.require_admin)])
 def create_order(payload: OrderCreatePayload):
     return orders_service.create_order_payload(payload)

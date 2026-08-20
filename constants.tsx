@@ -123,6 +123,7 @@ export const TRANSLATIONS = {
     view_profile: 'Profilni ochish →',
     note: 'Izoh',
     reversal_reason: 'Bekor qilish sababi',
+    points_reconciliation: 'Ballar hisobi',
     reversal_reason_placeholder: 'Nima uchun bekor qilinmoqda?',
     active: 'Faol',
     blocked: 'Bloklangan',

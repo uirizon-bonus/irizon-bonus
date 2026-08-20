@@ -4,6 +4,7 @@ from fastapi import HTTPException
 from fastapi.responses import JSONResponse
 
 from backend import legacy
+from backend.config import MANUAL_BONUS_MAX, ADMIN_USERNAME
 from backend.core import dashboard as dashboard_core
 from backend.core import customers as customer_core
 from backend.core import points as points_core
@@ -102,6 +103,12 @@ def customer_activity_payload(client_id: str, current_id: str):
 
 
 def create_customer_bonus_payload(client_id: str, payload: BonusCreatePayload):
+    if int(payload.points) > MANUAL_BONUS_MAX:
+        return JSONResponse(
+            {"error": f"Bir martalik bonus {MANUAL_BONUS_MAX:,} balldan oshmasligi kerak"},
+            status_code=400,
+        )
+    operator = ADMIN_USERNAME or "Admin"
     points_core._create_bonus_transaction(
         client_id=str(client_id),
         client_name=payload.full_name.strip(),
@@ -116,7 +123,7 @@ def create_customer_bonus_payload(client_id: str, payload: BonusCreatePayload):
             entity="customer",
             entity_id=str(client_id),
             description=f"Manual bonus {int(payload.points)} points",
-            actor="Admin",
+            actor=operator,
         )
         connection.commit()
     finally:
