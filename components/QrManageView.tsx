@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { formatDateTime } from '../utils/formatDate';
+import { useSearchParams } from 'react-router-dom';
 import { Download, QrCode, RefreshCw, RotateCcw, Search, ShieldBan, X } from 'lucide-react';
 import { QRCodeCanvas } from 'qrcode.react';
 import LoadingGlass from './LoadingGlass';
@@ -28,7 +29,8 @@ interface QrStatsResponse {
 }
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000';
-const PAGE_SIZE = 100;
+const DEFAULT_PAGE_SIZE = 100;
+const PAGE_SIZE_OPTIONS = [50, 100, 250];
 
 const COPY = {
   title: 'QR boshqaruv',
@@ -66,6 +68,9 @@ const COPY = {
   confirmGenerate: 'Kod yaratishni tasdiqlang',
   confirmGenerateHint: 'Chop etish uchun quyidagi kodlar yaratiladi.',
   totalValue: 'Umumiy qiymat',
+  rowsPerPage: 'Sahifada',
+  perPage: 'sahifa',
+  goToPage: 'Sahifaga o‘tish',
   highValueWarning: 'Diqqat: yuqori qiymatli partiya (1 mln balldan ortiq).',
   pointsCol: 'Ball',
   selectAll: 'Barchasini tanlash',
@@ -99,15 +104,22 @@ const formatDate = (value: string) => formatDateTime(value) || '-';
 const QrManageView: React.FC<QrManageViewProps> = ({ lang }) => {
   const copy = COPY;
 
+  const [searchParams, setSearchParams] = useSearchParams();
   const [products, setProducts] = useState<Product[]>([]);
   const [productSearch, setProductSearch] = useState('');
   const [productPickerOpen, setProductPickerOpen] = useState(false);
-  const [selectedProductId, setSelectedProductId] = useState('all');
-  const [stateFilter, setStateFilter] = useState<'all' | 'unused' | 'used' | 'revoked'>('all');
-  const [search, setSearch] = useState('');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
-  const [offset, setOffset] = useState(0);
+  const [selectedProductId, setSelectedProductId] = useState(() => searchParams.get('product') ?? 'all');
+  const [stateFilter, setStateFilter] = useState<'all' | 'unused' | 'used' | 'revoked'>(
+    () => (['unused', 'used', 'revoked'].includes(searchParams.get('state') || '') ? (searchParams.get('state') as 'unused' | 'used' | 'revoked') : 'all'),
+  );
+  const [search, setSearch] = useState(() => searchParams.get('q') ?? '');
+  const [dateFrom, setDateFrom] = useState(() => searchParams.get('from') ?? '');
+  const [dateTo, setDateTo] = useState(() => searchParams.get('to') ?? '');
+  const [pageSize, setPageSize] = useState(() => {
+    const raw = parseInt(searchParams.get('size') || '', 10);
+    return PAGE_SIZE_OPTIONS.includes(raw) ? raw : DEFAULT_PAGE_SIZE;
+  });
+  const [offset, setOffset] = useState(() => Math.max(0, parseInt(searchParams.get('offset') || '0', 10) || 0));
   const [count, setCount] = useState(0);
   const [codes, setCodes] = useState<ProductQrCode[]>([]);
   const [stats, setStats] = useState<QrStatsResponse>({ total: 0, used: 0, unused: 0, revoked: 0, liability: 0 });
@@ -155,7 +167,7 @@ const QrManageView: React.FC<QrManageViewProps> = ({ lang }) => {
     try {
       const params = new URLSearchParams({
         offset: String(nextOffset),
-        limit: String(PAGE_SIZE),
+        limit: String(pageSize),
         state: stateFilter,
       });
       if (search.trim()) params.set('search', search.trim());
@@ -203,7 +215,7 @@ const QrManageView: React.FC<QrManageViewProps> = ({ lang }) => {
     if (selectedProductId) {
       void loadCodes(0);
     }
-  }, [selectedProductId, stateFilter, dateFrom, dateTo]);
+  }, [selectedProductId, stateFilter, dateFrom, dateTo, pageSize]);
 
   const searchDebounceFirst = useRef(true);
   useEffect(() => {
@@ -214,6 +226,18 @@ const QrManageView: React.FC<QrManageViewProps> = ({ lang }) => {
     return () => window.clearTimeout(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search]);
+
+  useEffect(() => {
+    const next = new URLSearchParams();
+    if (selectedProductId && selectedProductId !== 'all') next.set('product', selectedProductId);
+    if (stateFilter !== 'all') next.set('state', stateFilter);
+    if (search.trim()) next.set('q', search.trim());
+    if (dateFrom) next.set('from', dateFrom);
+    if (dateTo) next.set('to', dateTo);
+    if (pageSize !== DEFAULT_PAGE_SIZE) next.set('size', String(pageSize));
+    if (offset > 0) next.set('offset', String(offset));
+    setSearchParams(next, { replace: true });
+  }, [selectedProductId, stateFilter, search, dateFrom, dateTo, pageSize, offset, setSearchParams]);
 
   const [showGenerateConfirm, setShowGenerateConfirm] = useState(false);
   const generateCountValue = Number.parseInt(generateCount, 10);
@@ -424,6 +448,8 @@ const QrManageView: React.FC<QrManageViewProps> = ({ lang }) => {
       );
     });
   }, [products, productSearch, lang]);
+  const totalPages = Math.max(1, Math.ceil(count / pageSize));
+  const currentPage = Math.floor(offset / pageSize) + 1;
   const pageStart = count === 0 ? 0 : offset + 1;
   const pageEnd = Math.min(offset + codes.length, count);
   const eligibleIds = useMemo(() => codes.map((item) => item.id), [codes]);
@@ -710,9 +736,16 @@ const QrManageView: React.FC<QrManageViewProps> = ({ lang }) => {
         </div>
         <div className="p-4 border-t border-slate-100 bg-slate-50/60 flex items-center justify-between">
           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{copy.total}: {pageStart}-{pageEnd} / {count}</span>
-          <div className="flex gap-2">
-            <button onClick={() => void loadCodes(Math.max(0, offset - PAGE_SIZE))} disabled={offset === 0 || loading} className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-600 disabled:opacity-50">{copy.prev}</button>
-            <button onClick={() => void loadCodes(offset + PAGE_SIZE)} disabled={loading || offset + PAGE_SIZE >= count} className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-600 disabled:opacity-50">{copy.next}</button>
+          <div className="flex items-center gap-2">
+            <select aria-label={copy.rowsPerPage} value={pageSize} onChange={(e) => { setPageSize(Number(e.target.value)); void loadCodes(0); }} className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-bold text-slate-600">
+              {PAGE_SIZE_OPTIONS.map((sz) => (<option key={sz} value={sz}>{sz} / {copy.perPage}</option>))}
+            </select>
+            <button onClick={() => void loadCodes(Math.max(0, offset - pageSize))} disabled={offset === 0 || loading} className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-600 disabled:opacity-50">{copy.prev}</button>
+            <div className="flex items-center gap-1 text-xs font-bold text-slate-500">
+              <input type="number" min={1} max={totalPages} aria-label={copy.goToPage} value={currentPage} onChange={(e) => { const tp = Math.min(Math.max(1, Number(e.target.value) || 1), totalPages); void loadCodes((tp - 1) * pageSize); }} className="w-12 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-center outline-none" />
+              <span className="text-slate-400">/ {totalPages}</span>
+            </div>
+            <button onClick={() => void loadCodes(offset + pageSize)} disabled={loading || offset + pageSize >= count} className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-600 disabled:opacity-50">{copy.next}</button>
           </div>
         </div>
       </div>
