@@ -13,3 +13,14 @@ export const phoneMatches = (storedPhone: string, query: string): boolean => {
   const q = normalizePhone(query);
   return q.length >= 3 && normalizePhone(storedPhone).includes(q);
 };
+
+// Display an Uzbek phone as "+998 90 123 45 67". Falls back to the raw value.
+export const formatPhone = (raw: string): string => {
+  let d = String(raw || '').replace(/\D/g, '');
+  if (d.length === 9) d = `998${d}`;
+  if (d.length === 12 && d.startsWith('998')) {
+    const p = d.slice(3);
+    return `+998 ${p.slice(0, 2)} ${p.slice(2, 5)} ${p.slice(5, 7)} ${p.slice(7, 9)}`;
+  }
+  return raw || '—';
+};

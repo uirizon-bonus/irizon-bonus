@@ -15,7 +15,7 @@ import {
 import { TRANSLATIONS } from '../constants';
 import { Customer, Language, Order, OrderItem, Product } from '../types';
 import { API_CACHE_KEYS, API_CACHE_TTLS, clearApiCache, readApiCache, writeApiCache } from '../utils/apiCache';
-import { phoneMatches } from '../utils/phone';
+import { formatPhone, phoneMatches } from '../utils/phone';
 import LoadingGlass from './LoadingGlass';
 import { formatDateTime } from '../utils/formatDate';
 
@@ -432,7 +432,7 @@ const CreateOrderWorkflow: React.FC<CreateOrderWorkflowProps> = ({ lang, onCance
                     <div>
                       <p className="text-cyan-100 text-[10px] font-bold uppercase tracking-widest mb-1">{t.active_selection}</p>
                       <h4 className="text-3xl font-black">{selectedCustomer.fullName}</h4>
-                      <p className="text-cyan-100/80 font-medium">{selectedCustomer.id} • {selectedCustomer.phone}</p>
+                      <p className="text-cyan-100/80 font-medium">{selectedCustomer.id} • {formatPhone(selectedCustomer.phone)}</p>
                     </div>
                     <button
                       onClick={() => setSelectedCustomer(null)}
@@ -442,16 +442,16 @@ const CreateOrderWorkflow: React.FC<CreateOrderWorkflowProps> = ({ lang, onCance
                     </button>
                   </div>
                   <div className="grid grid-cols-3 gap-6">
-                    <div className="bg-white/10 p-4 rounded-2xl backdrop-blur-sm">
-                      <p className="text-[10px] font-bold uppercase mb-1">{t.current_balance}</p>
+                    <div className="bg-black/20 p-4 rounded-2xl backdrop-blur-sm">
+                      <p className="text-cyan-100 text-[10px] font-bold uppercase mb-1">{t.current_balance}</p>
                       <p className="text-2xl font-black">{selectedCustomer.totalPoints.toLocaleString()}</p>
                     </div>
-                    <div className="bg-white/10 p-4 rounded-2xl backdrop-blur-sm">
-                      <p className="text-[10px] font-bold uppercase mb-1">{t.lifetime_earned}</p>
+                    <div className="bg-black/20 p-4 rounded-2xl backdrop-blur-sm">
+                      <p className="text-cyan-100 text-[10px] font-bold uppercase mb-1">{t.lifetime_earned}</p>
                       <p className="text-2xl font-black">{selectedCustomer.pointsEarned.toLocaleString()}</p>
                     </div>
-                    <div className="bg-white/10 p-4 rounded-2xl backdrop-blur-sm">
-                      <p className="text-[10px] font-bold uppercase mb-1">{t.last_activity}</p>
+                    <div className="bg-black/20 p-4 rounded-2xl backdrop-blur-sm">
+                      <p className="text-cyan-100 text-[10px] font-bold uppercase mb-1">{t.last_activity}</p>
                       <p className="text-lg font-bold">{formatDateTime(selectedCustomer.lastUpdated)}</p>
                     </div>
                   </div>
@@ -475,7 +475,7 @@ const CreateOrderWorkflow: React.FC<CreateOrderWorkflowProps> = ({ lang, onCance
                           </div>
                           <div>
                             <p className="font-bold text-slate-800">{customer.fullName}</p>
-                            <p className="text-xs text-slate-400">{customer.id} • {customer.phone}</p>
+                            <p className="text-xs text-slate-400">{customer.id} • {formatPhone(customer.phone)}</p>
                           </div>
                         </div>
                         <div className="flex items-center gap-3">
