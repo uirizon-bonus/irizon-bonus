@@ -24,6 +24,7 @@ interface QrStatsResponse {
   used: number;
   unused: number;
   revoked: number;
+  liability: number;
 }
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000';
@@ -60,6 +61,12 @@ const COPY = {
   qr: 'QR kod',
   created: 'Yaratilgan',
   usedAt: 'Ishlatilgan vaqt',
+  liability: 'Ochiq majburiyat',
+  liabilityHint: 'Ishlatilmagan kodlardagi umumiy ball qiymati',
+  confirmGenerate: 'Kod yaratishni tasdiqlang',
+  confirmGenerateHint: 'Chop etish uchun quyidagi kodlar yaratiladi.',
+  totalValue: 'Umumiy qiymat',
+  highValueWarning: 'Diqqat: yuqori qiymatli partiya (1 mln balldan ortiq).',
   pointsCol: 'Ball',
   selectAll: 'Barchasini tanlash',
   select: 'Tanlash',
@@ -103,7 +110,7 @@ const QrManageView: React.FC<QrManageViewProps> = ({ lang }) => {
   const [offset, setOffset] = useState(0);
   const [count, setCount] = useState(0);
   const [codes, setCodes] = useState<ProductQrCode[]>([]);
-  const [stats, setStats] = useState<QrStatsResponse>({ total: 0, used: 0, unused: 0, revoked: 0 });
+  const [stats, setStats] = useState<QrStatsResponse>({ total: 0, used: 0, unused: 0, revoked: 0, liability: 0 });
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [generateCount, setGenerateCount] = useState('100');
   const [loading, setLoading] = useState(false);
@@ -208,7 +215,22 @@ const QrManageView: React.FC<QrManageViewProps> = ({ lang }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search]);
 
+  const [showGenerateConfirm, setShowGenerateConfirm] = useState(false);
+  const generateCountValue = Number.parseInt(generateCount, 10);
+  const generateTotalValue = (Number.isInteger(generateCountValue) ? generateCountValue : 0) * ((products.find((item) => item.id === selectedProductId)?.pointsValue) || 0);
+
+  const openGenerateConfirm = () => {
+    if (!selectedProductId || selectedProductId === 'all') return;
+    if (!Number.isInteger(generateCountValue) || generateCountValue < 1 || generateCountValue > 5000) {
+      setError(copy.errAmount);
+      return;
+    }
+    setError(null);
+    setShowGenerateConfirm(true);
+  };
+
   const runGenerate = async () => {
+    setShowGenerateConfirm(false);
     if (!selectedProductId || selectedProductId === 'all') return;
     const countValue = Number.parseInt(generateCount, 10);
     if (!Number.isInteger(countValue) || countValue < 1 || countValue > 5000) {
@@ -427,11 +449,12 @@ const QrManageView: React.FC<QrManageViewProps> = ({ lang }) => {
       {error && <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-600">{error}</div>}
       {success && <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{success}</div>}
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <div className="rounded-xl border border-slate-100 bg-white p-4"><p className="text-xs text-slate-400">{copy.total}</p><p className="text-2xl font-black text-slate-800">{stats.total}</p></div>
         <div className="rounded-xl border border-slate-100 bg-white p-4"><p className="text-xs text-slate-400">{copy.unused}</p><p className="text-2xl font-black text-emerald-600">{stats.unused}</p></div>
         <div className="rounded-xl border border-slate-100 bg-white p-4"><p className="text-xs text-slate-400">{copy.used}</p><p className="text-2xl font-black text-cyan-600">{stats.used}</p></div>
         <div className="rounded-xl border border-slate-100 bg-white p-4"><p className="text-xs text-slate-400">{copy.revoked}</p><p className="text-2xl font-black text-rose-600">{stats.revoked}</p></div>
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4" title={copy.liabilityHint}><p className="text-xs font-bold text-amber-600">{copy.liability}</p><p className="text-2xl font-black text-amber-700">{stats.liability.toLocaleString()}</p></div>
       </div>
 
       <div className="rounded-2xl border border-slate-100 bg-white p-4 grid grid-cols-1 md:grid-cols-5 gap-3">
@@ -509,7 +532,7 @@ const QrManageView: React.FC<QrManageViewProps> = ({ lang }) => {
         </div>
         <div className="flex gap-2">
           <input value={generateCount} onChange={(event) => setGenerateCount(event.target.value)} type="number" min={1} max={5000} aria-label={copy.amount} placeholder={copy.amount} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm" />
-          <button onClick={() => void runGenerate()} disabled={busy || !selectedProductId || selectedProductId === 'all'} className="rounded-xl bg-cyan-600 text-white px-4 py-2 text-sm font-semibold disabled:opacity-50">{copy.generate}</button>
+          <button onClick={openGenerateConfirm} disabled={busy || !selectedProductId || selectedProductId === 'all'} className="rounded-xl bg-cyan-600 text-white px-4 py-2 text-sm font-semibold disabled:opacity-50">{copy.generate}</button>
         </div>
         <button onClick={() => void loadCodes(0)} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700">{copy.refresh}</button>
         <div className="md:col-span-5">
@@ -693,6 +716,29 @@ const QrManageView: React.FC<QrManageViewProps> = ({ lang }) => {
           </div>
         </div>
       </div>
+
+      {showGenerateConfirm && selectedProduct && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setShowGenerateConfirm(false)}></div>
+          <div className="relative bg-white w-full max-w-md rounded-[32px] shadow-2xl p-8 animate-in zoom-in-95 duration-200">
+            <h3 className="text-lg font-black text-slate-800 mb-1">{copy.confirmGenerate}</h3>
+            <p className="text-sm text-slate-500 mb-5">{copy.confirmGenerateHint}</p>
+            <div className="rounded-2xl border border-slate-100 bg-slate-50 p-5 space-y-2 mb-4">
+              <div className="flex items-center justify-between text-sm"><span className="text-slate-500">{copy.product}</span><span className="font-bold text-slate-800">{selectedProduct.name[lang]}</span></div>
+              <div className="flex items-center justify-between text-sm"><span className="text-slate-500">{copy.amount}</span><span className="font-bold text-slate-800">{generateCountValue.toLocaleString()}</span></div>
+              <div className="flex items-center justify-between text-sm"><span className="text-slate-500">{copy.pointsCol} / {copy.qr}</span><span className="font-bold text-slate-800">{(selectedProduct.pointsValue || 0).toLocaleString()}</span></div>
+              <div className="flex items-center justify-between border-t border-slate-200 pt-2 text-sm"><span className="font-bold text-slate-600">{copy.totalValue}</span><span className="font-black text-amber-700 text-base">{generateTotalValue.toLocaleString()}</span></div>
+            </div>
+            {generateTotalValue >= 1000000 && (
+              <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-xs font-bold text-amber-700">{copy.highValueWarning}</div>
+            )}
+            <div className="flex gap-3">
+              <button onClick={() => setShowGenerateConfirm(false)} className="flex-1 py-3 text-slate-400 font-black text-xs uppercase tracking-widest hover:text-slate-600">{copy.cancel}</button>
+              <button onClick={() => void runGenerate()} disabled={busy} className="flex-1 py-3 bg-cyan-600 hover:bg-cyan-700 text-white font-black text-xs uppercase tracking-widest rounded-2xl shadow-lg shadow-cyan-600/20 disabled:opacity-50">{busy ? copy.loading : copy.generate}</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {qrPreview && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">

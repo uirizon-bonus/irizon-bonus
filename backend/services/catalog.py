@@ -2,6 +2,7 @@ from fastapi import Query
 from fastapi.responses import JSONResponse, Response
 
 from backend import legacy
+from backend.config import ADMIN_USERNAME
 from backend.core import dashboard as dashboard_core
 from backend.db import bonus_db
 from backend.models.schemas import GiftCreatePayload, ProductCreatePayload, ProductQrBulkIdsPayload, ProductQrGeneratePayload, ProductQrUnscanPayload
@@ -62,7 +63,7 @@ def generate_product_qr_codes_payload(product_id: str, payload: ProductQrGenerat
             entity="product_qr_codes",
             entity_id=str(product_id),
             description=f"Generated {result.get('createdCount')} QR codes for product {product_id}",
-            actor="Admin",
+            actor=ADMIN_USERNAME or "Admin",
         )
         connection.commit()
     finally:
@@ -90,7 +91,7 @@ def revoke_product_qr_codes_payload(product_id: str, payload: ProductQrBulkIdsPa
             entity="product_qr_codes",
             entity_id=str(product_id),
             description=f"Revoked {int(updated)} QR codes",
-            actor="Admin",
+            actor=ADMIN_USERNAME or "Admin",
         )
         connection.commit()
     finally:
@@ -110,7 +111,7 @@ def restore_product_qr_codes_payload(product_id: str, payload: ProductQrBulkIdsP
             entity="product_qr_codes",
             entity_id=str(product_id),
             description=f"Restored {int(updated)} QR codes",
-            actor="Admin",
+            actor=ADMIN_USERNAME or "Admin",
         )
         connection.commit()
     finally:
@@ -228,7 +229,7 @@ def create_product_payload(payload: ProductCreatePayload):
             entity="product",
             entity_id=str(product.get("id", "")),
             description=f"Created product {product.get('id', '')}",
-            actor="Admin",
+            actor=ADMIN_USERNAME or "Admin",
         )
         connection.commit()
     finally:
@@ -254,7 +255,7 @@ def update_product_payload(product_id: str, payload: ProductCreatePayload):
             entity="product",
             entity_id=str(product_id),
             description=f"Updated product {product_id}",
-            actor="Admin",
+            actor=ADMIN_USERNAME or "Admin",
         )
         connection.commit()
     finally:
@@ -275,7 +276,7 @@ def delete_product_payload(product_id: str):
             entity="product",
             entity_id=str(product_id),
             description=f"Deleted product {product_id}",
-            actor="Admin",
+            actor=ADMIN_USERNAME or "Admin",
         )
         connection.commit()
     finally:
@@ -304,7 +305,7 @@ def create_gift_payload(payload: GiftCreatePayload):
             entity="gift",
             entity_id=str(gift.get("id", "")),
             description=f"Created gift {gift.get('id', '')}",
-            actor="Admin",
+            actor=ADMIN_USERNAME or "Admin",
         )
         connection.commit()
     finally:
@@ -330,7 +331,7 @@ def update_gift_payload(gift_id: str, payload: GiftCreatePayload):
             entity="gift",
             entity_id=str(gift_id),
             description=f"Updated gift {gift_id}",
-            actor="Admin",
+            actor=ADMIN_USERNAME or "Admin",
         )
         connection.commit()
     finally:
@@ -351,7 +352,7 @@ def delete_gift_payload(gift_id: str):
             entity="gift",
             entity_id=str(gift_id),
             description=f"Deleted gift {gift_id}",
-            actor="Admin",
+            actor=ADMIN_USERNAME or "Admin",
         )
         connection.commit()
     finally:

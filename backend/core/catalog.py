@@ -513,7 +513,8 @@ def _load_product_qr_stats(product_id: str) -> Dict[str, int]:
                     COUNT(*) AS total,
                     SUM(CASE WHEN is_used = 1 THEN 1 ELSE 0 END) AS used,
                     SUM(CASE WHEN is_revoked = 1 THEN 1 ELSE 0 END) AS revoked,
-                    SUM(CASE WHEN is_used = 0 AND is_revoked = 0 THEN 1 ELSE 0 END) AS unused
+                    SUM(CASE WHEN is_used = 0 AND is_revoked = 0 THEN 1 ELSE 0 END) AS unused,
+                    COALESCE(SUM(CASE WHEN is_used = 0 AND is_revoked = 0 THEN points_per_unit ELSE 0 END), 0) AS liability
                 FROM product_qr_codes
                 """
             ).fetchone()
@@ -524,7 +525,8 @@ def _load_product_qr_stats(product_id: str) -> Dict[str, int]:
                     COUNT(*) AS total,
                     SUM(CASE WHEN is_used = 1 THEN 1 ELSE 0 END) AS used,
                     SUM(CASE WHEN is_revoked = 1 THEN 1 ELSE 0 END) AS revoked,
-                    SUM(CASE WHEN is_used = 0 AND is_revoked = 0 THEN 1 ELSE 0 END) AS unused
+                    SUM(CASE WHEN is_used = 0 AND is_revoked = 0 THEN 1 ELSE 0 END) AS unused,
+                    COALESCE(SUM(CASE WHEN is_used = 0 AND is_revoked = 0 THEN points_per_unit ELSE 0 END), 0) AS liability
                 FROM product_qr_codes
                 WHERE product_id = ?
                 """,
@@ -537,6 +539,7 @@ def _load_product_qr_stats(product_id: str) -> Dict[str, int]:
         "used": int((row["used"] if row else 0) or 0),
         "revoked": int((row["revoked"] if row else 0) or 0),
         "unused": int((row["unused"] if row else 0) or 0),
+        "liability": int((row["liability"] if row else 0) or 0),
     }
 
 
