@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { Language, ReconciliationRow } from '../types';
 import { TRANSLATIONS } from '../constants';
+import DatePicker from './DatePicker';
 
 interface ReconciliationViewProps {
   lang: Language;
@@ -148,21 +149,11 @@ const ReconciliationView: React.FC<ReconciliationViewProps> = ({ lang, customerI
             <div className="space-y-4">
               <div>
                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">{t.period_from}</label>
-                <input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-cyan-500/10"
-                />
+                <DatePicker ariaLabel={t.period_from} value={startDate} max={endDate || undefined} onChange={setStartDate} />
               </div>
               <div>
                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">{t.period_to}</label>
-                <input
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-cyan-500/10"
-                />
+                <DatePicker ariaLabel={t.period_to} value={endDate} min={startDate || undefined} onChange={setEndDate} />
               </div>
             </div>
           </div>

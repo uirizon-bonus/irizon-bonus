@@ -1,5 +1,6 @@
 import React from 'react';
-import { Calendar, X } from 'lucide-react';
+import { X } from 'lucide-react';
+import DatePicker from './DatePicker';
 
 interface DateRangeFilterProps {
   from: string;
@@ -30,25 +31,18 @@ const DateRangeFilter: React.FC<DateRangeFilterProps> = ({ from, to, onChange, c
   const active = Boolean(from || to);
   return (
     <div className={`flex flex-wrap items-center gap-2 ${className ?? ''}`}>
-      <div className="relative">
-        <Calendar className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
-        <input
-          aria-label="Boshlanish sanasi"
-          type="date"
-          value={from}
-          max={to || undefined}
-          onChange={(event) => onChange(event.target.value, to)}
-          className="pl-8 pr-2 py-2 bg-slate-50 border border-slate-100 rounded-xl text-xs text-slate-600 outline-none focus:ring-2 focus:ring-cyan-500/10"
-        />
-      </div>
+      <DatePicker
+        ariaLabel="Boshlanish sanasi"
+        value={from}
+        max={to || undefined}
+        onChange={(value) => onChange(value, to)}
+      />
       <span className="text-slate-300 text-xs">—</span>
-      <input
-        aria-label="Tugash sanasi"
-        type="date"
+      <DatePicker
+        ariaLabel="Tugash sanasi"
         value={to}
         min={from || undefined}
-        onChange={(event) => onChange(from, event.target.value)}
-        className="px-2 py-2 bg-slate-50 border border-slate-100 rounded-xl text-xs text-slate-600 outline-none focus:ring-2 focus:ring-cyan-500/10"
+        onChange={(value) => onChange(from, value)}
       />
       <div className="flex items-center gap-1">
         <button type="button" onClick={() => { const r = lastDays(1); onChange(r.from, r.to); }} className={presetButton}>Bugun</button>

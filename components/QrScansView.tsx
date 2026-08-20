@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { QrCode, RefreshCw, Search, Undo2, X } from 'lucide-react';
 import { Language, QrScanEvent } from '../types';
 import LoadingGlass from './LoadingGlass';
@@ -102,6 +102,15 @@ const QrScansView: React.FC<QrScansViewProps> = () => {
     }
   };
 
+  const searchDebounceFirst = useRef(true);
+  useEffect(() => {
+    // Match the other pages: search/filter as you type (and Enter just works).
+    if (searchDebounceFirst.current) { searchDebounceFirst.current = false; return; }
+    const id = window.setTimeout(() => { void loadEvents(0); }, 400);
+    return () => window.clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search, customerId, productId, dateFrom, dateTo]);
+
   const loadEvents = async (nextOffset: number) => {
     setLoading(true);
     setError(null);
@@ -160,6 +169,7 @@ const QrScansView: React.FC<QrScansViewProps> = () => {
         <div className="relative md:col-span-2">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <input
+            aria-label={copy.search}
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             placeholder={copy.search}
@@ -167,12 +177,14 @@ const QrScansView: React.FC<QrScansViewProps> = () => {
           />
         </div>
         <input
+          aria-label={copy.customerId}
           value={customerId}
           onChange={(event) => setCustomerId(event.target.value)}
           placeholder={copy.customerId}
           className="px-4 py-2 bg-slate-50 border border-slate-100 rounded-xl text-sm outline-none focus:bg-white"
         />
         <input
+          aria-label={copy.productId}
           value={productId}
           onChange={(event) => setProductId(event.target.value)}
           placeholder={copy.productId}
