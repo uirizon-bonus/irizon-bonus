@@ -447,19 +447,21 @@ def _load_orders(*, offset: int = 0, limit: int = 100, search: str = "", status:
             tuple(manual_params),
         ).fetchall()
         manual_ids = [f"MAN-{row['id']}" for row in manual_rows]
-        reversed_manual_refs: set[str] = set()
+        reversal_reason_by_ref: Dict[str, str] = {}
         if manual_ids:
             placeholders = ",".join(["?"] * len(manual_ids))
             reversed_rows = connection.execute(
                 f"""
-                SELECT source_ref
+                SELECT source_ref, MAX(note) AS note
                 FROM bonus_transactions
                 WHERE source_type = 'manual_reversal'
                   AND source_ref IN ({placeholders})
+                GROUP BY source_ref
                 """,
                 tuple(manual_ids),
             ).fetchall()
-            reversed_manual_refs = {str(row["source_ref"]) for row in reversed_rows}
+            reversal_reason_by_ref = {str(r["source_ref"]): str(r["note"] or "") for r in reversed_rows}
+        reversed_manual_refs = set(reversal_reason_by_ref.keys())
         combined_rows = [
             {
                 "kind": "order",
@@ -558,6 +560,7 @@ def _load_orders(*, offset: int = 0, limit: int = 100, search: str = "", status:
                         }
                     ],
                     "note": str(row["note"] or ""),
+                    "reversalReason": reversal_reason_by_ref.get(manual_id, "") if is_reversed else "",
                 }
             )
             continue
@@ -574,13 +577,14 @@ def _load_orders(*, offset: int = 0, limit: int = 100, search: str = "", status:
                 "status": str(row["status"]),
                 "items": items_by_order.get(str(row["public_id"]), []),
                 "note": str(row["note"] or ""),
+                "reversalReason": "",
             }
         )
     _overlay_current_client_names(orders, id_key="customerId", name_key="customerName")
     return orders, total_count, total_points_sum
 
 
-def _serialize_manual_bonus_order(row: Any, *, is_reversed: bool) -> Dict[str, Any]:
+def _serialize_manual_bonus_order(row: Any, *, is_reversed: bool, reversal_reason: str = "") -> Dict[str, Any]:
     manual_id = f"MAN-{row['id']}"
     points = int(row["points"] or 0)
     return {
@@ -743,7 +747,7 @@ def _create_order(payload: OrderCreatePayload) -> Dict[str, Any]:
     return created_order
 
 
-def _reverse_manual_bonus_order(public_id: str) -> Optional[Dict[str, Any]]:
+def _reverse_manual_bonus_order(public_id: str, reason: str = "") -> Optional[Dict[str, Any]]:
     if not public_id.startswith("MAN-"):
         return None
     raw_id = public_id.removeprefix("MAN-")
@@ -777,13 +781,13 @@ def _reverse_manual_bonus_order(public_id: str) -> Optional[Dict[str, Any]]:
                 client_id=str(row["client_id"]),
                 client_name=str(row["client_name"]),
                 points=-int(row["points"] or 0),
-                note=f"Manual bonus {public_id} reversed",
+                note=reason.strip() or f"Manual bonus {public_id} reversed",
                 source_type="manual_reversal",
                 source_ref=public_id,
             )
             connection.commit()
 
-        return _serialize_manual_bonus_order(row, is_reversed=True)
+        return _serialize_manual_bonus_order(row, is_reversed=True, reversal_reason=reason.strip())
     finally:
         connection.close()
 
@@ -819,14 +823,14 @@ def _restore_manual_bonus_order(public_id: str) -> Optional[Dict[str, Any]]:
         connection.close()
 
 
-def _update_order_status(public_id: str, status: str) -> Optional[Dict[str, Any]]:
+def _update_order_status(public_id: str, status: str, reason: str = "") -> Optional[Dict[str, Any]]:
     next_status = str(status or "").strip()
     if next_status not in ("Confirmed", "Reversed"):
         raise ValueError("Order status must be 'Confirmed' or 'Reversed'")
 
     if public_id.startswith("MAN-"):
         return (
-            _reverse_manual_bonus_order(public_id)
+            _reverse_manual_bonus_order(public_id, reason)
             if next_status == "Reversed"
             else _restore_manual_bonus_order(public_id)
         )
@@ -855,7 +859,7 @@ def _update_order_status(public_id: str, status: str) -> Optional[Dict[str, Any]
             client_id=str(target_order["customerId"]),
             client_name=str(target_order["customerName"]),
             points=-total_points,
-            note=f"Order {public_id} reversed",
+            note=reason.strip() or f"Order {public_id} reversed",
             source_type="order_reversal",
             source_ref=public_id,
         )

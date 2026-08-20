@@ -37,6 +37,7 @@ class OrderCreatePayload(BaseModel):
 class OrderStatusPayload(BaseModel):
     status: str = Field(..., min_length=1, max_length=50)
     actor: str = Field(default="Admin", max_length=200)
+    reason: str = Field(default="", max_length=500)
 
 
 class ProductCreatePayload(BaseModel):

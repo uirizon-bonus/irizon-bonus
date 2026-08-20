@@ -87,6 +87,7 @@ export interface Order {
   status: OrderStatus;
   items: OrderItem[];
   note?: string;
+  reversalReason?: string;
 }
 
 export interface ReconciliationRow {

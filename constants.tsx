@@ -122,6 +122,8 @@ export const TRANSLATIONS = {
     go_to_page: 'Sahifaga o‘tish',
     view_profile: 'Profilni ochish →',
     note: 'Izoh',
+    reversal_reason: 'Bekor qilish sababi',
+    reversal_reason_placeholder: 'Nima uchun bekor qilinmoqda?',
     active: 'Faol',
     blocked: 'Bloklangan',
     points: 'Ballar',

@@ -71,6 +71,7 @@ const OrdersView: React.FC<OrdersViewProps> = ({ lang, initialSelectedId }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [actionMenu, setActionMenu] = useState<{ order: Order; x: number; y: number; openUp: boolean } | null>(null);
+  const [reverseReason, setReverseReason] = useState('');
 
   useEffect(() => {
     let isCancelled = false;
@@ -172,7 +173,7 @@ const OrdersView: React.FC<OrdersViewProps> = ({ lang, initialSelectedId }) => {
       const response = await fetch(`${API_BASE_URL}/api/orders/${targetOrder.id}/status`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: target }),
+        body: JSON.stringify({ status: target, reason: target === 'Reversed' ? reverseReason.trim() : '' }),
       });
       const payload = await response.json() as OrderStatusResponse | { error?: string };
       if (!response.ok) {
@@ -186,6 +187,7 @@ const OrdersView: React.FC<OrdersViewProps> = ({ lang, initialSelectedId }) => {
         setSelectedOrder(updatedOrder);
       }
       setPendingStatus(null);
+      setReverseReason('');
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : 'Failed to update order');
     } finally {
@@ -486,14 +488,14 @@ const OrdersView: React.FC<OrdersViewProps> = ({ lang, initialSelectedId }) => {
             </button>
             {actionMenu.order.status === 'Reversed' ? (
               <button
-                onClick={() => { setPendingStatus({ order: actionMenu.order, target: 'Confirmed' }); setActionMenu(null); }}
+                onClick={() => { setReverseReason(''); setPendingStatus({ order: actionMenu.order, target: 'Confirmed' }); setActionMenu(null); }}
                 className="w-full px-4 py-2.5 text-left text-xs font-bold text-emerald-600 hover:bg-emerald-50 flex items-center gap-2 transition-all"
               >
                 <RotateCcw className="w-4 h-4" /> Buyurtmani tiklash
               </button>
             ) : (
               <button
-                onClick={() => { setPendingStatus({ order: actionMenu.order, target: 'Reversed' }); setActionMenu(null); }}
+                onClick={() => { setReverseReason(''); setPendingStatus({ order: actionMenu.order, target: 'Reversed' }); setActionMenu(null); }}
                 className="w-full px-4 py-2.5 text-left text-xs font-bold text-rose-500 hover:bg-rose-50 flex items-center gap-2 transition-all"
               >
                 <Undo2 className="w-4 h-4" /> Buyurtmani bekor qilish
@@ -550,6 +552,13 @@ const OrdersView: React.FC<OrdersViewProps> = ({ lang, initialSelectedId }) => {
                   <p className="text-xs text-slate-400">{formatDateTime(selectedOrder.date)}</p>
                 </div>
               </div>
+
+              {selectedOrder.status === 'Reversed' && selectedOrder.reversalReason && (
+                <div className="p-5 rounded-3xl bg-amber-50 border border-amber-100">
+                  <p className="text-[10px] font-bold text-amber-600 uppercase tracking-widest mb-1">{t.reversal_reason || 'Bekor qilish sababi'}</p>
+                  <p className="text-sm text-amber-800 whitespace-pre-wrap">{selectedOrder.reversalReason}</p>
+                </div>
+              )}
 
               <div className="space-y-4">
                 <h4 className="font-bold text-slate-800 uppercase text-[10px] tracking-widest text-slate-400">{t.products_issued}</h4>
@@ -617,6 +626,21 @@ const OrdersView: React.FC<OrdersViewProps> = ({ lang, initialSelectedId }) => {
                 )}
               </p>
 
+              {isReverse && (
+                <div className="mb-6 text-left">
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
+                    {t.reversal_reason || 'Bekor qilish sababi'} <span className="text-rose-500">*</span>
+                  </label>
+                  <textarea
+                    value={reverseReason}
+                    onChange={(e) => setReverseReason(e.target.value)}
+                    rows={3}
+                    placeholder={t.reversal_reason_placeholder || 'Nima uchun bekor qilinmoqda?'}
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 outline-none focus:ring-2 focus:ring-rose-500/10 focus:bg-white transition-all resize-none"
+                  />
+                </div>
+              )}
+
               <div className="flex gap-4">
                 <button
                   onClick={() => setPendingStatus(null)}
@@ -625,7 +649,7 @@ const OrdersView: React.FC<OrdersViewProps> = ({ lang, initialSelectedId }) => {
                   {t.cancel}
                 </button>
                 <button
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || (isReverse && !reverseReason.trim())}
                   onClick={() => void handleStatusChange()}
                   className={`flex-1 py-4 text-white font-black text-xs uppercase tracking-widest rounded-2xl shadow-xl disabled:opacity-50 transition-all ${
                     isReverse

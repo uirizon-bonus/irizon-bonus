@@ -51,7 +51,7 @@ def create_order_payload(payload: OrderCreatePayload):
 
 def update_order_status_payload(order_id: str, payload: OrderStatusPayload):
     try:
-        order = transaction_core._update_order_status(order_id, payload.status)
+        order = transaction_core._update_order_status(order_id, payload.status, payload.reason)
     except ValueError as exc:
         return JSONResponse({"error": str(exc)}, status_code=400)
     except Exception as exc:  # pragma: no cover - defensive
