@@ -60,6 +60,9 @@ const COPY = {
   qr: 'QR kod',
   created: 'Yaratilgan',
   usedAt: 'Ishlatilgan vaqt',
+  pointsCol: 'Ball',
+  selectAll: 'Barchasini tanlash',
+  select: 'Tanlash',
   usedBy: 'Mijoz',
   unscan: 'Skan bekor qilish',
   unscanReason: 'Bekor qilish sababi',
@@ -505,7 +508,7 @@ const QrManageView: React.FC<QrManageViewProps> = ({ lang }) => {
           <input value={search} onChange={(event) => setSearch(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && selectedProductId) void loadCodes(0); }} aria-label={copy.search} placeholder={copy.search} className="w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 py-2 text-sm" />
         </div>
         <div className="flex gap-2">
-          <input value={generateCount} onChange={(event) => setGenerateCount(event.target.value)} type="number" min={1} max={5000} placeholder={copy.amount} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm" />
+          <input value={generateCount} onChange={(event) => setGenerateCount(event.target.value)} type="number" min={1} max={5000} aria-label={copy.amount} placeholder={copy.amount} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm" />
           <button onClick={() => void runGenerate()} disabled={busy || !selectedProductId || selectedProductId === 'all'} className="rounded-xl bg-cyan-600 text-white px-4 py-2 text-sm font-semibold disabled:opacity-50">{copy.generate}</button>
         </div>
         <button onClick={() => void loadCodes(0)} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700">{copy.refresh}</button>
@@ -591,33 +594,35 @@ const QrManageView: React.FC<QrManageViewProps> = ({ lang }) => {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-50/60 text-[10px] font-bold uppercase tracking-widest text-slate-400 border-b border-slate-100">
-                <th className="px-4 py-3">
+                <th scope="col" className="px-4 py-3">
                   <input
                     type="checkbox"
+                    aria-label={copy.selectAll || 'Barchasini tanlash'}
                     onChange={(event) => selectAllOnPage(event.target.checked)}
                     checked={allEligibleChecked}
                     disabled={eligibleIds.length === 0}
                   />
                 </th>
-                <th className="px-4 py-3">ID</th>
-                <th className="px-4 py-3">{copy.qr}</th>
-                <th className="px-4 py-3">{copy.product}</th>
-                <th className="px-4 py-3">{copy.state}</th>
-                <th className="px-4 py-3">{copy.usedBy}</th>
-                <th className="px-4 py-3">{copy.created}</th>
-                <th className="px-4 py-3">{copy.usedAt}</th>
-                <th className="px-4 py-3">{copy.action}</th>
+                <th scope="col" className="px-4 py-3">ID</th>
+                <th scope="col" className="px-4 py-3">{copy.qr}</th>
+                <th scope="col" className="px-4 py-3">{copy.product}</th>
+                <th scope="col" className="px-4 py-3 text-right">{copy.pointsCol}</th>
+                <th scope="col" className="px-4 py-3">{copy.state}</th>
+                <th scope="col" className="px-4 py-3">{copy.usedBy}</th>
+                <th scope="col" className="px-4 py-3">{copy.created}</th>
+                <th scope="col" className="px-4 py-3">{copy.usedAt}</th>
+                <th scope="col" className="px-4 py-3">{copy.action}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
               {loading ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-12 text-sm text-slate-400">
+                  <td colSpan={9} className="px-4 py-12 text-sm text-slate-400">
                     <LoadingGlass label={copy.loading} />
                   </td>
                 </tr>
               ) : codes.length === 0 ? (
-                <tr><td colSpan={8} className="px-4 py-12 text-center text-sm text-slate-400">{copy.noData}</td></tr>
+                <tr><td colSpan={9} className="px-4 py-12 text-center text-sm text-slate-400">{copy.noData}</td></tr>
               ) : (
                 codes.map((row) => {
                   const stateLabel = row.isRevoked ? copy.revoked : row.isUsed ? copy.used : copy.unused;
@@ -627,6 +632,7 @@ const QrManageView: React.FC<QrManageViewProps> = ({ lang }) => {
                       <td className="px-4 py-3">
                         <input
                           type="checkbox"
+                          aria-label={`${copy.select || 'Tanlash'} ${row.id}`}
                           checked={selectedIds.includes(row.id)}
                           onChange={(event) => toggleSelect(row.id, event.target.checked)}
                         />
@@ -649,6 +655,7 @@ const QrManageView: React.FC<QrManageViewProps> = ({ lang }) => {
                           <span className="text-[10px] text-slate-400">{row.productId || ''}</span>
                         </div>
                       </td>
+                      <td className="px-4 py-3 text-right text-xs font-black text-cyan-600">{row.pointsPerUnit.toLocaleString()}</td>
                       <td className={`px-4 py-3 text-xs font-bold ${stateClass}`}>{stateLabel}</td>
                       <td className="px-4 py-3 text-xs text-slate-600">
                         {row.usedByClientId ? (
@@ -703,6 +710,7 @@ const QrManageView: React.FC<QrManageViewProps> = ({ lang }) => {
               </div>
               <button
                 type="button"
+                aria-label={copy.close || "Yopish"}
                 onClick={() => setQrPreview(null)}
                 className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200"
               >
