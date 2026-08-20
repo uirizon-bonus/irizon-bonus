@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { QrCode, RefreshCw, Search, Undo2, X } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
+import { Download, QrCode, RefreshCw, Search, Undo2, X } from 'lucide-react';
 import { Language, QrScanEvent } from '../types';
 import LoadingGlass from './LoadingGlass';
 import DateRangeFilter from './DateRangeFilter';
@@ -10,6 +11,7 @@ interface QrScansViewProps {
 
 interface QrScansApiResponse {
   count: number;
+  totalPointsSum?: number;
   events: QrScanEvent[];
 }
 
@@ -37,6 +39,8 @@ const COPY = {
   showing: 'Ko‘rsatilmoqda',
   of: 'dan',
   reversed: 'Bekor qilingan',
+  export: 'Eksport',
+  totals: 'Jami',
   qrCodeCol: 'QR kod',
   actions: 'Amallar',
   reverse: 'Bekor qilish',
@@ -61,16 +65,19 @@ const formatDate = (value: string) => {
 const QrScansView: React.FC<QrScansViewProps> = () => {
   const copy = COPY;
 
+  const [searchParams, setSearchParams] = useSearchParams();
   const [events, setEvents] = useState<QrScanEvent[]>([]);
   const [count, setCount] = useState(0);
-  const [offset, setOffset] = useState(0);
+  const [totalPointsSum, setTotalPointsSum] = useState(0);
+  const [offset, setOffset] = useState(() => Math.max(0, parseInt(searchParams.get('offset') || '0', 10) || 0));
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [search, setSearch] = useState('');
-  const [customerId, setCustomerId] = useState('');
-  const [productId, setProductId] = useState('');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
+  const [isExporting, setIsExporting] = useState(false);
+  const [search, setSearch] = useState(() => searchParams.get('q') ?? '');
+  const [customerId, setCustomerId] = useState(() => searchParams.get('cid') ?? '');
+  const [productId, setProductId] = useState(() => searchParams.get('pid') ?? '');
+  const [dateFrom, setDateFrom] = useState(() => searchParams.get('from') ?? '');
+  const [dateTo, setDateTo] = useState(() => searchParams.get('to') ?? '');
   const [reverseTarget, setReverseTarget] = useState<QrScanEvent | null>(null);
   const [reverseReason, setReverseReason] = useState('');
   const [isReversing, setIsReversing] = useState(false);
@@ -102,6 +109,45 @@ const QrScansView: React.FC<QrScansViewProps> = () => {
     }
   };
 
+  const handleExportCsv = async () => {
+    setIsExporting(true);
+    setError(null);
+    try {
+      const params = new URLSearchParams({ offset: '0', limit: String(Math.max(count, 1)) });
+      if (search.trim()) params.set('search', search.trim());
+      if (customerId.trim()) params.set('customer_id', customerId.trim());
+      if (productId.trim()) params.set('product_id', productId.trim());
+      if (dateFrom) params.set('date_from', dateFrom);
+      if (dateTo) params.set('date_to', dateTo);
+      const response = await fetch(`${API_BASE_URL}/api/qr-scans?${params.toString()}`);
+      const payload = await response.json() as QrScansApiResponse | { error?: string };
+      if (!response.ok) throw new Error('error' in payload && payload.error ? payload.error : 'Failed to export');
+      const rows = Array.isArray((payload as QrScansApiResponse).events) ? (payload as QrScansApiResponse).events : [];
+      const csvRows = [
+        [copy.date, copy.customer, 'ID', copy.product, 'ID', copy.qrCodeCol, copy.points, copy.reversed],
+        ...rows.map((e) => [
+          formatDate(e.date), e.customerName, e.customerId, e.productName, e.productId,
+          e.qrCode, String(e.pointsAwarded), e.reversed ? 'HA' : '',
+        ]),
+      ];
+      const esc = (v: string) => `"${String(v).replace(/"/g, '""')}"`;
+      const csv = csvRows.map((r) => r.map(esc).join(',')).join('\n');
+      const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `qr-scans-${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (exportError) {
+      setError(exportError instanceof Error ? exportError.message : 'Failed to export');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   const searchDebounceFirst = useRef(true);
   useEffect(() => {
     // Match the other pages: search/filter as you type (and Enter just works).
@@ -110,6 +156,17 @@ const QrScansView: React.FC<QrScansViewProps> = () => {
     return () => window.clearTimeout(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search, customerId, productId, dateFrom, dateTo]);
+
+  useEffect(() => {
+    const next = new URLSearchParams();
+    if (search.trim()) next.set('q', search.trim());
+    if (customerId.trim()) next.set('cid', customerId.trim());
+    if (productId.trim()) next.set('pid', productId.trim());
+    if (dateFrom) next.set('from', dateFrom);
+    if (dateTo) next.set('to', dateTo);
+    if (offset > 0) next.set('offset', String(offset));
+    setSearchParams(next, { replace: true });
+  }, [search, customerId, productId, dateFrom, dateTo, offset, setSearchParams]);
 
   const loadEvents = async (nextOffset: number) => {
     setLoading(true);
@@ -133,6 +190,7 @@ const QrScansView: React.FC<QrScansViewProps> = () => {
       const nextEvents = Array.isArray((payload as QrScansApiResponse).events) ? (payload as QrScansApiResponse).events : [];
       setEvents(nextEvents);
       setCount(Number((payload as QrScansApiResponse).count || 0));
+      setTotalPointsSum(Number((payload as QrScansApiResponse).totalPointsSum || 0));
       setOffset(nextOffset);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : 'Failed to load QR scans');
@@ -142,7 +200,7 @@ const QrScansView: React.FC<QrScansViewProps> = () => {
   };
 
   useEffect(() => {
-    void loadEvents(0);
+    void loadEvents(offset);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dateFrom, dateTo]);
 
@@ -156,13 +214,23 @@ const QrScansView: React.FC<QrScansViewProps> = () => {
           <h2 className="text-2xl font-bold text-slate-800">{copy.title}</h2>
           <p className="text-sm text-slate-500">{copy.subtitle}</p>
         </div>
-        <button
-          onClick={() => void loadEvents(0)}
-          className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-all"
-        >
-          <RefreshCw className="w-4 h-4" />
-          {copy.refresh}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => void handleExportCsv()}
+            disabled={isExporting || count === 0}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Download className="w-4 h-4" />
+            {isExporting ? copy.loading : `${copy.export} CSV`}
+          </button>
+          <button
+            onClick={() => void loadEvents(0)}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-all"
+          >
+            <RefreshCw className="w-4 h-4" />
+            {copy.refresh}
+          </button>
+        </div>
       </div>
 
       <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm grid grid-cols-1 md:grid-cols-4 gap-3">
@@ -229,7 +297,6 @@ const QrScansView: React.FC<QrScansViewProps> = () => {
                 <th scope="col" className="px-6 py-4">{copy.customer}</th>
                 <th scope="col" className="px-6 py-4">{copy.product}</th>
                 <th scope="col" className="px-6 py-4">{copy.qrCodeCol}</th>
-                <th scope="col" className="px-6 py-4 text-center">{copy.qty}</th>
                 <th scope="col" className="px-6 py-4 text-center">{copy.points}</th>
                 <th scope="col" className="px-6 py-4 text-right">{copy.actions}</th>
               </tr>
@@ -237,13 +304,13 @@ const QrScansView: React.FC<QrScansViewProps> = () => {
             <tbody className="divide-y divide-slate-50">
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-10 text-sm text-slate-400">
+                  <td colSpan={6} className="px-6 py-10 text-sm text-slate-400">
                     <LoadingGlass label={copy.loading} />
                   </td>
                 </tr>
               ) : events.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-10 text-center text-sm text-slate-400">
+                  <td colSpan={6} className="px-6 py-10 text-center text-sm text-slate-400">
                     {copy.empty}
                   </td>
                 </tr>
@@ -274,7 +341,6 @@ const QrScansView: React.FC<QrScansViewProps> = () => {
                     <td className="px-6 py-4">
                       <span className="font-mono text-[11px] text-slate-500 break-all" title={event.qrCode}>{event.qrCode || '—'}</span>
                     </td>
-                    <td className="px-6 py-4 text-center text-sm font-semibold text-slate-700">{event.quantity}</td>
                     <td className="px-6 py-4 text-center text-sm font-black">
                       {event.reversed ? (
                         <span className="text-slate-300 line-through">+{event.pointsAwarded}</span>
@@ -299,10 +365,17 @@ const QrScansView: React.FC<QrScansViewProps> = () => {
           </table>
         </div>
 
-        <div className="p-4 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between">
-          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-            {copy.showing} {pageStart}-{pageEnd} {copy.of} {count}
-          </span>
+        <div className="p-4 border-t border-slate-100 bg-slate-50/50 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-4">
+            <span className="inline-flex items-baseline gap-1.5 rounded-lg bg-cyan-50 px-3 py-1.5">
+              <span className="text-[10px] font-black uppercase tracking-widest text-cyan-500">{copy.totals}</span>
+              <span className="text-sm font-black text-cyan-700">{totalPointsSum.toLocaleString()}</span>
+              <span className="text-[10px] font-bold text-cyan-500/70">{copy.points}</span>
+            </span>
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+              {copy.showing} {pageStart}-{pageEnd} {copy.of} {count}
+            </span>
+          </div>
           <div className="flex gap-2">
             <button
               onClick={() => void loadEvents(Math.max(0, offset - PAGE_SIZE))}

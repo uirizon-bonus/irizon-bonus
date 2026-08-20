@@ -127,7 +127,7 @@ def _load_qr_scan_events(
     connection = bonus_db()
     try:
         total_row = connection.execute(
-            f"SELECT COUNT(*) AS count FROM qr_scan_events {where_sql}",
+            f"SELECT COUNT(*) AS count, COALESCE(SUM(points_awarded), 0) AS points_sum FROM qr_scan_events {where_sql}",
             tuple(params),
         ).fetchone()
         rows = connection.execute(
@@ -189,7 +189,7 @@ def _load_qr_scan_events(
         for row in rows
     ]
     _overlay_current_client_names(events, id_key="customerId", name_key="customerName")
-    return {"count": int(total_row["count"] or 0), "events": events}
+    return {"count": int(total_row["count"] or 0), "totalPointsSum": int(total_row["points_sum"] or 0), "events": events}
 
 
 def _load_gift_by_id(gift_id: str) -> Optional[Dict[str, Any]]:
