@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Download,
   Eye,
@@ -40,18 +41,27 @@ interface OrderStatusResponse {
 type OrderStatusTarget = 'Confirmed' | 'Reversed';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000';
-const PAGE_SIZE = 50;
+const DEFAULT_PAGE_SIZE = 50;
+const PAGE_SIZE_OPTIONS = [25, 50, 100];
 
 const OrdersView: React.FC<OrdersViewProps> = ({ lang, initialSelectedId }) => {
   const t = TRANSLATIONS[lang];
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [orders, setOrders] = useState<Order[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'Confirmed' | 'Reversed'>('all');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
-  const [page, setPage] = useState(0);
+  const [search, setSearch] = useState(() => searchParams.get('q') ?? '');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'Confirmed' | 'Reversed'>(
+    () => (['Confirmed', 'Reversed'].includes(searchParams.get('status') || '') ? (searchParams.get('status') as 'Confirmed' | 'Reversed') : 'all'),
+  );
+  const [dateFrom, setDateFrom] = useState(() => searchParams.get('from') ?? '');
+  const [dateTo, setDateTo] = useState(() => searchParams.get('to') ?? '');
+  const [page, setPage] = useState(() => Math.max(0, (parseInt(searchParams.get('page') || '1', 10) || 1) - 1));
+  const [pageSize, setPageSize] = useState(() => {
+    const raw = parseInt(searchParams.get('size') || '', 10);
+    return PAGE_SIZE_OPTIONS.includes(raw) ? raw : DEFAULT_PAGE_SIZE;
+  });
   const [reloadKey, setReloadKey] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
   const [totalPointsSum, setTotalPointsSum] = useState(0);
@@ -70,8 +80,8 @@ const OrdersView: React.FC<OrdersViewProps> = ({ lang, initialSelectedId }) => {
       setLoadError(null);
       try {
         const params = new URLSearchParams({
-          offset: String(page * PAGE_SIZE),
-          limit: String(PAGE_SIZE),
+          offset: String(page * pageSize),
+          limit: String(pageSize),
         });
         if (search.trim()) {
           params.set('search', search.trim());
@@ -114,9 +124,26 @@ const OrdersView: React.FC<OrdersViewProps> = ({ lang, initialSelectedId }) => {
     return () => {
       isCancelled = true;
     };
-  }, [initialSelectedId, page, search, statusFilter, dateFrom, dateTo, reloadKey]);
+  }, [initialSelectedId, page, search, statusFilter, dateFrom, dateTo, pageSize, reloadKey]);
 
+  // Persist filters + paging in the URL so a view survives reload and can be shared.
   useEffect(() => {
+    const next = new URLSearchParams();
+    if (search.trim()) next.set('q', search.trim());
+    if (statusFilter !== 'all') next.set('status', statusFilter);
+    if (dateFrom) next.set('from', dateFrom);
+    if (dateTo) next.set('to', dateTo);
+    if (page > 0) next.set('page', String(page + 1));
+    if (pageSize !== DEFAULT_PAGE_SIZE) next.set('size', String(pageSize));
+    setSearchParams(next, { replace: true });
+  }, [search, statusFilter, dateFrom, dateTo, page, pageSize, setSearchParams]);
+
+  const isFirstRender = useRef(true);
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
     setPage(0);
   }, [search, statusFilter, dateFrom, dateTo]);
 
@@ -239,6 +266,8 @@ const OrdersView: React.FC<OrdersViewProps> = ({ lang, initialSelectedId }) => {
       />
     );
   }
+
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300 relative h-full flex flex-col">
@@ -391,21 +420,46 @@ const OrdersView: React.FC<OrdersViewProps> = ({ lang, initialSelectedId }) => {
               <span className="text-[10px] font-bold text-cyan-500/70">{t.points}</span>
             </span>
             <span>
-            {t.showing} {totalCount === 0 ? 0 : page * PAGE_SIZE + 1}-{Math.min((page + 1) * PAGE_SIZE, totalCount)} {t.of} {totalCount}
+            {t.showing} {totalCount === 0 ? 0 : page * pageSize + 1}-{Math.min((page + 1) * pageSize, totalCount)} {t.of} {totalCount}
             </span>
           </div>
           <div className="flex items-center gap-2">
+            <select
+              aria-label={t.rows_per_page || 'Sahifadagi qatorlar'}
+              value={pageSize}
+              onChange={(e) => { setPageSize(Number(e.target.value)); setPage(0); }}
+              className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-bold text-slate-600 outline-none cursor-pointer"
+            >
+              {PAGE_SIZE_OPTIONS.map((size) => (
+                <option key={size} value={size}>{size} / {t.of.toLowerCase()}</option>
+              ))}
+            </select>
             <button
               onClick={() => setPage((prev) => Math.max(0, prev - 1))}
               disabled={page === 0 || isLoading}
-              className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-600 disabled:opacity-50"
+              className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-600 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {t.prev}
             </button>
+            <div className="flex items-center gap-1 text-xs font-bold text-slate-500">
+              <input
+                type="number"
+                min={1}
+                max={totalPages}
+                aria-label={t.go_to_page || 'Sahifaga o‘tish'}
+                value={page + 1}
+                onChange={(e) => {
+                  const target = Math.min(Math.max(1, Number(e.target.value) || 1), totalPages);
+                  setPage(target - 1);
+                }}
+                className="w-12 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-center outline-none focus:ring-2 focus:ring-cyan-500/10"
+              />
+              <span className="text-slate-400">/ {totalPages}</span>
+            </div>
             <button
-              onClick={() => setPage((prev) => (totalCount ? Math.min(prev + 1, Math.ceil(totalCount / PAGE_SIZE) - 1) : prev))}
-              disabled={isLoading || (page + 1) * PAGE_SIZE >= totalCount}
-              className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-600 disabled:opacity-50"
+              onClick={() => setPage((prev) => (totalCount ? Math.min(prev + 1, totalPages - 1) : prev))}
+              disabled={isLoading || page + 1 >= totalPages}
+              className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-600 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {t.next}
             </button>
@@ -461,11 +515,15 @@ const OrdersView: React.FC<OrdersViewProps> = ({ lang, initialSelectedId }) => {
                 <div>
                   <div className="flex items-center gap-2">
                     <h3 className="text-xl font-bold text-slate-800">{t.order_details}</h3>
-                    {selectedOrder.status === 'Reversed' && (
-                      <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border bg-amber-50 text-amber-600 border-amber-100">
-                        Bekor qilingan
-                      </span>
-                    )}
+                    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
+                      selectedOrder.status === 'Reversed'
+                        ? 'bg-amber-50 text-amber-600 border-amber-100'
+                        : selectedOrder.status === 'Cancelled'
+                          ? 'bg-rose-50 text-rose-600 border-rose-100'
+                          : 'bg-emerald-50 text-emerald-600 border-emerald-100'
+                    }`}>
+                      {statusLabel(selectedOrder.status)}
+                    </span>
                   </div>
                   <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">{selectedOrder.id}</p>
                 </div>
@@ -477,11 +535,15 @@ const OrdersView: React.FC<OrdersViewProps> = ({ lang, initialSelectedId }) => {
 
             <div className="flex-1 overflow-y-auto custom-scrollbar p-8 space-y-8">
               <div className="grid grid-cols-2 gap-6">
-                <div className="p-5 rounded-3xl bg-slate-50 border border-slate-100">
+                <button
+                  onClick={() => navigate(`/reconciliation/${selectedOrder.customerId}`)}
+                  className="p-5 rounded-3xl bg-slate-50 border border-slate-100 text-left transition-all hover:border-cyan-200 hover:bg-cyan-50/40 group"
+                >
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">{t.customer}</p>
-                  <p className="text-sm font-bold text-slate-800">{selectedOrder.customerName}</p>
+                  <p className="text-sm font-bold text-slate-800 group-hover:text-cyan-700">{selectedOrder.customerName}</p>
                   <p className="text-xs text-slate-400">{selectedOrder.customerId}</p>
-                </div>
+                  <p className="mt-2 text-[10px] font-bold text-cyan-600 uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity">{t.view_profile || 'Profilni ochish →'}</p>
+                </button>
                 <div className="p-5 rounded-3xl bg-slate-50 border border-slate-100">
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">{t.created_by}</p>
                   <p className="text-sm font-bold text-slate-800">{selectedOrder.createdBy}</p>
