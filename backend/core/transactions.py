@@ -113,9 +113,9 @@ def _load_qr_scan_events(
     if search.strip():
         needle = f"%{search.strip().lower()}%"
         where_clauses.append(
-            "(LOWER(client_id) LIKE ? OR LOWER(client_name) LIKE ? OR LOWER(product_id) LIKE ? OR LOWER(product_name) LIKE ?)"
+            "(LOWER(client_id) LIKE ? OR LOWER(client_name) LIKE ? OR LOWER(product_id) LIKE ? OR LOWER(product_name) LIKE ? OR LOWER(qr_code) LIKE ?)"
         )
-        params.extend([needle, needle, needle, needle])
+        params.extend([needle, needle, needle, needle, needle])
     if str(date_from or "").strip():
         where_clauses.append("SUBSTR(CAST(created_at AS TEXT), 1, 10) >= ?")
         params.append(str(date_from).strip())
@@ -145,6 +145,7 @@ def _load_qr_scan_events(
 
     page_codes = [str(row["qr_code"] or "") for row in rows if row["qr_code"]]
     reversed_codes: Dict[str, str] = {}
+    qr_row_ids: Dict[str, int] = {}
     if page_codes:
         connection = bonus_db()
         try:
@@ -159,6 +160,11 @@ def _load_qr_scan_events(
                 tuple(page_codes),
             ).fetchall()
             reversed_codes = {str(r["source_ref"]): str(r["note"] or "") for r in reversal_rows}
+            code_rows = connection.execute(
+                f"SELECT qr_code, id FROM product_qr_codes WHERE qr_code IN ({placeholders})",
+                tuple(page_codes),
+            ).fetchall()
+            qr_row_ids = {str(r["qr_code"]): int(r["id"] or 0) for r in code_rows}
         finally:
             connection.close()
 
@@ -175,6 +181,7 @@ def _load_qr_scan_events(
             "pointsAwarded": int(row["points_awarded"] or 0),
             "reversed": str(row["qr_code"] or "") in reversed_codes,
             "reversalNote": reversed_codes.get(str(row["qr_code"] or ""), ""),
+            "qrRowId": qr_row_ids.get(str(row["qr_code"] or ""), 0),
         }
         for row in rows
     ]

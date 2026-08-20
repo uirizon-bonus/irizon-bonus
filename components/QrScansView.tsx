@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { QrCode, RefreshCw, Search } from 'lucide-react';
+import { QrCode, RefreshCw, Search, Undo2, X } from 'lucide-react';
 import { Language, QrScanEvent } from '../types';
 import LoadingGlass from './LoadingGlass';
 import DateRangeFilter from './DateRangeFilter';
@@ -37,6 +37,11 @@ const COPY = {
   showing: 'Ko‘rsatilmoqda',
   of: 'dan',
   reversed: 'Bekor qilingan',
+  qrCodeCol: 'QR kod',
+  actions: 'Amallar',
+  reverse: 'Bekor qilish',
+  reverseReasonLabel: 'Bekor qilish sababi',
+  reverseReasonPh: 'Nima uchun bekor qilinmoqda?',
 };
 
 const formatDate = (value: string) => {
@@ -66,6 +71,36 @@ const QrScansView: React.FC<QrScansViewProps> = () => {
   const [productId, setProductId] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  const [reverseTarget, setReverseTarget] = useState<QrScanEvent | null>(null);
+  const [reverseReason, setReverseReason] = useState('');
+  const [isReversing, setIsReversing] = useState(false);
+
+  const handleReverse = async () => {
+    if (!reverseTarget || !reverseReason.trim()) return;
+    setIsReversing(true);
+    setError(null);
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/products/${reverseTarget.productId}/qr-codes/${reverseTarget.qrRowId}/unscan`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ reason: reverseReason.trim() }),
+        },
+      );
+      const payload = await response.json() as { error?: string };
+      if (!response.ok) {
+        throw new Error(payload.error || 'Failed to reverse scan');
+      }
+      setReverseTarget(null);
+      setReverseReason('');
+      await loadEvents(offset);
+    } catch (reverseError) {
+      setError(reverseError instanceof Error ? reverseError.message : 'Failed to reverse scan');
+    } finally {
+      setIsReversing(false);
+    }
+  };
 
   const loadEvents = async (nextOffset: number) => {
     setLoading(true);
@@ -178,23 +213,25 @@ const QrScansView: React.FC<QrScansViewProps> = () => {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-50/50 text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">
-                <th className="px-6 py-4">{copy.date}</th>
-                <th className="px-6 py-4">{copy.customer}</th>
-                <th className="px-6 py-4">{copy.product}</th>
-                <th className="px-6 py-4 text-center">{copy.qty}</th>
-                <th className="px-6 py-4 text-center">{copy.points}</th>
+                <th scope="col" className="px-6 py-4">{copy.date}</th>
+                <th scope="col" className="px-6 py-4">{copy.customer}</th>
+                <th scope="col" className="px-6 py-4">{copy.product}</th>
+                <th scope="col" className="px-6 py-4">{copy.qrCodeCol}</th>
+                <th scope="col" className="px-6 py-4 text-center">{copy.qty}</th>
+                <th scope="col" className="px-6 py-4 text-center">{copy.points}</th>
+                <th scope="col" className="px-6 py-4 text-right">{copy.actions}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
               {loading ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-10 text-sm text-slate-400">
+                  <td colSpan={7} className="px-6 py-10 text-sm text-slate-400">
                     <LoadingGlass label={copy.loading} />
                   </td>
                 </tr>
               ) : events.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-10 text-center text-sm text-slate-400">
+                  <td colSpan={7} className="px-6 py-10 text-center text-sm text-slate-400">
                     {copy.empty}
                   </td>
                 </tr>
@@ -222,12 +259,25 @@ const QrScansView: React.FC<QrScansViewProps> = () => {
                         </div>
                       </div>
                     </td>
+                    <td className="px-6 py-4">
+                      <span className="font-mono text-[11px] text-slate-500 break-all" title={event.qrCode}>{event.qrCode || '—'}</span>
+                    </td>
                     <td className="px-6 py-4 text-center text-sm font-semibold text-slate-700">{event.quantity}</td>
                     <td className="px-6 py-4 text-center text-sm font-black">
                       {event.reversed ? (
                         <span className="text-slate-300 line-through">+{event.pointsAwarded}</span>
                       ) : (
                         <span className="text-cyan-600">+{event.pointsAwarded}</span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      {!event.reversed && (event.qrRowId ?? 0) > 0 && (
+                        <button
+                          onClick={() => { setReverseReason(''); setReverseTarget(event); }}
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-bold text-rose-500 hover:bg-rose-50 hover:border-rose-200 transition-all"
+                        >
+                          <Undo2 className="w-3.5 h-3.5" /> {copy.reverse}
+                        </button>
                       )}
                     </td>
                   </tr>
@@ -259,6 +309,41 @@ const QrScansView: React.FC<QrScansViewProps> = () => {
           </div>
         </div>
       </div>
+      {reverseTarget && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setReverseTarget(null)}></div>
+          <div className="relative bg-white w-full max-w-md rounded-[32px] shadow-2xl p-8 animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-black text-slate-800">{copy.reverse}</h3>
+              <button aria-label={copy.reverse} onClick={() => setReverseTarget(null)} className="p-1.5 text-slate-400 hover:text-rose-500"><X className="w-5 h-5" /></button>
+            </div>
+            <p className="text-sm text-slate-500 mb-4">
+              {reverseTarget.customerName} · {reverseTarget.productName} · <span className="font-bold">+{reverseTarget.pointsAwarded}</span>
+            </p>
+            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
+              {copy.reverseReasonLabel} <span className="text-rose-500">*</span>
+            </label>
+            <textarea
+              value={reverseReason}
+              onChange={(e) => setReverseReason(e.target.value)}
+              rows={3}
+              placeholder={copy.reverseReasonPh}
+              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 outline-none focus:ring-2 focus:ring-rose-500/10 focus:bg-white transition-all resize-none mb-6"
+            />
+            <div className="flex gap-3">
+              <button onClick={() => setReverseTarget(null)} className="flex-1 py-3 text-slate-400 font-black text-xs uppercase tracking-widest hover:text-slate-600">{copy.reset}</button>
+              <button
+                disabled={isReversing || !reverseReason.trim()}
+                onClick={() => void handleReverse()}
+                className="flex-1 py-3 bg-rose-500 hover:bg-rose-600 text-white font-black text-xs uppercase tracking-widest rounded-2xl shadow-lg shadow-rose-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isReversing ? copy.loading : copy.reverse}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };
