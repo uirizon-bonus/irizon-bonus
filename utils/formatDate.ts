@@ -6,6 +6,8 @@ export const formatDateTime = (value: string): string => {
   if (!value) return '';
   // "2026-08-13 15:42:29.198827" -> "2026-08-13T15:42:29" ; ".609Z" fractional dropped.
   let s = value.trim().replace(' ', 'T').replace(/\.\d+/, '');
+  // Normalise a 2-digit offset like "+05" to "+05:00" so Date can parse it.
+  s = s.replace(/([+-]\d{2})$/, '$1:00');
   const hasTimezone = /[zZ]$|[+-]\d{2}:?\d{2}$/.test(s);
   if (!hasTimezone) s += 'Z'; // no tz designator -> the stored value is UTC
   const parsed = new Date(s);

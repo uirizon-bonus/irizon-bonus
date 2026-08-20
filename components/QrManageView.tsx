@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { formatDateTime } from '../utils/formatDate';
 import { Download, QrCode, RefreshCw, RotateCcw, Search, ShieldBan, X } from 'lucide-react';
 import { QRCodeCanvas } from 'qrcode.react';
 import LoadingGlass from './LoadingGlass';
@@ -83,19 +84,7 @@ const COPY = {
   unscanFail: 'ta skan bekor qilinmadi',
 };
 
-const formatDate = (value: string) => {
-  if (!value) return '-';
-  const iso = value.replace(' ', 'T').replace(/\.\d+$/, '');
-  const parsed = new Date(iso);
-  if (Number.isNaN(parsed.getTime())) return value;
-  return parsed.toLocaleString('ru-RU', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-};
+const formatDate = (value: string) => formatDateTime(value) || '-';
 
 const QrManageView: React.FC<QrManageViewProps> = ({ lang }) => {
   const copy = COPY;
@@ -205,6 +194,16 @@ const QrManageView: React.FC<QrManageViewProps> = ({ lang }) => {
       void loadCodes(0);
     }
   }, [selectedProductId, stateFilter, dateFrom, dateTo]);
+
+  const searchDebounceFirst = useRef(true);
+  useEffect(() => {
+    // The search box previously never triggered a query (search was absent from
+    // the load effect's deps). Query as you type; Enter works implicitly.
+    if (searchDebounceFirst.current) { searchDebounceFirst.current = false; return; }
+    const id = window.setTimeout(() => { if (selectedProductId) void loadCodes(0); }, 400);
+    return () => window.clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search]);
 
   const runGenerate = async () => {
     if (!selectedProductId || selectedProductId === 'all') return;
@@ -503,7 +502,7 @@ const QrManageView: React.FC<QrManageViewProps> = ({ lang }) => {
         </select>
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={copy.search} className="w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 py-2 text-sm" />
+          <input value={search} onChange={(event) => setSearch(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && selectedProductId) void loadCodes(0); }} aria-label={copy.search} placeholder={copy.search} className="w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 py-2 text-sm" />
         </div>
         <div className="flex gap-2">
           <input value={generateCount} onChange={(event) => setGenerateCount(event.target.value)} type="number" min={1} max={5000} placeholder={copy.amount} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm" />
