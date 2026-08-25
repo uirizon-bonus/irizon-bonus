@@ -220,7 +220,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
               <div className="text-center pt-2">
                 <p className="text-xs text-gray-400">
-                  {t.version} 1.0.0
+                  {t.version} 1.0.2
                 </p>
               </div>
             </div>
