@@ -159,7 +159,7 @@ const QrManageView: React.FC<QrManageViewProps> = ({ lang }) => {
     const pad = Math.round(source.width * 0.06);
     const lineGap = Math.round(source.width * 0.02);
     const codeFont = Math.round(source.width * 0.09);
-    const valueFont = Math.round(source.width * 0.055);
+    const valueFont = Math.round(source.width * 0.075);
     const out = document.createElement('canvas');
     out.width = source.width + pad * 2;
     out.height = source.height + pad * 2 + codeFont + valueFont + lineGap * 2;

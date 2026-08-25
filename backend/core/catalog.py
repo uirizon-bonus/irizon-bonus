@@ -785,7 +785,7 @@ def _render_qr_png(value: str, *, size: int = 600, caption_lines: Optional[List[
     width, height = qr_img.size
     pad = max(6, width // 24)
     # First line (product code) is a touch larger than the code value below it.
-    line_sizes = [max(26, width // 8)] + [max(20, width // 11)] * (len(lines) - 1)
+    line_sizes = [max(26, width // 8)] + [max(26, width // 9)] * (len(lines) - 1)
     total_text = pad + sum(sz + pad // 2 for sz in line_sizes)
     out = Image.new("RGB", (width, height + total_text), (255, 255, 255))
     out.paste(qr_img, (0, 0))
