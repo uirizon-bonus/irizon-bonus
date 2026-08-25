@@ -113,6 +113,9 @@ type I18n = {
   scanZeroPointsText: string;
   scanTemplateQrText: string;
   scanUnknownErrorText: string;
+  scanManualHint: string;
+  scanManualPlaceholder: string;
+  scanManualSubmit: string;
 };
 
 const i18nMap: Record<Lang, I18n> = {
@@ -169,6 +172,9 @@ const i18nMap: Record<Lang, I18n> = {
     scanTemplateQrText:
       "Это шаблонный QR товара. Для начисления нужен одноразовый QR-код",
     scanUnknownErrorText: "Баллы по этому QR-коду начислить не удалось",
+    scanManualHint: "Камера не читает? Введите код вручную",
+    scanManualPlaceholder: "Код с этикетки",
+    scanManualSubmit: "Начислить баллы",
   },
   UZ: {
     home: "Asosiy",
@@ -223,6 +229,9 @@ const i18nMap: Record<Lang, I18n> = {
     scanTemplateQrText:
       "Bu mahsulotning shablon QR-kodi. Ball uchun bir martalik QR kerak",
     scanUnknownErrorText: "Bu QR-kod bo'yicha ball qo'shib bo'lmadi",
+    scanManualHint: "Kamera o'qimayaptimi? Kodni qo'lda kiriting",
+    scanManualPlaceholder: "Etiketkadagi kod",
+    scanManualSubmit: "Ball qo'shish",
   },
 };
 

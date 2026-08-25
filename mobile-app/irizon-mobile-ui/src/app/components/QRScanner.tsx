@@ -44,6 +44,15 @@ export function QRScanner({
   const onScanRef = useRef(onScan);
   const [error, setError] = useState("");
   const [cameraReady, setCameraReady] = useState(false);
+  const [manualCode, setManualCode] = useState("");
+
+  const submitManualCode = () => {
+    const code = manualCode.trim();
+    if (!code || scannedRef.current) return;
+    scannedRef.current = true;
+    stopScanner();
+    void onScanRef.current(code);
+  };
 
   useEffect(() => {
     onScanRef.current = onScan;
@@ -70,6 +79,7 @@ export function QRScanner({
       stopScanner();
       setError("");
       setCameraReady(false);
+      setManualCode("");
       return;
     }
 
@@ -260,12 +270,42 @@ export function QRScanner({
 
         {scanResult === "idle" ? (
           <div
-            className="absolute left-0 right-0 px-6"
-            style={{ bottom: "calc(env(safe-area-inset-bottom) + 2rem)" }}
+            className="absolute left-0 right-0 px-6 space-y-3"
+            style={{ bottom: "calc(env(safe-area-inset-bottom) + 1.5rem)" }}
           >
-            <div className="bg-white/10 backdrop-blur-sm rounded-2xl px-6 py-4">
+            <div className="bg-white/10 backdrop-blur-sm rounded-2xl px-6 py-3">
               <p className="text-white text-center text-sm">{i18n.scanAlignHint}</p>
             </div>
+            <form
+              onSubmit={(event) => {
+                event.preventDefault();
+                submitManualCode();
+              }}
+              className="bg-white/10 backdrop-blur-sm rounded-2xl px-4 py-3"
+            >
+              <p className="text-white/70 text-center text-xs mb-2">{i18n.scanManualHint}</p>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  inputMode="text"
+                  autoCapitalize="none"
+                  autoComplete="off"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  value={manualCode}
+                  onChange={(event) => setManualCode(event.target.value)}
+                  placeholder={i18n.scanManualPlaceholder}
+                  className="min-w-0 flex-1 rounded-xl bg-white/90 px-4 py-3 text-[#0F4C81] placeholder:text-slate-400 text-sm font-medium outline-none focus:ring-2 focus:ring-[#16B1C7]"
+                />
+                <button
+                  type="submit"
+                  disabled={!manualCode.trim()}
+                  className="shrink-0 rounded-xl bg-[#16B1C7] px-4 py-3 text-white text-sm font-semibold active:bg-[#0F8FA3] disabled:opacity-40 transition-colors"
+                >
+                  {i18n.scanManualSubmit}
+                </button>
+              </div>
+            </form>
           </div>
         ) : null}
       </div>
