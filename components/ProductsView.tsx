@@ -256,7 +256,7 @@ const ProductsView: React.FC<ProductsViewProps> = ({ lang }) => {
               </div>
             </div>
             <h4 className="font-bold text-slate-800 text-lg mb-1">{product.name[lang]}</h4>
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-6">{product.sku ? ` · ` : ''}{product.id}{product.category ? ` · ` : ''}</p>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-6">{product.sku ? `${product.sku} · ` : ''}{product.id}{product.category ? ` · ${product.category}` : ''}</p>
 
             <div className="bg-slate-50 rounded-2xl p-4 flex items-center justify-between border border-slate-100">
               <div className="flex flex-col">
