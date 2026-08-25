@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { formatDateTime } from '../utils/formatDate';
 import { useSearchParams } from 'react-router-dom';
-import { Download, QrCode, RefreshCw, RotateCcw, Search, ShieldBan, X } from 'lucide-react';
+import { Check, Copy, Download, QrCode, RefreshCw, RotateCcw, Search, ShieldBan, X } from 'lucide-react';
 import { QRCodeCanvas } from 'qrcode.react';
 import LoadingGlass from './LoadingGlass';
 import DateRangeFilter from './DateRangeFilter';
@@ -81,6 +81,9 @@ const COPY = {
   action: 'Amal',
   showQr: 'QR kodni ko‘rsatish',
   qrModalTitle: 'QR kod',
+  productCode: 'Mahsulot kodi',
+  qrCodeText: 'QR kod (matn)',
+  copy: 'Nusxa olish',
   downloadPng: 'PNG yuklab olish',
   close: 'Yopish',
   cancel: 'Bekor qilish',
@@ -135,6 +138,14 @@ const QrManageView: React.FC<QrManageViewProps> = ({ lang }) => {
   const [bulkUnscanOpen, setBulkUnscanOpen] = useState(false);
   const [revokeConfirmOpen, setRevokeConfirmOpen] = useState(false);
   const [qrPreview, setQrPreview] = useState<ProductQrCode | null>(null);
+  const [copiedField, setCopiedField] = useState<string | null>(null);
+  const copyToClipboard = (value: string, field: string) => {
+    try {
+      void navigator.clipboard.writeText(value);
+      setCopiedField(field);
+      window.setTimeout(() => setCopiedField((cur) => (cur === field ? null : cur)), 1500);
+    } catch { /* clipboard unavailable */ }
+  };
   const qrCanvasRef = useRef<HTMLCanvasElement>(null);
   // Off-screen high-resolution copy: the visible preview is only 220px, which is
   // too coarse to print. Downloads come from this one instead.
@@ -831,7 +842,26 @@ const QrManageView: React.FC<QrManageViewProps> = ({ lang }) => {
               >
                 {qrPreview.isRevoked ? copy.revoked : qrPreview.isUsed ? copy.used : copy.unused}
               </span>
-              <p className="mt-3 w-full break-all text-center font-mono text-[11px] text-slate-500">{qrPreview.qrCode}</p>
+              <div className="mt-4 w-full space-y-2">
+                <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">{copy.productCode}</p>
+                    <p className="text-sm font-bold text-slate-700">{qrPreview.productId || '—'}{qrPreview.productName ? ` · ${qrPreview.productName}` : ''}</p>
+                  </div>
+                  <button type="button" aria-label={copy.copy} onClick={() => copyToClipboard(qrPreview.productId, 'product')} className="shrink-0 rounded-lg p-1.5 text-slate-400 hover:bg-white hover:text-cyan-600">
+                    {copiedField === 'product' ? <Check className="h-4 w-4 text-emerald-500" /> : <Copy className="h-4 w-4" />}
+                  </button>
+                </div>
+                <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">{copy.qrCodeText}</p>
+                    <p className="break-all font-mono text-xs font-semibold text-slate-700">{qrPreview.qrCode}</p>
+                  </div>
+                  <button type="button" aria-label={copy.copy} onClick={() => copyToClipboard(qrPreview.qrCode, 'code')} className="shrink-0 rounded-lg p-1.5 text-slate-400 hover:bg-white hover:text-cyan-600">
+                    {copiedField === 'code' ? <Check className="h-4 w-4 text-emerald-500" /> : <Copy className="h-4 w-4" />}
+                  </button>
+                </div>
+              </div>
             </div>
 
             <div className="mt-5 flex justify-end gap-2">
