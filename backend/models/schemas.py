@@ -44,6 +44,7 @@ class ProductCreatePayload(BaseModel):
     name: str = Field(..., min_length=1, max_length=300)
     points_value: int = Field(default=0, ge=0, le=1_000_000)
     category: str = Field(default="", max_length=100)
+    sku: str = Field(default="", max_length=100)
     is_active: bool = True
 
 

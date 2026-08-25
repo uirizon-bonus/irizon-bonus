@@ -46,6 +46,7 @@ const ProductsView: React.FC<ProductsViewProps> = ({ lang }) => {
     name: '',
     pointsValue: '',
     category: '',
+    sku: '',
     isActive: true,
   });
 
@@ -107,6 +108,7 @@ const ProductsView: React.FC<ProductsViewProps> = ({ lang }) => {
       name: '',
       pointsValue: '',
       category: '',
+      sku: '',
       isActive: true,
     });
     setFormError(null);
@@ -124,6 +126,7 @@ const ProductsView: React.FC<ProductsViewProps> = ({ lang }) => {
       name: product.name.UZ,
       pointsValue: String(product.pointsValue),
       category: product.category || '',
+      sku: product.sku || '',
       isActive: product.isActive,
     });
     setFormError(null);
@@ -149,6 +152,7 @@ const ProductsView: React.FC<ProductsViewProps> = ({ lang }) => {
             name: form.name,
             points_value: pointsValue,
             category: form.category,
+            sku: form.sku,
             is_active: form.isActive,
           }),
         },
@@ -252,7 +256,7 @@ const ProductsView: React.FC<ProductsViewProps> = ({ lang }) => {
               </div>
             </div>
             <h4 className="font-bold text-slate-800 text-lg mb-1">{product.name[lang]}</h4>
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-6">{product.id} • {product.category}</p>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-6">{product.sku ? ` · ` : ''}{product.id}{product.category ? ` · ` : ''}</p>
 
             <div className="bg-slate-50 rounded-2xl p-4 flex items-center justify-between border border-slate-100">
               <div className="flex flex-col">
@@ -284,6 +288,7 @@ const ProductsView: React.FC<ProductsViewProps> = ({ lang }) => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <input value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} placeholder={t.gift_name} className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:bg-white md:col-span-2" />
               <input value={form.category} onChange={(event) => setForm((current) => ({ ...current, category: event.target.value }))} placeholder={t.category} className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:bg-white" />
+              <input value={form.sku} onChange={(event) => setForm((current) => ({ ...current, sku: event.target.value }))} placeholder={t.sku || 'SKU / artikul'} className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:bg-white" />
               <input value={form.pointsValue} onChange={(event) => setForm((current) => ({ ...current, pointsValue: event.target.value }))} placeholder={t.points_value} type="number" className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:bg-white" />
               <label className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-600">
                 <input type="checkbox" checked={form.isActive} onChange={(event) => setForm((current) => ({ ...current, isActive: event.target.checked }))} />

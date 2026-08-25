@@ -160,6 +160,7 @@ export const TRANSLATIONS = {
     reject: 'Rad etish',
     stock: 'Ombor',
     category: 'Toifa',
+    sku: 'SKU / artikul',
     points_cost: 'Narxi (ball)',
     is_active: 'Faol',
     add_gift: 'Sovg\'a qo\'shish',

@@ -364,12 +364,14 @@ def _load_product_qr_codes(
     finally:
         connection.close()
 
+    sku_map = _load_product_sku_map()
     codes = [
         {
             "id": int(row["id"] or 0),
             "qrCode": str(row["qr_code"] or ""),
             "productId": str(row["product_id"] or ""),
             "productName": str(row["product_name"] or ""),
+            "productSku": sku_map.get(str(row["product_id"] or ""), ""),
             "pointsPerUnit": int(row["points_per_unit"] or 0),
             "isUsed": bool(row["is_used"]),
             "usedByClientId": str(row["used_by_client_id"] or ""),
@@ -419,7 +421,7 @@ def _load_products() -> List[Dict[str, Any]]:
     try:
         rows = connection.execute(
             """
-            SELECT id, name_ru, points_value, category, is_active
+            SELECT id, name_ru, points_value, category, is_active, sku
             FROM products
             ORDER BY id
             """
@@ -438,6 +440,7 @@ def _load_products() -> List[Dict[str, Any]]:
             },
             "pointsValue": int(row["points_value"] or 0),
             "category": str(row["category"] or ""),
+            "sku": str(row["sku"] or ""),
             "isActive": bool(row["is_active"]),
             "qrCode": _build_product_qr_code(str(row["id"])),
         }
@@ -742,6 +745,13 @@ QR_PNG_LIGHT = "#ffffff"
 QR_PNG_BORDER = 4
 
 
+
+
+def _load_product_sku_map() -> Dict[str, str]:
+    """product_id -> SKU (article) for label captions and the codes list."""
+    return {str(prod["id"]): str(prod.get("sku") or "") for prod in _load_products()}
+
+
 def _render_qr_png(value: str, *, size: int = 600, caption_lines: Optional[List[str]] = None) -> bytes:
     """Render a QR code PNG locally (segno) — no external service.
 
@@ -800,6 +810,7 @@ def _export_product_qr_zip(*, size: int = 600) -> bytes:
     products = _load_products()
     image_size = max(200, min(int(size), 2000))
 
+    sku_map = _load_product_sku_map()
     output = io.BytesIO()
     manifest_lines = ["product_id,product_name,points_value,qr_value,file_name,status"]
 
@@ -814,7 +825,7 @@ def _export_product_qr_zip(*, size: int = 600) -> bytes:
 
             status = "ok"
             try:
-                archive.writestr(file_name, _render_qr_png(qr_value, size=image_size, caption_lines=[product_id, qr_value]))
+                archive.writestr(file_name, _render_qr_png(qr_value, size=image_size, caption_lines=[sku_map.get(product_id) or product_id, qr_value]))
             except Exception as exc:
                 status = f"error:{str(exc).replace(',', ';')}"
                 archive.writestr(
@@ -995,6 +1006,7 @@ def _export_product_saved_qr_zip(
     image_size = max(200, min(int(size), 2000))
     safe_product_id = _slugify_catalog_text(product_id) or "product"
 
+    sku_map = _load_product_sku_map()
     output = io.BytesIO()
     with zipfile.ZipFile(output, mode="w", compression=zipfile.ZIP_DEFLATED) as archive:
         manifest = _export_product_saved_qr_csv(
@@ -1008,7 +1020,7 @@ def _export_product_saved_qr_zip(
             qr_value = str(row["qrCode"])
             file_name = f"{safe_product_id}_{int(row['id'])}.png"
             try:
-                archive.writestr(file_name, _render_qr_png(qr_value, size=image_size, caption_lines=[product_id, qr_value]))
+                archive.writestr(file_name, _render_qr_png(qr_value, size=image_size, caption_lines=[sku_map.get(product_id) or product_id, qr_value]))
             except Exception as exc:
                 archive.writestr(f"{safe_product_id}_{int(row['id'])}.txt", f"QR image build failed\n{str(exc)}\n")
 
@@ -1025,6 +1037,7 @@ def _export_all_saved_qr_zip(
     rows = _load_all_product_qr_rows_for_export(include_used=include_used, include_revoked=include_revoked)
     image_size = max(200, min(int(size), 2000))
 
+    sku_map = _load_product_sku_map()
     output = io.BytesIO()
     with zipfile.ZipFile(output, mode="w", compression=zipfile.ZIP_DEFLATED) as archive:
         manifest = _export_all_saved_qr_csv(
@@ -1037,7 +1050,7 @@ def _export_all_saved_qr_zip(
             safe_product_id = _slugify_catalog_text(row["productId"]) or "product"
             file_name = f"{safe_product_id}_{int(row['id'])}.png"
             try:
-                archive.writestr(file_name, _render_qr_png(str(row["qrCode"]), size=image_size, caption_lines=[str(row["productId"]), str(row["qrCode"])]))
+                archive.writestr(file_name, _render_qr_png(str(row["qrCode"]), size=image_size, caption_lines=[sku_map.get(str(row["productId"])) or str(row["productId"]), str(row["qrCode"])]))
             except Exception as exc:
                 archive.writestr(f"{safe_product_id}_{int(row['id'])}.txt", f"QR image build failed\n{str(exc)}\n")
 
@@ -1072,8 +1085,8 @@ def _create_product(payload: ProductCreatePayload) -> Dict[str, Any]:
         default_name = payload.name.strip()
         connection.execute(
             """
-            INSERT INTO products (id, name_ru, points_value, category, is_active)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO products (id, name_ru, points_value, category, is_active, sku)
+            VALUES (?, ?, ?, ?, ?, ?)
             """,
             (
                 product_id,
@@ -1081,6 +1094,7 @@ def _create_product(payload: ProductCreatePayload) -> Dict[str, Any]:
                 int(payload.points_value),
                 payload.category.strip(),
                 1 if payload.is_active else 0,
+                payload.sku.strip(),
             ),
         )
         connection.commit()
@@ -1097,7 +1111,7 @@ def _update_product(product_id: str, payload: ProductCreatePayload) -> Optional[
         cursor = connection.execute(
             """
             UPDATE products
-            SET name_ru = ?, points_value = ?, category = ?, is_active = ?
+            SET name_ru = ?, points_value = ?, category = ?, is_active = ?, sku = ?
             WHERE id = ?
             """,
             (
@@ -1105,6 +1119,7 @@ def _update_product(product_id: str, payload: ProductCreatePayload) -> Optional[
                 int(payload.points_value),
                 payload.category.strip(),
                 1 if payload.is_active else 0,
+                payload.sku.strip(),
                 product_id,
             ),
         )

@@ -381,6 +381,12 @@ def _init_bonus_db() -> None:
             connection.execute("ALTER TABLE gifts DROP COLUMN IF EXISTS name_uz")
             connection.execute("ALTER TABLE gifts DROP COLUMN IF EXISTS description_en")
             connection.execute("ALTER TABLE gifts DROP COLUMN IF EXISTS description_uz")
+            connection.execute("ALTER TABLE products ADD COLUMN IF NOT EXISTS sku TEXT NOT NULL DEFAULT ''")
+        else:
+            try:
+                connection.execute("ALTER TABLE products ADD COLUMN sku TEXT NOT NULL DEFAULT ''")
+            except Exception:
+                pass
         connection.execute(
             f"""
             CREATE TABLE IF NOT EXISTS order_items (

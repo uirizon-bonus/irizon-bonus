@@ -36,6 +36,7 @@ export interface Product {
   name: MultiLangString;
   pointsValue: number;
   category?: string;
+  sku?: string;
   isActive: boolean;
   qrCode?: string;
 }
@@ -118,6 +119,7 @@ export interface QrScanEvent {
 }
 
 export interface ProductQrCode {
+  productSku?: string;
   id: number;
   qrCode: string;
   productId: string;

@@ -172,7 +172,7 @@ const QrManageView: React.FC<QrManageViewProps> = ({ lang }) => {
     ctx.fillStyle = '#000000';
     let y = source.height + pad + lineGap + codeFont;
     ctx.font = `bold ${codeFont}px monospace`;
-    ctx.fillText(qrPreview.productId || '', out.width / 2, y);
+    ctx.fillText(qrPreview.productSku || qrPreview.productId || '', out.width / 2, y);
     // Auto-shrink the value font so a long code still fits the width.
     y += lineGap + valueFont;
     let vf = valueFont;
@@ -875,9 +875,9 @@ const QrManageView: React.FC<QrManageViewProps> = ({ lang }) => {
                 <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 flex items-center justify-between gap-2">
                   <div className="min-w-0">
                     <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">{copy.productCode}</p>
-                    <p className="text-sm font-bold text-slate-700">{qrPreview.productId || '—'}{qrPreview.productName ? ` · ${qrPreview.productName}` : ''}</p>
+                    <p className="text-sm font-bold text-slate-700">{qrPreview.productSku || qrPreview.productId || '—'}{qrPreview.productName ? ` · ${qrPreview.productName}` : ''}</p>
                   </div>
-                  <button type="button" aria-label={copy.copy} onClick={() => copyToClipboard(qrPreview.productId, 'product')} className="shrink-0 rounded-lg p-1.5 text-slate-400 hover:bg-white hover:text-cyan-600">
+                  <button type="button" aria-label={copy.copy} onClick={() => copyToClipboard(qrPreview.productSku || qrPreview.productId, 'product')} className="shrink-0 rounded-lg p-1.5 text-slate-400 hover:bg-white hover:text-cyan-600">
                     {copiedField === 'product' ? <Check className="h-4 w-4 text-emerald-500" /> : <Copy className="h-4 w-4" />}
                   </button>
                 </div>
