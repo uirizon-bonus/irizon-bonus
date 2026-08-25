@@ -8,7 +8,7 @@ import { ProfileModal } from "../components/ProfileModal";
 import { LoadingScreen } from "../components/LoadingScreen";
 import { usePortal } from "../context/PortalContext";
 
-type ScanResult = "idle" | "processing" | "success" | "already-used" | "invalid";
+type ScanResult = "idle" | "confirm" | "processing" | "success" | "already-used" | "invalid";
 
 const copy = {
   RU: {
@@ -45,6 +45,7 @@ export function Home() {
     applyQrScan,
     refreshPortal,
     clearNotice,
+    confirmBeforeScan,
   } = usePortal();
   const t = copy[lang];
 
@@ -57,6 +58,7 @@ export function Home() {
   const [scanMessage, setScanMessage] = useState("");
   const [pointsEarned, setPointsEarned] = useState(0);
   const [scanUsedAt, setScanUsedAt] = useState("");
+  const [pendingCode, setPendingCode] = useState("");
   const scanInFlightRef = useRef(false);
 
   useEffect(() => {
@@ -116,10 +118,40 @@ export function Home() {
     setScanMessage("");
     setPointsEarned(0);
     setScanUsedAt("");
+    setPendingCode("");
     scanInFlightRef.current = false;
   };
 
+  // Camera or manual entry produced a code. With confirmation enabled we pause
+  // on a confirm step; otherwise we credit immediately (legacy behaviour).
   const handleScan = async (qrCode: string) => {
+    if (scanInFlightRef.current) return;
+    const code = qrCode.trim();
+    if (!code) return;
+    if (confirmBeforeScan) {
+      setPendingCode(code);
+      setScanMessage("");
+      setPointsEarned(0);
+      setScanUsedAt("");
+      setScanResult("confirm");
+      return;
+    }
+    await runScan(code);
+  };
+
+  const cancelScan = () => {
+    setPendingCode("");
+    setScanMessage("");
+    setScanResult("idle");
+    scanInFlightRef.current = false;
+  };
+
+  const confirmScan = () => {
+    if (!pendingCode) return;
+    void runScan(pendingCode);
+  };
+
+  const runScan = async (qrCode: string) => {
     if (scanInFlightRef.current) return;
     scanInFlightRef.current = true;
     setScanResult("processing");
@@ -359,6 +391,9 @@ export function Home() {
         resultMessage={scanMessage}
         pointsEarned={pointsEarned}
         usedAt={scanUsedAt}
+        pendingCode={pendingCode}
+        onConfirm={confirmScan}
+        onCancel={cancelScan}
       />
 
       <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />

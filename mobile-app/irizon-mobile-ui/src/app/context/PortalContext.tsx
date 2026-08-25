@@ -15,6 +15,7 @@ const API_TIMEOUT_MS = Number(import.meta.env.VITE_API_TIMEOUT_MS ?? 20000);
 const SESSION_KEY = "irizon_mobile_customer_id";
 const SESSION_TOKEN_KEY = "irizon_session_token";
 const LANG_KEY = "irizon_mobile_lang";
+const CONFIRM_SCAN_KEY = "irizon_mobile_confirm_scan";
 
 export type Lang = "RU" | "UZ";
 
@@ -116,6 +117,12 @@ type I18n = {
   scanManualHint: string;
   scanManualPlaceholder: string;
   scanManualSubmit: string;
+  scanConfirmTitle: string;
+  scanConfirmBody: string;
+  scanConfirmButton: string;
+  scanConfirmCancel: string;
+  settingsConfirmScanTitle: string;
+  settingsConfirmScanHint: string;
 };
 
 const i18nMap: Record<Lang, I18n> = {
@@ -175,6 +182,12 @@ const i18nMap: Record<Lang, I18n> = {
     scanManualHint: "Камера не читает? Введите код вручную",
     scanManualPlaceholder: "Код с этикетки",
     scanManualSubmit: "Начислить баллы",
+    scanConfirmTitle: "Начислить баллы?",
+    scanConfirmBody: "Код готов к начислению. Подтвердите, чтобы получить баллы.",
+    scanConfirmButton: "Подтвердить",
+    scanConfirmCancel: "Отмена",
+    settingsConfirmScanTitle: "Подтверждение перед начислением",
+    settingsConfirmScanHint: "Спрашивать подтверждение перед начислением баллов по QR",
   },
   UZ: {
     home: "Asosiy",
@@ -232,6 +245,12 @@ const i18nMap: Record<Lang, I18n> = {
     scanManualHint: "Kamera o'qimayaptimi? Kodni qo'lda kiriting",
     scanManualPlaceholder: "Etiketkadagi kod",
     scanManualSubmit: "Ball qo'shish",
+    scanConfirmTitle: "Ball qo'shilsinmi?",
+    scanConfirmBody: "Kod qo'shishga tayyor. Ball olish uchun tasdiqlang.",
+    scanConfirmButton: "Tasdiqlash",
+    scanConfirmCancel: "Bekor qilish",
+    settingsConfirmScanTitle: "Qo'shishdan oldin tasdiqlash",
+    settingsConfirmScanHint: "QR bo'yicha ball qo'shishdan oldin tasdiq so'ralsin",
   },
 };
 
@@ -239,6 +258,8 @@ type PortalContextValue = {
   lang: Lang;
   i18n: I18n;
   setLang: (lang: Lang) => void;
+  confirmBeforeScan: boolean;
+  setConfirmBeforeScan: (value: boolean) => void;
   customer: Customer | null;
   gifts: GiftItem[];
   products: ProductItem[];
@@ -312,6 +333,9 @@ const apiFetch = async (path: string, init: RequestInit = {}) => {
 
 export function PortalProvider({ children }: { children: ReactNode }) {
   const [lang, setLang] = useState<Lang>("RU");
+  const [confirmBeforeScan, setConfirmBeforeScan] = useState<boolean>(
+    () => localStorage.getItem(CONFIRM_SCAN_KEY) !== "0",
+  );
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [gifts, setGifts] = useState<GiftItem[]>([]);
   const [products, setProducts] = useState<ProductItem[]>([]);
@@ -534,6 +558,10 @@ export function PortalProvider({ children }: { children: ReactNode }) {
     localStorage.setItem(LANG_KEY, lang);
   }, [lang]);
 
+  useEffect(() => {
+    localStorage.setItem(CONFIRM_SCAN_KEY, confirmBeforeScan ? "1" : "0");
+  }, [confirmBeforeScan]);
+
   const requestOtp = async (phone: string) => {
     setBusy(true);
     clearNotice();
@@ -700,6 +728,8 @@ export function PortalProvider({ children }: { children: ReactNode }) {
     lang,
     i18n,
     setLang,
+    confirmBeforeScan,
+    setConfirmBeforeScan,
     customer,
     gifts,
     products,

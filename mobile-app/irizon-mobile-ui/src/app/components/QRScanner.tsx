@@ -4,7 +4,7 @@ import { AlertCircle, CheckCircle2, LoaderCircle, X, XCircle } from "lucide-reac
 import { AnimatePresence, motion } from "motion/react";
 import { usePortal } from "../context/PortalContext";
 
-type ScanResult = "idle" | "processing" | "success" | "already-used" | "invalid";
+type ScanResult = "idle" | "confirm" | "processing" | "success" | "already-used" | "invalid";
 
 interface QRScannerProps {
   isOpen: boolean;
@@ -14,6 +14,9 @@ interface QRScannerProps {
   resultMessage?: string;
   pointsEarned?: number;
   usedAt?: string;
+  pendingCode?: string;
+  onConfirm?: () => void;
+  onCancel?: () => void;
 }
 
 const formatUsedAt = (value: string, lang: "RU" | "UZ") => {
@@ -34,6 +37,9 @@ export function QRScanner({
   resultMessage = "",
   pointsEarned = 0,
   usedAt = "",
+  pendingCode = "",
+  onConfirm,
+  onCancel,
 }: QRScannerProps) {
   const { i18n, lang } = usePortal();
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -255,6 +261,42 @@ export function QRScanner({
                       {overlay.meta}
                     </div>
                   ) : null}
+                </motion.div>
+              ) : null}
+            </AnimatePresence>
+
+            <AnimatePresence>
+              {scanResult === "confirm" ? (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.9 }}
+                  className="absolute inset-0 bg-gradient-to-br from-[#0F4C81]/95 to-[#1E6FD9]/95 backdrop-blur-sm rounded-3xl flex flex-col items-center justify-center text-center px-6"
+                >
+                  <AlertCircle className="w-20 h-20 text-white mb-4" />
+                  <h3 className="text-white text-2xl font-bold mb-2">{i18n.scanConfirmTitle}</h3>
+                  <p className="text-white/90 text-base mb-3">{i18n.scanConfirmBody}</p>
+                  {pendingCode ? (
+                    <div className="mb-6 max-w-full break-all bg-white/15 rounded-2xl px-4 py-2 text-white/90 text-sm font-mono">
+                      {pendingCode}
+                    </div>
+                  ) : null}
+                  <div className="w-full max-w-xs space-y-3">
+                    <button
+                      type="button"
+                      onClick={() => onConfirm?.()}
+                      className="w-full rounded-2xl bg-white px-6 py-3.5 text-[#0F4C81] text-base font-bold active:bg-white/90 transition-colors"
+                    >
+                      {i18n.scanConfirmButton}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onCancel?.()}
+                      className="w-full rounded-2xl bg-white/15 px-6 py-3.5 text-white text-base font-semibold active:bg-white/25 transition-colors"
+                    >
+                      {i18n.scanConfirmCancel}
+                    </button>
+                  </div>
                 </motion.div>
               ) : null}
             </AnimatePresence>

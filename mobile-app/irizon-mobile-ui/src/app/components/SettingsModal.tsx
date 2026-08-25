@@ -1,4 +1,4 @@
-import { X, Globe, HelpCircle, ChevronRight, Info, Trash2, LogOut } from "lucide-react";
+import { X, Globe, HelpCircle, ChevronRight, Info, Trash2, LogOut, ShieldCheck } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useNavigate } from "react-router";
 import irizonLogo from "../../assets/5aa002f17312914e5df436969532bb9f94818e7a.png";
@@ -38,7 +38,7 @@ interface SettingsModalProps {
 export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const navigate = useNavigate();
   const { language, setLanguage } = useLanguage();
-  const { logout } = usePortal();
+  const { logout, i18n, confirmBeforeScan, setConfirmBeforeScan } = usePortal();
   const t = translations[language];
 
   const goTo = (path: string) => {
@@ -136,6 +136,33 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                   ))}
                 </div>
               </div>
+
+              <div className="border-t border-gray-100" />
+
+              <button
+                type="button"
+                onClick={() => setConfirmBeforeScan(!confirmBeforeScan)}
+                className="w-full flex items-center gap-4 px-5 py-4 bg-white rounded-2xl border-2 border-gray-200 text-left"
+              >
+                <div className="w-11 h-11 rounded-xl bg-emerald-50 flex items-center justify-center shrink-0">
+                  <ShieldCheck className="w-5 h-5 text-emerald-600" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="font-semibold text-gray-900">{i18n.settingsConfirmScanTitle}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">{i18n.settingsConfirmScanHint}</p>
+                </div>
+                <span
+                  className={`shrink-0 w-12 h-7 rounded-full p-1 transition-colors ${
+                    confirmBeforeScan ? "bg-emerald-500" : "bg-gray-300"
+                  }`}
+                >
+                  <span
+                    className={`block w-5 h-5 rounded-full bg-white shadow transition-transform ${
+                      confirmBeforeScan ? "translate-x-5" : "translate-x-0"
+                    }`}
+                  />
+                </span>
+              </button>
 
               <div className="border-t border-gray-100" />
 
