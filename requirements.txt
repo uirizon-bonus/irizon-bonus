@@ -8,3 +8,4 @@ pyarrow
 psycopg[binary]
 firebase-admin
 segno
+pillow

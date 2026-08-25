@@ -152,10 +152,39 @@ const QrManageView: React.FC<QrManageViewProps> = ({ lang }) => {
   const qrPrintCanvasRef = useRef<HTMLCanvasElement>(null);
 
   const downloadQrPng = () => {
-    const canvas = qrPrintCanvasRef.current ?? qrCanvasRef.current;
-    if (!canvas || !qrPreview) return;
+    const source = qrPrintCanvasRef.current ?? qrCanvasRef.current;
+    if (!source || !qrPreview) return;
+    // Compose a labelled PNG: the QR image plus the product code and the full
+    // QR value baked in, so both are readable on the printed label.
+    const pad = Math.round(source.width * 0.06);
+    const lineGap = Math.round(source.width * 0.02);
+    const codeFont = Math.round(source.width * 0.05);
+    const valueFont = Math.round(source.width * 0.032);
+    const out = document.createElement('canvas');
+    out.width = source.width + pad * 2;
+    out.height = source.height + pad * 2 + codeFont + valueFont + lineGap * 2;
+    const ctx = out.getContext('2d');
+    if (!ctx) return;
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, out.width, out.height);
+    ctx.drawImage(source, pad, pad);
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#0F4C81';
+    let y = source.height + pad + lineGap + codeFont;
+    ctx.font = `bold ${codeFont}px monospace`;
+    ctx.fillText(qrPreview.productId || '', out.width / 2, y);
+    // Auto-shrink the value font so a long code still fits the width.
+    y += lineGap + valueFont;
+    let vf = valueFont;
+    ctx.font = `${vf}px monospace`;
+    while (ctx.measureText(qrPreview.qrCode).width > out.width - pad && vf > 10) {
+      vf -= 2;
+      ctx.font = `${vf}px monospace`;
+    }
+    ctx.fillStyle = '#334155';
+    ctx.fillText(qrPreview.qrCode, out.width / 2, y);
     const link = document.createElement('a');
-    link.href = canvas.toDataURL('image/png');
+    link.href = out.toDataURL('image/png');
     link.download = `${qrPreview.productId || 'qr'}_${qrPreview.id}.png`;
     link.click();
   };

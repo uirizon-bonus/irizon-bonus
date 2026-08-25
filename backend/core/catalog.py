@@ -742,11 +742,13 @@ QR_PNG_LIGHT = "#ffffff"
 QR_PNG_BORDER = 4
 
 
-def _render_qr_png(value: str, *, size: int = 600) -> bytes:
+def _render_qr_png(value: str, *, size: int = 600, caption_lines: Optional[List[str]] = None) -> bytes:
     """Render a QR code PNG locally (segno) — no external service.
 
     `size` is the desired pixel width; the module scale is derived from it, so
-    the real output lands on the nearest whole-module multiple.
+    the real output lands on the nearest whole-module multiple. When
+    `caption_lines` are given, they are drawn (centred) below the QR so the
+    product code and the code value are readable on the printed label.
     """
     qr = segno.make(str(value or ""), error="h")
     modules = qr.symbol_size(scale=1, border=QR_PNG_BORDER)[0]
@@ -760,7 +762,38 @@ def _render_qr_png(value: str, *, size: int = 600) -> bytes:
         dark=QR_PNG_DARK,
         light=QR_PNG_LIGHT,
     )
-    return buffer.getvalue()
+    lines = [str(x).strip() for x in (caption_lines or []) if str(x).strip()]
+    if not lines:
+        return buffer.getvalue()
+    try:
+        from PIL import Image, ImageDraw, ImageFont
+    except Exception:
+        return buffer.getvalue()  # PIL unavailable -> plain QR, no caption
+
+    buffer.seek(0)
+    qr_img = Image.open(buffer).convert("RGB")
+    width, height = qr_img.size
+    pad = max(6, width // 24)
+    # First line (product code) is a touch larger than the code value below it.
+    line_sizes = [max(14, width // 15)] + [max(11, width // 20)] * (len(lines) - 1)
+    total_text = pad + sum(sz + pad // 2 for sz in line_sizes)
+    out = Image.new("RGB", (width, height + total_text), (255, 255, 255))
+    out.paste(qr_img, (0, 0))
+    draw = ImageDraw.Draw(out)
+    y = height + pad // 2
+    for index, text in enumerate(lines):
+        font_size = line_sizes[index]
+        font = ImageFont.load_default(size=font_size)
+        while font_size > 8 and draw.textlength(text, font=font) > (width - pad):
+            font_size -= 2
+            font = ImageFont.load_default(size=font_size)
+        text_width = draw.textlength(text, font=font)
+        colour = (15, 76, 129) if index == 0 else (51, 65, 85)
+        draw.text(((width - text_width) / 2, y), text, fill=colour, font=font)
+        y += font_size + pad // 2
+    out_buffer = io.BytesIO()
+    out.save(out_buffer, format="PNG")
+    return out_buffer.getvalue()
 
 
 def _export_product_qr_zip(*, size: int = 600) -> bytes:
@@ -781,7 +814,7 @@ def _export_product_qr_zip(*, size: int = 600) -> bytes:
 
             status = "ok"
             try:
-                archive.writestr(file_name, _render_qr_png(qr_value, size=image_size))
+                archive.writestr(file_name, _render_qr_png(qr_value, size=image_size, caption_lines=[product_id, qr_value]))
             except Exception as exc:
                 status = f"error:{str(exc).replace(',', ';')}"
                 archive.writestr(
@@ -975,7 +1008,7 @@ def _export_product_saved_qr_zip(
             qr_value = str(row["qrCode"])
             file_name = f"{safe_product_id}_{int(row['id'])}.png"
             try:
-                archive.writestr(file_name, _render_qr_png(qr_value, size=image_size))
+                archive.writestr(file_name, _render_qr_png(qr_value, size=image_size, caption_lines=[product_id, qr_value]))
             except Exception as exc:
                 archive.writestr(f"{safe_product_id}_{int(row['id'])}.txt", f"QR image build failed\n{str(exc)}\n")
 
@@ -1004,7 +1037,7 @@ def _export_all_saved_qr_zip(
             safe_product_id = _slugify_catalog_text(row["productId"]) or "product"
             file_name = f"{safe_product_id}_{int(row['id'])}.png"
             try:
-                archive.writestr(file_name, _render_qr_png(str(row["qrCode"]), size=image_size))
+                archive.writestr(file_name, _render_qr_png(str(row["qrCode"]), size=image_size, caption_lines=[str(row["productId"]), str(row["qrCode"])]))
             except Exception as exc:
                 archive.writestr(f"{safe_product_id}_{int(row['id'])}.txt", f"QR image build failed\n{str(exc)}\n")
 
