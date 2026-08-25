@@ -737,7 +737,7 @@ def _apply_qr_scan(client_id: str, payload: QrScanPayload) -> Dict[str, Any]:
     }
 
 
-QR_PNG_DARK = "#0F4C81"
+QR_PNG_DARK = "#000000"
 QR_PNG_LIGHT = "#ffffff"
 QR_PNG_BORDER = 4
 
@@ -775,7 +775,7 @@ def _render_qr_png(value: str, *, size: int = 600, caption_lines: Optional[List[
     width, height = qr_img.size
     pad = max(6, width // 24)
     # First line (product code) is a touch larger than the code value below it.
-    line_sizes = [max(14, width // 15)] + [max(11, width // 20)] * (len(lines) - 1)
+    line_sizes = [max(26, width // 8)] + [max(20, width // 11)] * (len(lines) - 1)
     total_text = pad + sum(sz + pad // 2 for sz in line_sizes)
     out = Image.new("RGB", (width, height + total_text), (255, 255, 255))
     out.paste(qr_img, (0, 0))
@@ -788,7 +788,7 @@ def _render_qr_png(value: str, *, size: int = 600, caption_lines: Optional[List[
             font_size -= 2
             font = ImageFont.load_default(size=font_size)
         text_width = draw.textlength(text, font=font)
-        colour = (15, 76, 129) if index == 0 else (51, 65, 85)
+        colour = (0, 0, 0)
         draw.text(((width - text_width) / 2, y), text, fill=colour, font=font)
         y += font_size + pad // 2
     out_buffer = io.BytesIO()

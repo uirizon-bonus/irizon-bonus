@@ -158,8 +158,8 @@ const QrManageView: React.FC<QrManageViewProps> = ({ lang }) => {
     // QR value baked in, so both are readable on the printed label.
     const pad = Math.round(source.width * 0.06);
     const lineGap = Math.round(source.width * 0.02);
-    const codeFont = Math.round(source.width * 0.05);
-    const valueFont = Math.round(source.width * 0.032);
+    const codeFont = Math.round(source.width * 0.09);
+    const valueFont = Math.round(source.width * 0.055);
     const out = document.createElement('canvas');
     out.width = source.width + pad * 2;
     out.height = source.height + pad * 2 + codeFont + valueFont + lineGap * 2;
@@ -169,7 +169,7 @@ const QrManageView: React.FC<QrManageViewProps> = ({ lang }) => {
     ctx.fillRect(0, 0, out.width, out.height);
     ctx.drawImage(source, pad, pad);
     ctx.textAlign = 'center';
-    ctx.fillStyle = '#0F4C81';
+    ctx.fillStyle = '#000000';
     let y = source.height + pad + lineGap + codeFont;
     ctx.font = `bold ${codeFont}px monospace`;
     ctx.fillText(qrPreview.productId || '', out.width / 2, y);
@@ -181,7 +181,7 @@ const QrManageView: React.FC<QrManageViewProps> = ({ lang }) => {
       vf -= 2;
       ctx.font = `${vf}px monospace`;
     }
-    ctx.fillStyle = '#334155';
+    ctx.fillStyle = '#000000';
     ctx.fillText(qrPreview.qrCode, out.width / 2, y);
     const link = document.createElement('a');
     link.href = out.toDataURL('image/png');
@@ -845,7 +845,7 @@ const QrManageView: React.FC<QrManageViewProps> = ({ lang }) => {
                   size={220}
                   level="H"
                   marginSize={2}
-                  fgColor="#0F4C81"
+                  fgColor="#000000"
                   bgColor="#ffffff"
                 />
                 {/* Hidden print-resolution copy used by the PNG download. */}
@@ -855,7 +855,7 @@ const QrManageView: React.FC<QrManageViewProps> = ({ lang }) => {
                   size={1000}
                   level="H"
                   marginSize={2}
-                  fgColor="#0F4C81"
+                  fgColor="#000000"
                   bgColor="#ffffff"
                   style={{ display: 'none' }}
                 />
