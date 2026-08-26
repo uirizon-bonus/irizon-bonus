@@ -41,6 +41,7 @@ export interface GiftItem {
 export interface ProductItem {
   id: string;
   name: string;
+  sku: string;
   pointsValue: number;
   category: string;
   isActive: boolean;
@@ -488,6 +489,7 @@ export function PortalProvider({ children }: { children: ReactNode }) {
           .map((product) => ({
             id: String(product.id || ""),
             name: mapLocalizedName(product.name),
+            sku: String(product.sku || ""),
             pointsValue: Number(product.pointsValue || 0),
             category: String(product.category || ""),
             isActive: Boolean(product.isActive),

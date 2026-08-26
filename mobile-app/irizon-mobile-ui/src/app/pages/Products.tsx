@@ -33,7 +33,7 @@ export function Products() {
     const needle = query.trim().toLowerCase();
     if (!needle) return products;
     return products.filter((product) => {
-      const text = `${product.id} ${product.name} ${product.category}`.toLowerCase();
+      const text = `${product.sku} ${product.id} ${product.name} ${product.category}`.toLowerCase();
       return text.includes(needle);
     });
   }, [products, query]);
@@ -68,8 +68,8 @@ export function Products() {
                 className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 flex items-center justify-between"
               >
                 <div className="min-w-0">
-                  <p className="font-semibold text-gray-900 text-sm truncate">{product.name}</p>
-                  <p className="text-xs text-gray-400 mt-1">{product.id}</p>
+                  <p className="font-semibold text-gray-900 text-sm break-words">{product.name}</p>
+                  <p className="text-xs text-gray-400 mt-1">{product.sku || product.id}</p>
                 </div>
                 <div className="text-right pl-3 shrink-0">
                   <p className="text-xl font-black text-[#1E6FD9]">{product.pointsValue}</p>
