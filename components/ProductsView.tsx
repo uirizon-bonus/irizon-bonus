@@ -297,51 +297,60 @@ const ProductsView: React.FC<ProductsViewProps> = ({ lang }) => {
           <p className="font-semibold text-slate-600">{t.no_data}</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredProducts.map((product) => (
-            <div
-              key={product.id}
-              className="group relative flex flex-col rounded-2xl border border-slate-100 bg-white p-5 shadow-sm transition-all hover:border-cyan-200 hover:shadow-md"
-            >
-              <div className="mb-3 flex items-start justify-between gap-3">
-                <div className="flex flex-wrap items-center gap-1.5">
-                  {product.category && (
-                    <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-500">
-                      {product.category}
-                    </span>
-                  )}
-                  {!product.isActive && (
-                    <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-400">
-                      {t.blocked}
-                    </span>
-                  )}
-                </div>
-                <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
-                  <button onClick={() => handleOpenEdit(product)} aria-label={t.edit} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-50 hover:text-cyan-600">
-                    <Edit3 className="h-4 w-4" />
-                  </button>
-                  <button onClick={() => setDeletingProduct(product)} aria-label={t.delete} className="rounded-lg p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600">
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
-
-              <h4 className="mb-2 line-clamp-2 min-h-[2.5rem] font-bold leading-snug text-slate-800" title={product.name[lang]}>
-                {product.name[lang]}
-              </h4>
-
-              <div className="mt-auto flex items-end justify-between gap-3 border-t border-slate-100 pt-3">
-                <div className="min-w-0">
-                  <span className="block font-mono text-sm font-bold text-slate-700">{product.sku || product.id}</span>
-                  {product.sku && <span className="block text-[10px] text-slate-300">{product.id}</span>}
-                </div>
-                <div className="shrink-0 rounded-xl bg-cyan-50 px-3 py-1.5 text-right">
-                  <span className="text-lg font-black leading-none text-cyan-600">+{product.pointsValue}</span>
-                  <span className="mt-0.5 block text-[9px] font-bold uppercase tracking-wide text-cyan-500/70">{t.bonus_value}</span>
-                </div>
-              </div>
-            </div>
-          ))}
+        <div className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[640px] text-sm">
+              <thead>
+                <tr className="border-b border-slate-100 bg-slate-50/60 text-left text-[11px] font-bold uppercase tracking-wide text-slate-400">
+                  <th className="px-5 py-3">Mahsulot</th>
+                  <th className="px-4 py-3">SKU</th>
+                  <th className="px-4 py-3">{t.category}</th>
+                  <th className="px-4 py-3 text-right">Ball</th>
+                  <th className="px-4 py-3 text-center">{t.status}</th>
+                  <th className="px-4 py-3 text-right"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {filteredProducts.map((product) => (
+                  <tr key={product.id} className="group transition-colors hover:bg-slate-50/60">
+                    <td className="px-5 py-3">
+                      <span className="font-semibold text-slate-800" title={product.name[lang]}>{product.name[lang]}</span>
+                      <span className="block text-[10px] text-slate-300">{product.id}</span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="font-mono text-xs font-semibold text-slate-600">{product.sku || '—'}</span>
+                    </td>
+                    <td className="px-4 py-3">
+                      {product.category
+                        ? <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-500">{product.category}</span>
+                        : <span className="text-slate-300">—</span>}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <span className="font-black text-cyan-600">+{product.pointsValue}</span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center justify-center gap-1.5">
+                        <span className={`h-1.5 w-1.5 rounded-full ${product.isActive ? 'bg-emerald-500' : 'bg-slate-300'}`}></span>
+                        <span className={`text-xs font-semibold ${product.isActive ? 'text-emerald-600' : 'text-slate-400'}`}>
+                          {product.isActive ? t.active : t.blocked}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center justify-end gap-0.5 opacity-60 transition-opacity group-hover:opacity-100">
+                        <button onClick={() => handleOpenEdit(product)} aria-label={t.edit} className="rounded-lg p-1.5 text-slate-400 hover:bg-white hover:text-cyan-600">
+                          <Edit3 className="h-4 w-4" />
+                        </button>
+                        <button onClick={() => setDeletingProduct(product)} aria-label={t.delete} className="rounded-lg p-1.5 text-slate-400 hover:bg-white hover:text-rose-600">
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
