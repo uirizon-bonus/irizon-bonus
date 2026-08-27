@@ -482,6 +482,7 @@ const QrManageView: React.FC<QrManageViewProps> = ({ lang }) => {
       const localizedName = String(product.name?.[lang] || '').toLowerCase();
       const allNames = Object.values(product.name || {}).join(' ').toLowerCase();
       return (
+        String(product.sku || '').toLowerCase().includes(query) ||
         String(product.id).toLowerCase().includes(query) ||
         localizedName.includes(query) ||
         allNames.includes(query)
@@ -570,14 +571,14 @@ const QrManageView: React.FC<QrManageViewProps> = ({ lang }) => {
                         key={product.id}
                         onClick={() => {
                           setSelectedProductId(product.id);
-                          setProductSearch(`${product.id} - ${product.name[lang]}`);
+                          setProductSearch(`${product.sku || product.id} - ${product.name[lang]}`);
                           setProductPickerOpen(false);
                         }}
                         className={`w-full px-3 py-2 text-left text-xs hover:bg-slate-50 ${
                           product.id === selectedProductId ? 'bg-cyan-50' : 'bg-white'
                         }`}
                       >
-                        <span className="block truncate">{product.id} - {product.name[lang]}</span>
+                        <span className="block truncate">{product.sku || product.id} - {product.name[lang]}</span>
                       </button>
                     ))}
                   </>
@@ -741,7 +742,7 @@ const QrManageView: React.FC<QrManageViewProps> = ({ lang }) => {
                       <td className="px-4 py-3">
                         <div className="flex flex-col">
                           <span className="text-xs font-semibold text-slate-700">{row.productName || '-'}</span>
-                          <span className="text-[10px] text-slate-400">{row.productId || ''}</span>
+                          <span className="text-[10px] text-slate-400">{row.productSku || row.productId || ''}</span>
                         </div>
                       </td>
                       <td className="px-4 py-3 text-right text-xs font-black text-cyan-600">{row.pointsPerUnit.toLocaleString()}</td>
