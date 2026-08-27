@@ -2,11 +2,11 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
   Edit3,
+  Package,
   Plus,
   Search,
   Trash2,
   X,
-  Zap,
 } from 'lucide-react';
 import { TRANSLATIONS } from '../constants';
 import { Language, Product } from '../types';
@@ -35,6 +35,7 @@ const ProductsView: React.FC<ProductsViewProps> = ({ lang }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
+  const [activeCategory, setActiveCategory] = useState('all');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -93,15 +94,33 @@ const ProductsView: React.FC<ProductsViewProps> = ({ lang }) => {
     };
   }, []);
 
+  const categories = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const product of products) {
+      const category = (product.category || '').trim() || '—';
+      counts.set(category, (counts.get(category) || 0) + 1);
+    }
+    return Array.from(counts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .map(([name, count]) => ({ name, count }));
+  }, [products]);
+
   const filteredProducts = useMemo(() => {
-    const normalizedSearch = search.toLowerCase();
-    return products.filter((product) => (
-      !normalizedSearch ||
-      product.id.toLowerCase().includes(normalizedSearch) ||
-      product.name[lang].toLowerCase().includes(normalizedSearch) ||
-      (product.category || '').toLowerCase().includes(normalizedSearch)
-    ));
-  }, [products, search, lang]);
+    const normalizedSearch = search.toLowerCase().trim();
+    return products.filter((product) => {
+      const category = (product.category || '').trim() || '—';
+      if (activeCategory !== 'all' && category !== activeCategory) return false;
+      if (!normalizedSearch) return true;
+      return (
+        product.id.toLowerCase().includes(normalizedSearch) ||
+        (product.sku || '').toLowerCase().includes(normalizedSearch) ||
+        product.name[lang].toLowerCase().includes(normalizedSearch) ||
+        (product.category || '').toLowerCase().includes(normalizedSearch)
+      );
+    });
+  }, [products, search, activeCategory, lang]);
+
+  const activeCount = useMemo(() => products.filter((product) => product.isActive).length, [products]);
 
   const resetForm = () => {
     setForm({
@@ -205,10 +224,19 @@ const ProductsView: React.FC<ProductsViewProps> = ({ lang }) => {
         <div>
           <h2 className="text-2xl font-bold text-slate-800">{t.product_mapping}</h2>
           <p className="text-sm text-slate-500">{t.assign_points}</p>
+          {!isLoading && (
+            <div className="mt-2 flex items-center gap-4 text-xs font-semibold text-slate-400">
+              <span><span className="text-slate-700">{products.length}</span> mahsulot</span>
+              <span className="text-slate-200">•</span>
+              <span><span className="text-emerald-600">{activeCount}</span> {t.active.toLowerCase()}</span>
+              <span className="text-slate-200">•</span>
+              <span><span className="text-slate-700">{categories.length}</span> {t.category.toLowerCase()}</span>
+            </div>
+          )}
         </div>
         <button
           onClick={handleOpenCreate}
-          className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-cyan-600 rounded-xl shadow-lg shadow-cyan-600/20 hover:bg-cyan-700 transition-all"
+          className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-cyan-600 rounded-xl shadow-lg shadow-cyan-600/20 hover:bg-cyan-700 transition-all shrink-0"
         >
           <Plus className="w-4 h-4" />
           {t.add_product}
@@ -221,58 +249,101 @@ const ProductsView: React.FC<ProductsViewProps> = ({ lang }) => {
         </div>
       )}
 
-      <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex gap-4 items-center">
-        <div className="relative flex-1">
+      <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm space-y-3">
+        <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <input
             type="text"
-            placeholder={t.search_placeholder}
+            placeholder="Mahsulot, SKU yoki toifa bo'yicha qidirish..."
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            className="pl-10 pr-4 py-2 w-full bg-slate-50 border border-slate-100 rounded-xl text-sm outline-none focus:ring-2 focus:ring-cyan-500/10 focus:bg-white transition-all"
+            className="pl-10 pr-4 py-2.5 w-full bg-slate-50 border border-slate-100 rounded-xl text-sm outline-none focus:ring-2 focus:ring-cyan-500/10 focus:bg-white transition-all"
           />
         </div>
+        {categories.length > 1 && (
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => setActiveCategory('all')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                activeCategory === 'all' ? 'bg-cyan-600 text-white' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'
+              }`}
+            >
+              {t.all} <span className="opacity-60">{products.length}</span>
+            </button>
+            {categories.map((category) => (
+              <button
+                key={category.name}
+                onClick={() => setActiveCategory(category.name)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                  activeCategory === category.name ? 'bg-cyan-600 text-white' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'
+                }`}
+              >
+                {category.name} <span className="opacity-60">{category.count}</span>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {isLoading ? (
-          <div className="col-span-full rounded-3xl border border-slate-100 bg-white p-10">
-            <LoadingGlass label={t.loading} />
+      {isLoading ? (
+        <div className="rounded-3xl border border-slate-100 bg-white p-10">
+          <LoadingGlass label={t.loading} />
+        </div>
+      ) : filteredProducts.length === 0 ? (
+        <div className="rounded-3xl border border-dashed border-slate-200 bg-white p-12 text-center">
+          <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-50 text-slate-300">
+            <Package className="h-7 w-7" />
           </div>
-        ) : filteredProducts.map((product) => (
-          <div key={product.id} className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm hover:shadow-md transition-all group relative overflow-hidden">
-            <div className="absolute top-0 left-0 w-1.5 h-full bg-cyan-500"></div>
-            <div className="flex items-start justify-between mb-4">
-              <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center text-slate-400 group-hover:bg-cyan-50 group-hover:text-cyan-600 transition-all">
-                <Zap className="w-5 h-5" />
+          <p className="font-semibold text-slate-600">{t.no_data}</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filteredProducts.map((product) => (
+            <div
+              key={product.id}
+              className="group relative flex flex-col rounded-2xl border border-slate-100 bg-white p-5 shadow-sm transition-all hover:border-cyan-200 hover:shadow-md"
+            >
+              <div className="mb-3 flex items-start justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {product.category && (
+                    <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                      {product.category}
+                    </span>
+                  )}
+                  {!product.isActive && (
+                    <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                      {t.blocked}
+                    </span>
+                  )}
+                </div>
+                <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+                  <button onClick={() => handleOpenEdit(product)} aria-label={t.edit} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-50 hover:text-cyan-600">
+                    <Edit3 className="h-4 w-4" />
+                  </button>
+                  <button onClick={() => setDeletingProduct(product)} aria-label={t.delete} className="rounded-lg p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600">
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
-              <div className="flex items-center gap-1">
-                <button onClick={() => handleOpenEdit(product)} className="p-1.5 text-slate-300 hover:text-cyan-600 transition-colors">
-                  <Edit3 className="w-4 h-4" />
-                </button>
-                <button onClick={() => setDeletingProduct(product)} className="p-1.5 text-slate-300 hover:text-rose-600 transition-colors">
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-            <h4 className="font-bold text-slate-800 text-lg mb-1">{product.name[lang]}</h4>
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-6">{product.sku ? `${product.sku} · ` : ''}{product.id}{product.category ? ` · ${product.category}` : ''}</p>
 
-            <div className="bg-slate-50 rounded-2xl p-4 flex items-center justify-between border border-slate-100">
-              <div className="flex flex-col">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{t.bonus_value}</span>
-                <span className="text-xl font-black text-cyan-600">+{product.pointsValue}</span>
-              </div>
-              <div className="flex flex-col items-end">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{t.status}</span>
-                <span className={`text-xs font-bold mt-1 ${product.isActive ? 'text-emerald-600' : 'text-slate-400'}`}>
-                  {product.isActive ? t.active : t.blocked}
-                </span>
+              <h4 className="mb-2 line-clamp-2 min-h-[2.5rem] font-bold leading-snug text-slate-800" title={product.name[lang]}>
+                {product.name[lang]}
+              </h4>
+
+              <div className="mt-auto flex items-end justify-between gap-3 border-t border-slate-100 pt-3">
+                <div className="min-w-0">
+                  <span className="block font-mono text-sm font-bold text-slate-700">{product.sku || product.id}</span>
+                  {product.sku && <span className="block text-[10px] text-slate-300">{product.id}</span>}
+                </div>
+                <div className="shrink-0 rounded-xl bg-cyan-50 px-3 py-1.5 text-right">
+                  <span className="text-lg font-black leading-none text-cyan-600">+{product.pointsValue}</span>
+                  <span className="mt-0.5 block text-[9px] font-bold uppercase tracking-wide text-cyan-500/70">{t.bonus_value}</span>
+                </div>
               </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
 
       {isModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
