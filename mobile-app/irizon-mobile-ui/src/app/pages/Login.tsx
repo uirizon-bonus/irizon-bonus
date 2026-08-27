@@ -36,9 +36,12 @@ const translations = {
 } as const;
 
 const normalizePhoneTail = (value: string) => {
-  const digits = value.replace(/\D/g, "");
-  if (digits.startsWith("998")) {
-    return digits.slice(3, 12);
+  let digits = value.replace(/\D/g, "");
+  // Strip the +998 country code ONLY when a full number was entered/pasted
+  // (more than 9 digits). A 9-digit subscriber number that legitimately
+  // starts with 998 (e.g. operator 99, number 8XX-XX-XX) must be kept as-is.
+  if (digits.length > 9 && digits.startsWith("998")) {
+    digits = digits.slice(3);
   }
   return digits.slice(0, 9);
 };
@@ -116,7 +119,7 @@ export function Login() {
                     value={formatPhoneTail(phoneTail)}
                     onChange={handlePhoneChange}
                     className="w-full bg-transparent outline-none text-base font-semibold text-[#050A1F] placeholder:text-slate-400"
-                    maxLength={12}
+                    maxLength={20}
                     autoFocus
                   />
                 </div>
