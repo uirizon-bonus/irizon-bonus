@@ -151,42 +151,77 @@ const QrManageView: React.FC<QrManageViewProps> = ({ lang }) => {
   // too coarse to print. Downloads come from this one instead.
   const qrPrintCanvasRef = useRef<HTMLCanvasElement>(null);
 
+  // Insert a pHYs chunk so the PNG carries a physical DPI and prints at the
+  // intended size. Canvas PNGs have no DPI otherwise.
+  const pngWithDpi = (dataUrl: string, dpi: number): Blob => {
+    const bin = atob(dataUrl.split(',')[1]);
+    const src = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) src[i] = bin.charCodeAt(i);
+    const ppm = Math.round(dpi / 0.0254);
+    const chunk = new Uint8Array(21); // 4 len + 4 type + 9 data + 4 crc
+    const dv = new DataView(chunk.buffer);
+    dv.setUint32(0, 9);
+    chunk[4] = 0x70; chunk[5] = 0x48; chunk[6] = 0x59; chunk[7] = 0x73; // "pHYs"
+    dv.setUint32(8, ppm); dv.setUint32(12, ppm); chunk[16] = 1; // unit = metre
+    let crc = ~0;
+    for (let i = 4; i < 17; i++) { crc ^= chunk[i]; for (let j = 0; j < 8; j++) crc = (crc >>> 1) ^ (0xEDB88320 & -(crc & 1)); }
+    dv.setUint32(17, (~crc) >>> 0);
+    const out = new Uint8Array(src.length + chunk.length); // insert after IHDR (offset 33)
+    out.set(src.subarray(0, 33), 0);
+    out.set(chunk, 33);
+    out.set(src.subarray(33), 33 + chunk.length);
+    return new Blob([out], { type: 'image/png' });
+  };
+
   const downloadQrPng = () => {
     const source = qrPrintCanvasRef.current ?? qrCanvasRef.current;
     if (!source || !qrPreview) return;
-    // Compose a labelled PNG: the QR image plus the product code and the full
-    // QR value baked in, so both are readable on the printed label.
-    const pad = Math.round(source.width * 0.06);
-    const lineGap = Math.round(source.width * 0.02);
-    const codeFont = Math.round(source.width * 0.09);
-    const valueFont = Math.round(source.width * 0.075);
+    // Fixed print size: 4cm x 4.5cm at 300 DPI. QR fills the top ~4cm square,
+    // the black caption (product code + QR value) sits in the bottom band.
+    const DPI = 300;
+    const W = Math.round((4.0 / 2.54) * DPI);   // 472
+    const H = Math.round((4.5 / 2.54) * DPI);   // 531
     const out = document.createElement('canvas');
-    out.width = source.width + pad * 2;
-    out.height = source.height + pad * 2 + codeFont + valueFont + lineGap * 2;
+    out.width = W;
+    out.height = H;
     const ctx = out.getContext('2d');
     if (!ctx) return;
     ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, out.width, out.height);
-    ctx.drawImage(source, pad, pad);
+    ctx.fillRect(0, 0, W, H);
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(source, 0, 0, W, W); // QR square, fills the width
+
+    const bandTop = W;
+    const bandH = H - W;
+    const padX = Math.max(6, Math.round(W / 24));
+    const gap = Math.max(2, Math.round(bandH / 12));
+    const unit = Math.max(1, (bandH - gap * 3) / 2.15);
     ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
     ctx.fillStyle = '#000000';
-    let y = source.height + pad + lineGap + codeFont;
-    ctx.font = `bold ${codeFont}px monospace`;
-    ctx.fillText(qrPreview.productSku || qrPreview.productId || '', out.width / 2, y);
-    // Auto-shrink the value font so a long code still fits the width.
-    y += lineGap + valueFont;
-    let vf = valueFont;
-    ctx.font = `${vf}px monospace`;
-    while (ctx.measureText(qrPreview.qrCode).width > out.width - pad && vf > 10) {
-      vf -= 2;
-      ctx.font = `${vf}px monospace`;
-    }
-    ctx.fillStyle = '#000000';
-    ctx.fillText(qrPreview.qrCode, out.width / 2, y);
+    const codeText = qrPreview.productSku || qrPreview.productId || '';
+    const valText = qrPreview.qrCode;
+
+    let s1 = Math.max(8, Math.round(unit * 1.15));
+    ctx.font = `bold ${s1}px monospace`;
+    while (s1 > 6 && ctx.measureText(codeText).width > W - padX) { s1 -= 1; ctx.font = `bold ${s1}px monospace`; }
+    let s2 = Math.max(8, Math.round(unit));
+    ctx.font = `${s2}px monospace`;
+    while (s2 > 6 && ctx.measureText(valText).width > W - padX) { s2 -= 1; ctx.font = `${s2}px monospace`; }
+
+    let y = bandTop + Math.max(0, (bandH - (s1 + s2 + gap * 3)) / 2) + gap;
+    ctx.font = `bold ${s1}px monospace`;
+    ctx.fillText(codeText, W / 2, y);
+    y += s1 + gap;
+    ctx.font = `${s2}px monospace`;
+    ctx.fillText(valText, W / 2, y);
+
+    const url = URL.createObjectURL(pngWithDpi(out.toDataURL('image/png'), DPI));
     const link = document.createElement('a');
-    link.href = out.toDataURL('image/png');
-    link.download = `${qrPreview.productId || 'qr'}_${qrPreview.id}.png`;
+    link.href = url;
+    link.download = `${qrPreview.productSku || qrPreview.productId || 'qr'}_${qrPreview.id}.png`;
     link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
   const loadProducts = async () => {
