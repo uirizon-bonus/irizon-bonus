@@ -189,10 +189,14 @@ const QrManageView: React.FC<QrManageViewProps> = ({ lang }) => {
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, W, H);
     ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(source, 0, 0, W, W); // QR square, fills the width
+    // QR fills ~85% of the width (centered), leaving more room for larger text.
+    const qrSize = Math.round(W * 0.85);
+    const qrX = Math.round((W - qrSize) / 2);
+    const qrY = Math.max(4, Math.round((W - qrSize) / 3));
+    ctx.drawImage(source, qrX, qrY, qrSize, qrSize);
 
-    const bandTop = W;
-    const bandH = H - W;
+    const bandTop = qrY + qrSize;
+    const bandH = H - bandTop;
     const padX = Math.max(6, Math.round(W / 24));
     const gap = Math.max(2, Math.round(bandH / 12));
     const unit = Math.max(1, (bandH - gap * 3) / 2.15);

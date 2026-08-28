@@ -748,6 +748,8 @@ QR_PNG_BORDER = 4
 QR_PRINT_WIDTH_CM = 4.0
 QR_PRINT_HEIGHT_CM = 4.5
 QR_PRINT_DPI = 300
+# QR fills this fraction of the label width; the rest leaves room for larger text.
+QR_PRINT_QR_FRAC = 0.85
 
 
 
@@ -792,19 +794,21 @@ def _render_qr_png(value: str, *, size: int = 600, caption_lines: Optional[List[
 
     buffer.seek(0)
     qr_img = Image.open(buffer).convert("RGB")
-    # Fit the QR into the label width exactly.
-    if qr_img.width != out_w:
-        qr_h = round(qr_img.height * out_w / qr_img.width)
-        qr_img = qr_img.resize((out_w, qr_h), Image.NEAREST)
-    qr_h = qr_img.height
+    # QR fills a fraction of the width (leaves room for larger text below).
+    qr_target = max(1, round(out_w * QR_PRINT_QR_FRAC))
+    if qr_img.width != qr_target:
+        new_h = round(qr_img.height * qr_target / qr_img.width)
+        qr_img = qr_img.resize((qr_target, new_h), Image.NEAREST)
+    qr_x = (out_w - qr_img.width) // 2
+    qr_y = max(4, (out_w - qr_img.width) // 3)
 
     out = Image.new("RGB", (out_w, out_h), (255, 255, 255))
-    out.paste(qr_img, (0, 0))
+    out.paste(qr_img, (qr_x, qr_y))
 
     if lines:
         draw = ImageDraw.Draw(out)
         pad_x = max(6, out_w // 24)
-        band_top = qr_h
+        band_top = qr_y + qr_img.height
         band_h = max(0, out_h - band_top)
         gap = max(2, band_h // 12)
         # Split the band between lines, first line a touch larger.
