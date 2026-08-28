@@ -743,6 +743,11 @@ def _apply_qr_scan(client_id: str, payload: QrScanPayload) -> Dict[str, Any]:
 QR_PNG_DARK = "#000000"
 QR_PNG_LIGHT = "#ffffff"
 QR_PNG_BORDER = 4
+# Physical print target for the label sticker: 4cm wide x 4.5cm tall.
+# The DPI is embedded in the PNG so print software sizes it physically.
+QR_PRINT_WIDTH_CM = 4.0
+QR_PRINT_HEIGHT_CM = 4.5
+QR_PRINT_DPI = 300
 
 
 
@@ -753,16 +758,22 @@ def _load_product_sku_map() -> Dict[str, str]:
 
 
 def _render_qr_png(value: str, *, size: int = 600, caption_lines: Optional[List[str]] = None) -> bytes:
-    """Render a QR code PNG locally (segno) — no external service.
+    """Render a QR label PNG locally (segno + PIL) — no external service.
 
-    `size` is the desired pixel width; the module scale is derived from it, so
-    the real output lands on the nearest whole-module multiple. When
-    `caption_lines` are given, they are drawn (centred) below the QR so the
-    product code and the code value are readable on the printed label.
+    The label is produced at a fixed physical size (``QR_PRINT_WIDTH_CM`` x
+    ``QR_PRINT_HEIGHT_CM``) and the DPI is embedded in the PNG so print software
+    reproduces it at exactly 4cm x 4.5cm. The QR fills the top (~4cm square) and
+    the caption lines (product code + code value, black) sit in the bottom band,
+    auto-fitted to that band — same text, just sized to the sticker.
     """
+    dpi = int(QR_PRINT_DPI)
+    out_w = round(QR_PRINT_WIDTH_CM / 2.54 * dpi)
+    out_h = round(QR_PRINT_HEIGHT_CM / 2.54 * dpi)
+
     qr = segno.make(str(value or ""), error="h")
     modules = qr.symbol_size(scale=1, border=QR_PNG_BORDER)[0]
-    scale = max(1, round(int(size) / modules))
+    # Scale the QR so it fills the label width (top square ~= out_w).
+    scale = max(1, round(out_w / modules))
     buffer = io.BytesIO()
     qr.save(
         buffer,
@@ -772,9 +783,8 @@ def _render_qr_png(value: str, *, size: int = 600, caption_lines: Optional[List[
         dark=QR_PNG_DARK,
         light=QR_PNG_LIGHT,
     )
+
     lines = [str(x).strip() for x in (caption_lines or []) if str(x).strip()]
-    if not lines:
-        return buffer.getvalue()
     try:
         from PIL import Image, ImageDraw, ImageFont
     except Exception:
@@ -782,27 +792,43 @@ def _render_qr_png(value: str, *, size: int = 600, caption_lines: Optional[List[
 
     buffer.seek(0)
     qr_img = Image.open(buffer).convert("RGB")
-    width, height = qr_img.size
-    pad = max(6, width // 24)
-    # First line (product code) is a touch larger than the code value below it.
-    line_sizes = [max(26, width // 8)] + [max(26, width // 9)] * (len(lines) - 1)
-    total_text = pad + sum(sz + pad // 2 for sz in line_sizes)
-    out = Image.new("RGB", (width, height + total_text), (255, 255, 255))
+    # Fit the QR into the label width exactly.
+    if qr_img.width != out_w:
+        qr_h = round(qr_img.height * out_w / qr_img.width)
+        qr_img = qr_img.resize((out_w, qr_h), Image.NEAREST)
+    qr_h = qr_img.height
+
+    out = Image.new("RGB", (out_w, out_h), (255, 255, 255))
     out.paste(qr_img, (0, 0))
-    draw = ImageDraw.Draw(out)
-    y = height + pad // 2
-    for index, text in enumerate(lines):
-        font_size = line_sizes[index]
-        font = ImageFont.load_default(size=font_size)
-        while font_size > 8 and draw.textlength(text, font=font) > (width - pad):
-            font_size -= 2
-            font = ImageFont.load_default(size=font_size)
-        text_width = draw.textlength(text, font=font)
-        colour = (0, 0, 0)
-        draw.text(((width - text_width) / 2, y), text, fill=colour, font=font)
-        y += font_size + pad // 2
+
+    if lines:
+        draw = ImageDraw.Draw(out)
+        pad_x = max(6, out_w // 24)
+        band_top = qr_h
+        band_h = max(0, out_h - band_top)
+        gap = max(2, band_h // 12)
+        # Split the band between lines, first line a touch larger.
+        weights = [1.15] + [1.0] * (len(lines) - 1)
+        unit = max(1, (band_h - gap * (len(lines) + 1)) / sum(weights))
+        sizes = [max(8, int(unit * w)) for w in weights]
+        # Shrink any line whose text is wider than the label.
+        fitted = []
+        for text, base in zip(lines, sizes):
+            fs = base
+            font = ImageFont.load_default(size=fs)
+            while fs > 6 and draw.textlength(text, font=font) > (out_w - pad_x):
+                fs -= 1
+                font = ImageFont.load_default(size=fs)
+            fitted.append((text, fs, font))
+        total = sum(fs for _, fs, _ in fitted) + gap * (len(fitted) + 1)
+        y = band_top + max(0, (band_h - total) // 2) + gap
+        for text, fs, font in fitted:
+            tw = draw.textlength(text, font=font)
+            draw.text(((out_w - tw) / 2, y), text, fill=(0, 0, 0), font=font)
+            y += fs + gap
+
     out_buffer = io.BytesIO()
-    out.save(out_buffer, format="PNG")
+    out.save(out_buffer, format="PNG", dpi=(dpi, dpi))
     return out_buffer.getvalue()
 
 
