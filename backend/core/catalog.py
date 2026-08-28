@@ -797,13 +797,18 @@ def _render_qr_png(value: str, *, size: int = 600, caption_lines: Optional[List[
 
     buffer.seek(0)
     qr_img = Image.open(buffer).convert("RGB")
-    # QR fills a fraction of the width (leaves room for larger text below).
-    qr_target = max(1, round(out_w * QR_PRINT_QR_FRAC))
+    # QR is a square filling a fraction of the SHORTER side, so it always fits
+    # (portrait or landscape); the rest of the height is the caption band.
+    n_lines = len([x for x in lines if x]) if lines else 0
+    qr_target = max(1, round(min(out_w, out_h) * QR_PRINT_QR_FRAC))
+    # Never let the QR eat the whole height when there is caption text.
+    if n_lines:
+        qr_target = min(qr_target, round(out_h * 0.80))
     if qr_img.width != qr_target:
         new_h = round(qr_img.height * qr_target / qr_img.width)
         qr_img = qr_img.resize((qr_target, new_h), Image.NEAREST)
-    qr_x = (out_w - qr_img.width) // 2
-    qr_y = max(4, (out_w - qr_img.width) // 3)
+    qr_x = (out_w - qr_img.width) // 2  # centre horizontally
+    qr_y = max(4, round(out_h * 0.03))
 
     out = Image.new("RGB", (out_w, out_h), (255, 255, 255))
     out.paste(qr_img, (qr_x, qr_y))

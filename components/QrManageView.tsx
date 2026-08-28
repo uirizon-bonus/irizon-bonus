@@ -155,7 +155,7 @@ const QrManageView: React.FC<QrManageViewProps> = ({ lang }) => {
   // Physical print size presets for the label (PNG download + ZIP export).
   const LABEL_SIZES = [
     { key: '4x4.5', w: 4.0, h: 4.5, label: '4×4.5 sm' },
-    { key: '5x7', w: 5.0, h: 7.0, label: '5×7 sm' },
+    { key: '7x5', w: 7.0, h: 5.0, label: '7×5 sm' },
   ] as const;
   const [labelSizeKey, setLabelSizeKey] = useState<string>('4x4.5');
   const labelSize = LABEL_SIZES.find((s) => s.key === labelSizeKey) ?? LABEL_SIZES[0];
