@@ -188,6 +188,21 @@ def download_product_qr_codes_zip_payload(product_id: str, size: int, include_us
     )
 
 
+def render_qr_label_payload(value: str, code: str = "", width_cm: float = None, height_cm: float = None):
+    # Identical renderer to the ZIP export, so a single-download PNG matches the
+    # ZIP entry exactly. caption_lines = [code, value] (empty lines are dropped).
+    try:
+        png = legacy._render_qr_png(
+            str(value),
+            caption_lines=[str(code or ""), str(value)],
+            width_cm=width_cm,
+            height_cm=height_cm,
+        )
+    except Exception as exc:
+        return JSONResponse({"error": f"Failed to render QR label: {str(exc)}"}, status_code=500)
+    return Response(content=png, media_type="image/png")
+
+
 def download_all_qr_codes_zip_payload(size: int, include_used: bool, include_revoked: bool, width_cm: float = None, height_cm: float = None):
     try:
         zip_payload = legacy._export_all_saved_qr_zip(

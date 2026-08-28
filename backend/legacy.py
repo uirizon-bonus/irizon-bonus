@@ -81,6 +81,7 @@ from backend.core.catalog import (
     _delete_product,
     _export_all_saved_qr_csv,
     _export_all_saved_qr_zip,
+    _render_qr_png,
     _export_product_qr_zip,
     _export_product_saved_qr_csv,
     _export_product_saved_qr_zip,

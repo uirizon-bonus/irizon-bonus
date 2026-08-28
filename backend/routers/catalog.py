@@ -113,6 +113,16 @@ def download_all_qr_codes_zip(
     return catalog_service.download_all_qr_codes_zip_payload(size, include_used, include_revoked, w, h)
 
 
+@router.get("/api/qr-label.png", dependencies=[Depends(deps.require_admin)])
+def render_qr_label(
+    value: str = Query(..., min_length=1),
+    code: str = Query(""),
+    w: float = Query(None, ge=1.0, le=30.0),
+    h: float = Query(None, ge=1.0, le=30.0),
+):
+    return catalog_service.render_qr_label_payload(value, code, w, h)
+
+
 @router.get("/api/products/qr-batch.zip", dependencies=[Depends(deps.require_admin)])
 def get_products_qr_batch(size: int = Query(600, ge=200, le=2000)):
     return catalog_service.get_products_qr_batch_payload(size)
