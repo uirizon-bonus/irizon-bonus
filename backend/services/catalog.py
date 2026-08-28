@@ -168,13 +168,15 @@ def download_all_qr_codes_csv_payload(include_used: bool, include_revoked: bool)
     )
 
 
-def download_product_qr_codes_zip_payload(product_id: str, size: int, include_used: bool, include_revoked: bool):
+def download_product_qr_codes_zip_payload(product_id: str, size: int, include_used: bool, include_revoked: bool, width_cm: float = None, height_cm: float = None):
     try:
         zip_payload = legacy._export_product_saved_qr_zip(
             str(product_id),
             size=int(size),
             include_used=bool(include_used),
             include_revoked=bool(include_revoked),
+            width_cm=width_cm,
+            height_cm=height_cm,
         )
     except Exception as exc:
         return JSONResponse({"error": f"Failed to build product QR zip: {str(exc)}"}, status_code=500)
@@ -186,12 +188,14 @@ def download_product_qr_codes_zip_payload(product_id: str, size: int, include_us
     )
 
 
-def download_all_qr_codes_zip_payload(size: int, include_used: bool, include_revoked: bool):
+def download_all_qr_codes_zip_payload(size: int, include_used: bool, include_revoked: bool, width_cm: float = None, height_cm: float = None):
     try:
         zip_payload = legacy._export_all_saved_qr_zip(
             size=int(size),
             include_used=bool(include_used),
             include_revoked=bool(include_revoked),
+            width_cm=width_cm,
+            height_cm=height_cm,
         )
     except Exception as exc:
         return JSONResponse({"error": f"Failed to build QR zip: {str(exc)}"}, status_code=500)

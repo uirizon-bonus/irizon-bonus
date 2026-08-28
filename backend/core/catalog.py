@@ -759,7 +759,8 @@ def _load_product_sku_map() -> Dict[str, str]:
     return {str(prod["id"]): str(prod.get("sku") or "") for prod in _load_products()}
 
 
-def _render_qr_png(value: str, *, size: int = 600, caption_lines: Optional[List[str]] = None) -> bytes:
+def _render_qr_png(value: str, *, size: int = 600, caption_lines: Optional[List[str]] = None,
+                   width_cm: Optional[float] = None, height_cm: Optional[float] = None) -> bytes:
     """Render a QR label PNG locally (segno + PIL) — no external service.
 
     The label is produced at a fixed physical size (``QR_PRINT_WIDTH_CM`` x
@@ -769,8 +770,10 @@ def _render_qr_png(value: str, *, size: int = 600, caption_lines: Optional[List[
     auto-fitted to that band — same text, just sized to the sticker.
     """
     dpi = int(QR_PRINT_DPI)
-    out_w = round(QR_PRINT_WIDTH_CM / 2.54 * dpi)
-    out_h = round(QR_PRINT_HEIGHT_CM / 2.54 * dpi)
+    wcm = float(width_cm) if width_cm else QR_PRINT_WIDTH_CM
+    hcm = float(height_cm) if height_cm else QR_PRINT_HEIGHT_CM
+    out_w = round(wcm / 2.54 * dpi)
+    out_h = round(hcm / 2.54 * dpi)
 
     qr = segno.make(str(value or ""), error="h")
     modules = qr.symbol_size(scale=1, border=QR_PNG_BORDER)[0]
@@ -1031,6 +1034,8 @@ def _export_product_saved_qr_zip(
     size: int = 600,
     include_used: bool = True,
     include_revoked: bool = True,
+    width_cm: Optional[float] = None,
+    height_cm: Optional[float] = None,
 ) -> bytes:
     rows = _load_product_qr_rows_for_export(product_id, include_used=include_used, include_revoked=include_revoked)
     image_size = max(200, min(int(size), 2000))
@@ -1050,7 +1055,7 @@ def _export_product_saved_qr_zip(
             qr_value = str(row["qrCode"])
             file_name = f"{safe_product_id}_{int(row['id'])}.png"
             try:
-                archive.writestr(file_name, _render_qr_png(qr_value, size=image_size, caption_lines=[sku_map.get(product_id) or product_id, qr_value]))
+                archive.writestr(file_name, _render_qr_png(qr_value, size=image_size, caption_lines=[sku_map.get(product_id) or product_id, qr_value], width_cm=width_cm, height_cm=height_cm))
             except Exception as exc:
                 archive.writestr(f"{safe_product_id}_{int(row['id'])}.txt", f"QR image build failed\n{str(exc)}\n")
 
@@ -1063,6 +1068,8 @@ def _export_all_saved_qr_zip(
     size: int = 600,
     include_used: bool = True,
     include_revoked: bool = True,
+    width_cm: Optional[float] = None,
+    height_cm: Optional[float] = None,
 ) -> bytes:
     rows = _load_all_product_qr_rows_for_export(include_used=include_used, include_revoked=include_revoked)
     image_size = max(200, min(int(size), 2000))
@@ -1080,7 +1087,7 @@ def _export_all_saved_qr_zip(
             safe_product_id = _slugify_catalog_text(row["productId"]) or "product"
             file_name = f"{safe_product_id}_{int(row['id'])}.png"
             try:
-                archive.writestr(file_name, _render_qr_png(str(row["qrCode"]), size=image_size, caption_lines=[sku_map.get(str(row["productId"])) or str(row["productId"]), str(row["qrCode"])]))
+                archive.writestr(file_name, _render_qr_png(str(row["qrCode"]), size=image_size, caption_lines=[sku_map.get(str(row["productId"])) or str(row["productId"]), str(row["qrCode"])], width_cm=width_cm, height_cm=height_cm))
             except Exception as exc:
                 archive.writestr(f"{safe_product_id}_{int(row['id'])}.txt", f"QR image build failed\n{str(exc)}\n")
 

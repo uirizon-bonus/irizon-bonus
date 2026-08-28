@@ -96,8 +96,10 @@ def download_product_qr_codes_zip(
     size: int = Query(600, ge=200, le=2000),
     include_used: bool = Query(True),
     include_revoked: bool = Query(True),
+    w: float = Query(None, ge=1.0, le=30.0),
+    h: float = Query(None, ge=1.0, le=30.0),
 ):
-    return catalog_service.download_product_qr_codes_zip_payload(product_id, size, include_used, include_revoked)
+    return catalog_service.download_product_qr_codes_zip_payload(product_id, size, include_used, include_revoked, w, h)
 
 
 @router.get("/api/qr-codes.zip", dependencies=[Depends(deps.require_admin)])
@@ -105,8 +107,10 @@ def download_all_qr_codes_zip(
     size: int = Query(600, ge=200, le=2000),
     include_used: bool = Query(True),
     include_revoked: bool = Query(True),
+    w: float = Query(None, ge=1.0, le=30.0),
+    h: float = Query(None, ge=1.0, le=30.0),
 ):
-    return catalog_service.download_all_qr_codes_zip_payload(size, include_used, include_revoked)
+    return catalog_service.download_all_qr_codes_zip_payload(size, include_used, include_revoked, w, h)
 
 
 @router.get("/api/products/qr-batch.zip", dependencies=[Depends(deps.require_admin)])

@@ -53,6 +53,7 @@ const COPY = {
   restoreSelected: 'Tanlanganlarni tiklash',
   downloadCsv: 'CSV yuklash',
   downloadZip: 'ZIP yuklash',
+  labelSize: 'O\'lcham:',
   refresh: 'Yangilash',
   total: 'Jami',
   selected: 'Tanlangan',
@@ -151,6 +152,14 @@ const QrManageView: React.FC<QrManageViewProps> = ({ lang }) => {
   // too coarse to print. Downloads come from this one instead.
   const qrPrintCanvasRef = useRef<HTMLCanvasElement>(null);
 
+  // Physical print size presets for the label (PNG download + ZIP export).
+  const LABEL_SIZES = [
+    { key: '4x4.5', w: 4.0, h: 4.5, label: '4×4.5 sm' },
+    { key: '5x7', w: 5.0, h: 7.0, label: '5×7 sm' },
+  ] as const;
+  const [labelSizeKey, setLabelSizeKey] = useState<string>('4x4.5');
+  const labelSize = LABEL_SIZES.find((s) => s.key === labelSizeKey) ?? LABEL_SIZES[0];
+
   // Insert a pHYs chunk so the PNG carries a physical DPI and prints at the
   // intended size. Canvas PNGs have no DPI otherwise.
   const pngWithDpi = (dataUrl: string, dpi: number): Blob => {
@@ -179,8 +188,8 @@ const QrManageView: React.FC<QrManageViewProps> = ({ lang }) => {
     // Fixed print size: 4cm x 4.5cm at 300 DPI. QR fills the top ~4cm square,
     // the black caption (product code + QR value) sits in the bottom band.
     const DPI = 300;
-    const W = Math.round((4.0 / 2.54) * DPI);   // 472
-    const H = Math.round((4.5 / 2.54) * DPI);   // 531
+    const W = Math.round((labelSize.w / 2.54) * DPI);
+    const H = Math.round((labelSize.h / 2.54) * DPI);
     const out = document.createElement('canvas');
     out.width = W;
     out.height = H;
@@ -693,12 +702,25 @@ const QrManageView: React.FC<QrManageViewProps> = ({ lang }) => {
           <Download className="w-4 h-4" />
           {copy.downloadCsv}
         </button>
+        <div className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white p-1">
+          <span className="px-2 text-xs font-semibold text-slate-400">{copy.labelSize}</span>
+          {LABEL_SIZES.map((s) => (
+            <button
+              key={s.key}
+              onClick={() => setLabelSizeKey(s.key)}
+              className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition-colors ${labelSizeKey === s.key ? 'bg-cyan-600 text-white' : 'text-slate-500 hover:bg-slate-100'}`}
+            >
+              {s.label}
+            </button>
+          ))}
+        </div>
         <button
           onClick={async () => {
+            const sizeQs = `&w=${labelSize.w}&h=${labelSize.h}`;
             const url = selectedProductId === 'all'
-              ? `${API_BASE_URL}/api/qr-codes.zip?include_used=true&include_revoked=true&size=600`
+              ? `${API_BASE_URL}/api/qr-codes.zip?include_used=true&include_revoked=true&size=600${sizeQs}`
               : selectedProduct
-                ? `${API_BASE_URL}/api/products/${selectedProduct.id}/qr-codes.zip?include_used=true&include_revoked=true&size=600`
+                ? `${API_BASE_URL}/api/products/${selectedProduct.id}/qr-codes.zip?include_used=true&include_revoked=true&size=600${sizeQs}`
                 : '';
             if (!url) return;
             const res = await fetch(url);
