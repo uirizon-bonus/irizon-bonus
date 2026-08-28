@@ -662,13 +662,26 @@ const QrManageView: React.FC<QrManageViewProps> = ({ lang }) => {
                 ? `${API_BASE_URL}/api/products/${selectedProduct.id}/qr-codes.zip?include_used=true&include_revoked=true&size=600${sizeQs}`
                 : '';
             if (!url) return;
-            const res = await fetch(url);
-            const blob = await res.blob();
-            const link = document.createElement('a');
-            link.href = URL.createObjectURL(blob);
-            link.download = `qr_codes.zip`;
-            link.click();
-            URL.revokeObjectURL(link.href);
+            try {
+              const res = await fetch(url);
+              if (!res.ok) {
+                let msg = `HTTP ${res.status}`;
+                try { const j = await res.json(); if (j?.error) msg = j.error; } catch { /* not json */ }
+                setError(msg);
+                return;
+              }
+              const blob = await res.blob();
+              const href = URL.createObjectURL(blob);
+              const link = document.createElement('a');
+              link.href = href;
+              link.download = `qr_codes_${selectedProductId === 'all' ? 'all' : selectedProduct?.id}_${labelSize.key}.zip`;
+              document.body.appendChild(link);
+              link.click();
+              link.remove();
+              setTimeout(() => URL.revokeObjectURL(href), 2000);
+            } catch (err) {
+              setError(err instanceof Error ? err.message : 'ZIP yuklab bo\'lmadi');
+            }
           }}
           disabled={!selectedProductId}
           className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 disabled:opacity-50"
