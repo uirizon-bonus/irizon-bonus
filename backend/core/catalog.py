@@ -493,6 +493,17 @@ def _generate_product_qr_codes(product_id: str, count: int) -> Dict[str, Any]:
             if not created:
                 raise RuntimeError("Failed to create unique QR code")
         connection.commit()
+        # Resolve the row ids of the codes we just created (qr_code is unique),
+        # so the UI can auto-select this exact batch for download.
+        created_ids: List[int] = []
+        if created_codes:
+            placeholders = ",".join(["?"] * len(created_codes))
+            rows = connection.execute(
+                f"SELECT id, qr_code FROM product_qr_codes WHERE qr_code IN ({placeholders})",
+                tuple(created_codes),
+            ).fetchall()
+            id_by_code = {str(r["qr_code"]): int(r["id"]) for r in rows}
+            created_ids = [id_by_code[c] for c in created_codes if c in id_by_code]
     finally:
         connection.close()
 
@@ -502,6 +513,7 @@ def _generate_product_qr_codes(product_id: str, count: int) -> Dict[str, Any]:
         "pointsValue": int(product["pointsValue"] or 0),
         "createdCount": len(created_codes),
         "codes": created_codes,
+        "createdIds": created_ids,
     }
 
 
@@ -1096,6 +1108,52 @@ def _export_all_saved_qr_zip(
             except Exception as exc:
                 archive.writestr(f"{safe_product_id}_{int(row['id'])}.txt", f"QR image build failed\n{str(exc)}\n")
 
+    output.seek(0)
+    return output.getvalue()
+
+
+def _export_qr_zip_by_ids(
+    ids: List[int],
+    *,
+    size: int = 600,
+    width_cm: Optional[float] = None,
+    height_cm: Optional[float] = None,
+) -> bytes:
+    """Zip only the specific QR-code rows (by id) — used for 'download selected'."""
+    wanted = [int(x) for x in (ids or []) if str(x).strip()]
+    image_size = max(200, min(int(size), 2000))
+    sku_map = _load_product_sku_map()
+    output = io.BytesIO()
+    with zipfile.ZipFile(output, mode="w", compression=zipfile.ZIP_DEFLATED) as archive:
+        if wanted:
+            placeholders = ",".join(["?"] * len(wanted))
+            connection = bonus_db()
+            try:
+                rows = connection.execute(
+                    f"""
+                    SELECT id, qr_code, product_id, product_name, points_per_unit,
+                           is_used, is_revoked, created_at
+                    FROM product_qr_codes
+                    WHERE id IN ({placeholders})
+                    ORDER BY datetime(created_at) DESC, id DESC
+                    """,
+                    tuple(wanted),
+                ).fetchall()
+            finally:
+                connection.close()
+
+            manifest = ["id,product_id,qr_value,file_name"]
+            for row in rows:
+                product_id = str(row["product_id"] or "")
+                qr_value = str(row["qr_code"] or "")
+                safe_product_id = _slugify_catalog_text(product_id) or "product"
+                file_name = f"{safe_product_id}_{int(row['id'])}.png"
+                manifest.append(f"{int(row['id'])},{product_id},{qr_value},{file_name}")
+                try:
+                    archive.writestr(file_name, _render_qr_png(qr_value, size=image_size, caption_lines=[sku_map.get(product_id) or product_id, qr_value], width_cm=width_cm, height_cm=height_cm))
+                except Exception as exc:
+                    archive.writestr(f"{safe_product_id}_{int(row['id'])}.txt", f"QR image build failed\n{str(exc)}\n")
+            archive.writestr("manifest.csv", "\n".join(manifest))
     output.seek(0)
     return output.getvalue()
 

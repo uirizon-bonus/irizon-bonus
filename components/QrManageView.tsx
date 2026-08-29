@@ -297,9 +297,11 @@ const QrManageView: React.FC<QrManageViewProps> = ({ lang }) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ count: countValue }),
       });
-      const payload = await response.json() as { createdCount?: number; error?: string };
+      const payload = await response.json() as { createdCount?: number; createdIds?: number[]; error?: string };
       if (!response.ok) throw new Error(payload.error || 'Generate failed');
       await loadCodes(0);
+      // Auto-select the freshly generated batch so it can be downloaded on its own.
+      if (payload.createdIds && payload.createdIds.length) setSelectedIds(payload.createdIds);
       setSuccess(`${payload.createdCount ?? countValue} ${copy.genDone}`);
     } catch (generateError) {
       setError(generateError instanceof Error ? generateError.message : 'Generate failed');
@@ -655,15 +657,29 @@ const QrManageView: React.FC<QrManageViewProps> = ({ lang }) => {
         </div>
         <button
           onClick={async () => {
-            const sizeQs = `&w=${labelSize.w}&h=${labelSize.h}`;
-            const url = selectedProductId === 'all'
-              ? `${API_BASE_URL}/api/qr-codes.zip?include_used=true&include_revoked=true&size=600${sizeQs}`
-              : selectedProduct
-                ? `${API_BASE_URL}/api/products/${selectedProduct.id}/qr-codes.zip?include_used=true&include_revoked=true&size=600${sizeQs}`
-                : '';
-            if (!url) return;
+            const sizeQs = `w=${labelSize.w}&h=${labelSize.h}`;
             try {
-              const res = await fetch(url);
+              let res: Response;
+              let scope: string;
+              if (selectedIds.length > 0) {
+                // Download only the selected codes.
+                res = await fetch(`${API_BASE_URL}/api/qr-codes/zip?${sizeQs}`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ ids: selectedIds }),
+                });
+                scope = `selected_${selectedIds.length}`;
+              } else {
+                // Nothing selected -> download all for the current scope.
+                const url = selectedProductId === 'all'
+                  ? `${API_BASE_URL}/api/qr-codes.zip?include_used=true&include_revoked=true&size=600&${sizeQs}`
+                  : selectedProduct
+                    ? `${API_BASE_URL}/api/products/${selectedProduct.id}/qr-codes.zip?include_used=true&include_revoked=true&size=600&${sizeQs}`
+                    : '';
+                if (!url) return;
+                res = await fetch(url);
+                scope = selectedProductId === 'all' ? 'all' : (selectedProduct?.id ?? 'all');
+              }
               if (!res.ok) {
                 let msg = `HTTP ${res.status}`;
                 try { const j = await res.json(); if (j?.error) msg = j.error; } catch { /* not json */ }
@@ -674,7 +690,7 @@ const QrManageView: React.FC<QrManageViewProps> = ({ lang }) => {
               const href = URL.createObjectURL(blob);
               const link = document.createElement('a');
               link.href = href;
-              link.download = `qr_codes_${selectedProductId === 'all' ? 'all' : selectedProduct?.id}_${labelSize.key}.zip`;
+              link.download = `qr_codes_${scope}_${labelSize.key}.zip`;
               document.body.appendChild(link);
               link.click();
               link.remove();
@@ -687,7 +703,7 @@ const QrManageView: React.FC<QrManageViewProps> = ({ lang }) => {
           className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 disabled:opacity-50"
         >
           <Download className="w-4 h-4" />
-          {copy.downloadZip}
+          {selectedIds.length > 0 ? `${copy.downloadZip} (${selectedIds.length})` : `${copy.downloadZip} (${copy.all})`}
         </button>
         <span className="ml-auto text-xs text-slate-500">{copy.selected}: {selectedIds.length}</span>
       </div>

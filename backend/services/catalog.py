@@ -188,6 +188,22 @@ def download_product_qr_codes_zip_payload(product_id: str, size: int, include_us
     )
 
 
+def download_selected_qr_codes_zip_payload(ids, width_cm: float = None, height_cm: float = None):
+    try:
+        zip_payload = legacy._export_qr_zip_by_ids(
+            [int(x) for x in (ids or [])],
+            width_cm=width_cm,
+            height_cm=height_cm,
+        )
+    except Exception as exc:
+        return JSONResponse({"error": f"Failed to build QR zip: {str(exc)}"}, status_code=500)
+    return Response(
+        content=zip_payload,
+        media_type="application/zip",
+        headers={"Content-Disposition": 'attachment; filename="qr_codes_selected.zip"'},
+    )
+
+
 def render_qr_label_payload(value: str, code: str = "", width_cm: float = None, height_cm: float = None):
     # Identical renderer to the ZIP export, so a single-download PNG matches the
     # ZIP entry exactly. caption_lines = [code, value] (empty lines are dropped).
