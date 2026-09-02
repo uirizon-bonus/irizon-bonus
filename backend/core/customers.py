@@ -27,6 +27,10 @@ from backend.config import (
     OTP_REMOTE_LOOKUP_MAX,
     OTP_SIGNING_SECRET,
     OTP_TTL_MINUTES,
+    SELF_REGISTRATION_ENABLED,
+    OTP_RESEND_COOLDOWN_SEC,
+    OTP_PHONE_DAILY_CAP,
+    OTP_GLOBAL_HOURLY_CAP,
     DEMO_ACCOUNTS as _DEMO_ACCOUNTS,
     logger,
 )
@@ -962,15 +966,97 @@ def _send_eskiz_sms(phone_998: str, message: str) -> None:
         raise ValueError(provider_detail or "OTP SMS provider returned error")
 
 
+def _otp_rate_guard_and_log(normalized_phone: str) -> None:
+    """Enforce SMS rate limits then record this send. Raises ValueError if blocked."""
+    now = datetime.utcnow()
+    cooldown_cut = (now - timedelta(seconds=OTP_RESEND_COOLDOWN_SEC)).isoformat()
+    day_cut = (now - timedelta(hours=24)).isoformat()
+    hour_cut = (now - timedelta(hours=1)).isoformat()
+    connection = bonus_db()
+    try:
+        recent = connection.execute(
+            "SELECT COUNT(*) AS c FROM otp_send_log WHERE phone = ? AND created_at > ?",
+            (normalized_phone, cooldown_cut),
+        ).fetchone()
+        if int(recent["c"] or 0) > 0:
+            raise ValueError(f"Iltimos {OTP_RESEND_COOLDOWN_SEC} soniyadan so'ng qayta urinib ko'ring")
+        day = connection.execute(
+            "SELECT COUNT(*) AS c FROM otp_send_log WHERE phone = ? AND created_at > ?",
+            (normalized_phone, day_cut),
+        ).fetchone()
+        if int(day["c"] or 0) >= OTP_PHONE_DAILY_CAP:
+            raise ValueError("Bu raqam uchun kunlik kod chegarasiga yetildi. Ertaga urinib ko'ring")
+        glob = connection.execute(
+            "SELECT COUNT(*) AS c FROM otp_send_log WHERE created_at > ?",
+            (hour_cut,),
+        ).fetchone()
+        if int(glob["c"] or 0) >= OTP_GLOBAL_HOURLY_CAP:
+            raise ValueError("Tizim vaqtincha band. Birozdan so'ng urinib ko'ring")
+        connection.execute(
+            "INSERT INTO otp_send_log (phone, created_at) VALUES (?, ?)",
+            (normalized_phone, now.isoformat()),
+        )
+        connection.commit()
+    finally:
+        connection.close()
+
+
+def _provision_self_registered_customer(normalized_phone: str) -> str:
+    """Create (or reuse) a local customer for a self-registered phone; return its id."""
+    existing = _customer_exists_with_phone(normalized_phone)
+    if existing:
+        return existing
+    phone_display = _to_uz_phone(normalized_phone) or normalized_phone
+    connection = bonus_db()
+    try:
+        _bootstrap_customers_from_cache(connection)
+        dup = connection.execute(
+            "SELECT id FROM customers WHERE phone_norm = ? LIMIT 1", (normalized_phone,)
+        ).fetchone()
+        if dup is not None:
+            return str(dup["id"])
+        customer_id = _next_manual_customer_id(connection)
+        connection.execute(
+            """
+            INSERT INTO customers (id, full_name, phone_raw, phone_norm, status, last_updated, source)
+            VALUES (?, ?, ?, ?, 'active', ?, 'app')
+            """,
+            (customer_id, phone_display, phone_display, normalized_phone, _now_text()),
+        )
+        connection.commit()
+    finally:
+        connection.close()
+    created = {"id": customer_id, "fullName": phone_display, "phone": phone_display, "status": "active", "lastUpdated": _now_text()}
+    _delete_clients_phone_index_for_client(customer_id)
+    _upsert_clients_phone_index([created])
+    _PHONE_LOOKUP_MISS_CACHE.pop(normalized_phone, None)
+    _sync_customers_cache_from_db()
+    try:
+        from backend.core import dashboard as dashboard_core
+        dashboard_core._invalidate_dashboard_cache()
+    except Exception:
+        pass
+    logger.info("Self-registered customer created: %s (%s)", customer_id, normalized_phone)
+    return customer_id
+
+
 def _create_otp(phone: str) -> Dict[str, Any]:
     normalized_phone = _normalize_phone(phone)
     is_demo = normalized_phone in _DEMO_ACCOUNTS
 
     client = _get_client_by_phone(phone)
     if client is None:
-        if not is_demo:
+        if is_demo:
+            client = {"id": f"DEMO-{normalized_phone}", "fullName": "Demo User", "phone": normalized_phone}
+        elif SELF_REGISTRATION_ENABLED:
+            # Unknown phone: allow OTP; the customer is created on successful verify.
+            client = {"id": f"NEW-{normalized_phone}", "fullName": "", "phone": normalized_phone}
+        else:
             raise ValueError("Customer with this phone number was not found. Refresh clients in admin and try again.")
-        client = {"id": f"DEMO-{normalized_phone}", "fullName": "Demo User", "phone": normalized_phone}
+
+    real_send = (not is_demo) and OTP_PROVIDER == "eskiz"
+    if real_send:
+        _otp_rate_guard_and_log(normalized_phone)  # raises ValueError if rate-limited
 
     expires_at = (datetime.utcnow() + timedelta(minutes=OTP_TTL_MINUTES)).isoformat()
     if is_demo:
@@ -1055,6 +1141,9 @@ def _verify_otp(phone: str, otp: str) -> Dict[str, Any]:
             "lastBonusAt": "",
             "createdAt": "",
         }
+    if client_id.startswith("NEW-"):
+        # Self-registration: create (or reuse) the customer now that the phone is verified.
+        client_id = _provision_self_registered_customer(client_id[len("NEW-"):])
     # Record the customer's first activity on first successful login. Only fills a
     # NULL, so an earlier (backfilled) activity date is never overwritten.
     try:

@@ -384,9 +384,14 @@ def _init_bonus_db() -> None:
             connection.execute("ALTER TABLE gifts DROP COLUMN IF EXISTS description_en")
             connection.execute("ALTER TABLE gifts DROP COLUMN IF EXISTS description_uz")
             connection.execute("ALTER TABLE products ADD COLUMN IF NOT EXISTS sku TEXT NOT NULL DEFAULT ''")
+            connection.execute("ALTER TABLE customers ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT ''")
         else:
             try:
                 connection.execute("ALTER TABLE products ADD COLUMN sku TEXT NOT NULL DEFAULT ''")
+            except Exception:
+                pass
+            try:
+                connection.execute("ALTER TABLE customers ADD COLUMN source TEXT NOT NULL DEFAULT ''")
             except Exception:
                 pass
         connection.execute(
@@ -434,6 +439,17 @@ def _init_bonus_db() -> None:
             )
             """
         )
+        connection.execute(
+            f"""
+            CREATE TABLE IF NOT EXISTS otp_send_log (
+                id {id_column},
+                phone TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+        connection.execute("CREATE INDEX IF NOT EXISTS idx_otp_send_log_created ON otp_send_log (created_at)")
+        connection.execute("CREATE INDEX IF NOT EXISTS idx_otp_send_log_phone ON otp_send_log (phone, created_at)")
         connection.execute(
             f"""
             CREATE TABLE IF NOT EXISTS clients_phone_index (

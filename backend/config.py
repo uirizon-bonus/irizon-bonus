@@ -40,6 +40,18 @@ OTP_REMOTE_LOOKUP_INCLUDE_INACTIVE = os.getenv("OTP_REMOTE_LOOKUP_INCLUDE_INACTI
 }
 OTP_MISS_CACHE_TTL_SEC = int(os.getenv("OTP_MISS_CACHE_TTL_SEC", "300"))
 
+# ─── Self-registration (Phase 1: controlled-open) ───────────────
+# When enabled, an unknown phone can request an OTP and, on successful verify,
+# a new customer is auto-created (deduplicated by phone). Turn off to revert to
+# the closed "known customers only" behaviour without a redeploy.
+SELF_REGISTRATION_ENABLED = os.getenv("SELF_REGISTRATION_ENABLED", "true").strip().lower() in {
+    "1", "true", "yes", "y", "on",
+}
+# Rate limits that protect the SMS budget from abuse.
+OTP_RESEND_COOLDOWN_SEC = int(os.getenv("OTP_RESEND_COOLDOWN_SEC", "60"))
+OTP_PHONE_DAILY_CAP = int(os.getenv("OTP_PHONE_DAILY_CAP", "8"))
+OTP_GLOBAL_HOURLY_CAP = int(os.getenv("OTP_GLOBAL_HOURLY_CAP", "300"))
+
 SMARTUP_LOGIN = os.getenv("SMARTUP_LOGIN", "")
 SMARTUP_PASSWORD = os.getenv("SMARTUP_PASSWORD", "")
 
