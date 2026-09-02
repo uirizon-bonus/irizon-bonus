@@ -1,6 +1,7 @@
 import { Outlet, useLocation, Link } from "react-router";
 import { Home, Gift, History, Package } from "lucide-react";
 import { usePortal } from "../context/PortalContext";
+import { NameGate } from "./NameGate";
 
 export function Layout() {
   const location = useLocation();
@@ -25,6 +26,8 @@ export function Layout() {
       <div className="max-w-md mx-auto">
         <Outlet />
       </div>
+
+      <NameGate />
 
       {shouldShowNav ? (
         <div

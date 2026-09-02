@@ -26,6 +26,7 @@ export interface Customer {
   totalPoints: number;
   pointsEarned: number;
   pointsRedeemed: number;
+  nameMissing?: boolean;
 }
 
 export interface GiftItem {
@@ -124,6 +125,10 @@ type I18n = {
   scanConfirmCancel: string;
   settingsConfirmScanTitle: string;
   settingsConfirmScanHint: string;
+  profileNameTitle: string;
+  profileNameHint: string;
+  profileNamePlaceholder: string;
+  profileNameSubmit: string;
 };
 
 const i18nMap: Record<Lang, I18n> = {
@@ -189,6 +194,10 @@ const i18nMap: Record<Lang, I18n> = {
     scanConfirmCancel: "Отмена",
     settingsConfirmScanTitle: "Подтверждение перед начислением",
     settingsConfirmScanHint: "Спрашивать подтверждение перед начислением баллов по QR",
+    profileNameTitle: "Как вас зовут?",
+    profileNameHint: "Введите ваше имя, чтобы продолжить",
+    profileNamePlaceholder: "Ваше имя",
+    profileNameSubmit: "Сохранить",
   },
   UZ: {
     home: "Asosiy",
@@ -252,6 +261,10 @@ const i18nMap: Record<Lang, I18n> = {
     scanConfirmCancel: "Bekor qilish",
     settingsConfirmScanTitle: "Qo'shishdan oldin tasdiqlash",
     settingsConfirmScanHint: "QR bo'yicha ball qo'shishdan oldin tasdiq so'ralsin",
+    profileNameTitle: "Ismingiz nima?",
+    profileNameHint: "Davom etish uchun ismingizni kiriting",
+    profileNamePlaceholder: "Ismingiz",
+    profileNameSubmit: "Saqlash",
   },
 };
 
@@ -286,6 +299,7 @@ type PortalContextValue = {
     usedAt?: string;
   }>;
   redeemGift: (giftId: string) => Promise<{ ok: boolean; message?: string }>;
+  updateProfile: (fullName: string) => Promise<{ ok: boolean }>;
   clearNotice: () => void;
 };
 
@@ -678,6 +692,33 @@ export function PortalProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const updateProfile = async (fullName: string) => {
+    if (!customer?.id) return { ok: false };
+    const name = fullName.trim();
+    if (!name) return { ok: false };
+    setBusy(true);
+    try {
+      const response = await apiFetch(`/api/customers/${customer.id}/profile`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ full_name: name }),
+      });
+      const payload = await parseJson(response);
+      if (!response.ok) {
+        setError(String(payload?.error || i18n.otpRequestFailed));
+        return { ok: false };
+      }
+      const updated = payload.customer as Customer | undefined;
+      if (updated) setCustomer(updated);
+      else setCustomer({ ...customer, fullName: name, nameMissing: false });
+      return { ok: true };
+    } catch {
+      return { ok: false };
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const redeemGift = async (giftId: string) => {
     if (!customer?.id) {
       return { ok: false, message: i18n.redeemFailed };
@@ -748,6 +789,7 @@ export function PortalProvider({ children }: { children: ReactNode }) {
     logout,
     applyQrScan,
     redeemGift,
+    updateProfile,
     clearNotice,
   };
 
