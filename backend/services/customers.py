@@ -170,6 +170,18 @@ def register_device_token_payload(client_id: str, payload: DeviceTokenPayload, c
     return {"message": "Device token registered"}
 
 
+def update_customer_profile_payload(client_id: str, payload, current_id: str):
+    if client_id != current_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+    try:
+        customer = legacy._set_customer_name(str(client_id), payload.full_name)
+    except ValueError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=400)
+    if customer is None:
+        return JSONResponse({"error": "Customer not found"}, status_code=404)
+    return {"message": "Profile updated", "customer": customer}
+
+
 def create_customer_qr_points_payload(client_id: str, payload: QrScanPayload, current_id: str):
     if client_id != current_id:
         raise HTTPException(status_code=403, detail="Access denied")

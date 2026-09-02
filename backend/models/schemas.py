@@ -91,6 +91,10 @@ class DeviceTokenPayload(BaseModel):
     note: str = Field(default="", max_length=500)
 
 
+class CustomerProfilePayload(BaseModel):
+    full_name: str = Field(..., min_length=1, max_length=100)
+
+
 class PushNotificationPayload(BaseModel):
     customer_id: str = Field(default="", max_length=100)
     audience: str = Field(default="customer", max_length=20)

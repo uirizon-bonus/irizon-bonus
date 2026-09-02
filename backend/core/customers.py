@@ -831,29 +831,43 @@ def _load_customer_snapshot(client_id: str) -> Optional[Dict[str, Any]]:
     total_points = int(bonus_summary.get("points_earned", 0) or 0)
     last_bonus_at = str(bonus_summary.get("last_bonus_at", "") or "")
 
+    def _name_missing(name: str, phone: str, cid: str) -> bool:
+        n = str(name or "").strip()
+        if not n or n == str(cid):
+            return True
+        name_digits = re.sub(r"\D", "", n)
+        phone_digits = re.sub(r"\D", "", str(phone or ""))
+        # A self-registered customer starts with its phone number as the name.
+        return bool(name_digits) and name_digits == phone_digits
+
     if client is None:
         if not bonus_summary:
             return None
+        name = str(bonus_summary.get("client_name", client_id) or client_id)
         return {
             "id": str(client_id),
-            "fullName": str(bonus_summary.get("client_name", client_id) or client_id),
+            "fullName": name,
             "phone": "",
             "status": "active",
             "lastUpdated": last_bonus_at,
             "totalPoints": total_points,
             "pointsEarned": total_points,
             "pointsRedeemed": 0.0,
+            "nameMissing": _name_missing(name, "", client_id),
         }
 
+    full_name = str(client.get("fullName") or client.get("name") or client_id)
+    phone = str(client.get("phone") or "")
     return {
         "id": str(client.get("id", client_id)),
-        "fullName": str(client.get("fullName") or client.get("name") or client_id),
-        "phone": str(client.get("phone") or ""),
+        "fullName": full_name,
+        "phone": phone,
         "status": str(client.get("status") or "active"),
         "lastUpdated": str(client.get("lastUpdated") or last_bonus_at),
         "totalPoints": total_points,
         "pointsEarned": total_points,
         "pointsRedeemed": 0.0,
+        "nameMissing": _name_missing(full_name, phone, str(client.get("id", client_id))),
     }
 
 
@@ -1038,6 +1052,36 @@ def _provision_self_registered_customer(normalized_phone: str) -> str:
         pass
     logger.info("Self-registered customer created: %s (%s)", customer_id, normalized_phone)
     return customer_id
+
+
+def _set_customer_name(client_id: str, full_name: str) -> Optional[Dict[str, Any]]:
+    """Let a customer set their own display name (self-registration follow-up)."""
+    name = str(full_name or "").strip()
+    if not name:
+        raise ValueError("Ism kiritilishi shart")
+    if len(name) > 100:
+        name = name[:100]
+    connection = bonus_db()
+    try:
+        _bootstrap_customers_from_cache(connection)
+        connection.execute(
+            "UPDATE customers SET full_name = ?, last_updated = ? WHERE id = ?",
+            (name, _now_text(), str(client_id)),
+        )
+        connection.commit()
+    finally:
+        connection.close()
+    snap = _load_customer_snapshot(str(client_id))
+    if snap:
+        _delete_clients_phone_index_for_client(str(client_id))
+        _upsert_clients_phone_index([snap])
+        _sync_customers_cache_from_db()
+        try:
+            from backend.core import dashboard as dashboard_core
+            dashboard_core._invalidate_dashboard_cache()
+        except Exception:
+            pass
+    return _load_customer_snapshot(str(client_id))
 
 
 def _create_otp(phone: str) -> Dict[str, Any]:

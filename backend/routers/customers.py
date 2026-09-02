@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, Query
 
 from backend import deps
-from backend.models.schemas import BonusCreatePayload, CustomerUpsertPayload, DeviceTokenPayload, QrScanPayload
+from backend.models.schemas import BonusCreatePayload, CustomerProfilePayload, CustomerUpsertPayload, DeviceTokenPayload, QrScanPayload
 from backend.services import customers as customer_service
 
 
@@ -78,6 +78,11 @@ def create_customer_bonus(client_id: str, payload: BonusCreatePayload):
 @router.post("/api/customers/{client_id}/device-token")
 def register_device_token(client_id: str, payload: DeviceTokenPayload, current_id: str = Depends(deps.require_customer)):
     return customer_service.register_device_token_payload(client_id, payload, current_id)
+
+
+@router.post("/api/customers/{client_id}/profile")
+def update_customer_profile(client_id: str, payload: CustomerProfilePayload, current_id: str = Depends(deps.require_customer)):
+    return customer_service.update_customer_profile_payload(client_id, payload, current_id)
 
 
 @router.post("/api/customers/{client_id}/scan-qr")

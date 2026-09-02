@@ -142,6 +142,7 @@ from backend.core.customers import (
     _warm_clients_phone_index_from_cache,
     _create_otp,
     _verify_otp,
+    _set_customer_name,
     _write_clients_cache,
 )
 from backend.core.transactions import (
