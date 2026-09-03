@@ -7,7 +7,7 @@ import {
   type ReactNode,
 } from "react";
 import { Capacitor } from "@capacitor/core";
-import { PushNotifications } from "@capacitor/push-notifications";
+import { FirebaseMessaging } from "@capacitor-firebase/messaging";
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").trim();
 const NGROK_SKIP_HEADER = "ngrok-skip-browser-warning";
@@ -394,35 +394,48 @@ export function PortalProvider({ children }: { children: ReactNode }) {
   const registerPushToken = async (customerId: string) => {
     if (!Capacitor.isNativePlatform()) return;
     try {
-      const perm = await PushNotifications.requestPermissions();
+      const platform = Capacitor.getPlatform(); // "ios" | "android"
+      const perm = await FirebaseMessaging.requestPermissions();
       if (perm.receive !== "granted") return;
 
-      await PushNotifications.createChannel({
-        id: "irizon_bonus",
-        name: "IRIZON BONUS",
-        description: "Bonuslar, sovg'alar va buyurtmalar bo'yicha xabarnomalar",
-        importance: 5,
-        sound: "default",
-        vibration: true,
-        visibility: 1,
-      });
+      // Notification channels are Android-only; on iOS this throws, so it must
+      // never sit in the path that leads to getToken().
+      if (platform === "android") {
+        try {
+          await FirebaseMessaging.createChannel({
+            id: "irizon_bonus",
+            name: "IRIZON BONUS",
+            description: "Bonuslar, sovg'alar va buyurtmalar bo'yicha xabarnomalar",
+            importance: 5,
+            visibility: 1,
+          });
+        } catch {
+          // channel already exists / not supported
+        }
+      }
 
-      await PushNotifications.removeAllListeners();
+      await FirebaseMessaging.removeAllListeners();
 
-      PushNotifications.addListener("registration", (token) => {
+      const sendToken = (value?: string | null) => {
+        if (!value) return;
         void apiFetch(`/api/customers/${customerId}/device-token`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ fcm_token: token.value, platform: "android" }),
+          body: JSON.stringify({ fcm_token: value, platform }),
         });
-      });
+      };
 
-      PushNotifications.addListener("pushNotificationReceived", (notification) => {
-        const msg = [notification.title, notification.body].filter(Boolean).join("\n");
+      // Fires when FCM rotates the token.
+      await FirebaseMessaging.addListener("tokenReceived", (event) => sendToken(event.token));
+
+      await FirebaseMessaging.addListener("notificationReceived", (event) => {
+        const msg = [event.notification?.title, event.notification?.body].filter(Boolean).join("\n");
         if (msg) setInfo(msg);
       });
 
-      await PushNotifications.register();
+      // FCM token — works on iOS too (APNs token is exchanged by Firebase).
+      const { token } = await FirebaseMessaging.getToken();
+      sendToken(token);
     } catch {
       // push not available on this device
     }
@@ -433,7 +446,7 @@ export function PortalProvider({ children }: { children: ReactNode }) {
     if (!Capacitor.isNativePlatform()) return;
     // Notifications
     try {
-      await PushNotifications.requestPermissions();
+      await FirebaseMessaging.requestPermissions();
     } catch {
       // notifications not available
     }

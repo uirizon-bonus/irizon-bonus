@@ -15,11 +15,11 @@
     "apk:release": "npm run cap:sync && cd android && gradlew.bat assembleRelease"
   },
   "dependencies": {
-    "@capacitor/android": "^8.3.1",
-    "@capacitor/cli": "^8.3.1",
-    "@capacitor/core": "^8.3.1",
-    "@capacitor/ios": "^8.3.1",
-    "@capacitor/push-notifications": "^8.0.3"
+    "@capacitor-firebase/messaging": "^8.5.1",
+    "@capacitor/android": "^8.5.1",
+    "@capacitor/cli": "^8.5.1",
+    "@capacitor/core": "^8.5.1",
+    "@capacitor/ios": "^8.5.1"
   },
   "devDependencies": {
     "typescript": "^6.0.3"
