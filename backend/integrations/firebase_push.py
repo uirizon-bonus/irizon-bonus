@@ -95,6 +95,32 @@ def build_push_message(token: str, title: str, body: str) -> Any:
     )
 
 
+def _is_dead_token_error(exc: Exception) -> bool:
+    """True when FCM says the token no longer belongs to a live install."""
+    name = type(exc).__name__
+    text = str(exc)
+    return (
+        "Unregistered" in name
+        or "SenderIdMismatch" in name
+        or "NotRegistered" in text
+        or "SenderIdMismatch" in text
+    )
+
+
+def _drop_dead_token(token: str) -> None:
+    """Remove a token FCM rejected as dead, so it is not retried forever."""
+    try:
+        connection = bonus_db()
+        try:
+            connection.execute("DELETE FROM device_tokens WHERE fcm_token = ?", (token,))
+            connection.commit()
+        finally:
+            connection.close()
+        logger.info("FCM: removed dead token=%s...", token[:20])
+    except Exception as exc:  # never let cleanup break sending
+        logger.warning("FCM: could not remove dead token=%s... error=%s", token[:20], exc)
+
+
 def send_push_notification(customer_id: str, title: str, body: str) -> None:
     logger.info("FCM: sending to customer_id=%s title=%r", customer_id, title)
     if not ensure_firebase():
@@ -116,6 +142,8 @@ def send_push_notification(customer_id: str, title: str, body: str) -> None:
             logger.info("FCM: sent OK message_id=%s", msg_id)
         except Exception as exc:
             logger.warning("FCM: send failed token=%s... error=%s", token[:20], exc)
+            if _is_dead_token_error(exc):
+                _drop_dead_token(token)
 
 
 def send_push_to_tokens(tokens: List[str], title: str, body: str) -> List[Dict[str, Any]]:
@@ -126,7 +154,15 @@ def send_push_to_tokens(tokens: List[str], title: str, body: str) -> List[Dict[s
             results.append({"token": token[:20] + "...", "status": "ok", "messageId": msg_id})
         except Exception as exc:
             logger.warning("FCM: send failed token=%s... error=%s", token[:20], exc)
-            results.append({"token": token[:20] + "...", "status": "error", "error": str(exc)})
+            dead = _is_dead_token_error(exc)
+            if dead:
+                _drop_dead_token(token)
+            results.append({
+                "token": token[:20] + "...",
+                "status": "error",
+                "error": str(exc),
+                "removed": dead,
+            })
     return results
 
 
