@@ -69,3 +69,8 @@ mobile-app/android/app/src/main/assets/public/
 *.njsproj
 *.sln
 *.sw?
+INFRASTRUCTURE.md
+
+# Firebase Admin SDK service account keys (SECRET)
+*firebase-adminsdk*.json
+firebase-service-account.json
