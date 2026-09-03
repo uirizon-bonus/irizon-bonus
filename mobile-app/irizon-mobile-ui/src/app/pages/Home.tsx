@@ -6,6 +6,7 @@ import { QRScanner } from "../components/QRScanner";
 import { SettingsModal } from "../components/SettingsModal";
 import { ProfileModal } from "../components/ProfileModal";
 import { LoadingScreen } from "../components/LoadingScreen";
+import { PullToRefresh } from "../components/PullToRefresh";
 import { usePortal } from "../context/PortalContext";
 
 type ScanResult = "idle" | "confirm" | "processing" | "success" | "already-used" | "invalid";
@@ -197,6 +198,7 @@ export function Home() {
 
   return (
     <div className="min-h-screen bg-[#F5F7FB]">
+     <PullToRefresh onRefresh={handleRefresh} disabled={isScannerOpen || isSettingsOpen || isProfileOpen}>
       <div className="px-5 pt-6 pb-4 flex items-center justify-between">
         <motion.button
           whileTap={{ scale: 0.95 }}
@@ -382,6 +384,7 @@ export function Home() {
           )}
         </div>
       </div>
+     </PullToRefresh>
 
       <QRScanner
         isOpen={isScannerOpen}
