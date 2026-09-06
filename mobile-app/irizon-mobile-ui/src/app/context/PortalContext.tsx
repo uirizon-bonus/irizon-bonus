@@ -129,6 +129,9 @@ type I18n = {
   profileNameHint: string;
   profileNamePlaceholder: string;
   profileNameSubmit: string;
+  profileNameSaving: string;
+  profileNameLater: string;
+  profileNameError: string;
 };
 
 const i18nMap: Record<Lang, I18n> = {
@@ -198,6 +201,9 @@ const i18nMap: Record<Lang, I18n> = {
     profileNameHint: "Введите ваше имя, чтобы продолжить",
     profileNamePlaceholder: "Ваше имя",
     profileNameSubmit: "Сохранить",
+    profileNameSaving: "Сохранение...",
+    profileNameLater: "Позже",
+    profileNameError: "Не удалось сохранить. Проверьте интернет и попробуйте снова.",
   },
   UZ: {
     home: "Asosiy",
@@ -265,6 +271,9 @@ const i18nMap: Record<Lang, I18n> = {
     profileNameHint: "Davom etish uchun ismingizni kiriting",
     profileNamePlaceholder: "Ismingiz",
     profileNameSubmit: "Saqlash",
+    profileNameSaving: "Saqlanmoqda...",
+    profileNameLater: "Keyinroq",
+    profileNameError: "Saqlab bo'lmadi. Internetni tekshirib, qayta urinib ko'ring.",
   },
 };
 
@@ -299,7 +308,7 @@ type PortalContextValue = {
     usedAt?: string;
   }>;
   redeemGift: (giftId: string) => Promise<{ ok: boolean; message?: string }>;
-  updateProfile: (fullName: string) => Promise<{ ok: boolean }>;
+  updateProfile: (fullName: string) => Promise<{ ok: boolean; error?: string }>;
   clearNotice: () => void;
 };
 
@@ -705,11 +714,10 @@ export function PortalProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const updateProfile = async (fullName: string) => {
-    if (!customer?.id) return { ok: false };
+  const updateProfile = async (fullName: string): Promise<{ ok: boolean; error?: string }> => {
+    if (!customer?.id) return { ok: false, error: i18n.profileNameError };
     const name = fullName.trim();
-    if (!name) return { ok: false };
-    setBusy(true);
+    if (!name) return { ok: false, error: i18n.profileNameError };
     try {
       const response = await apiFetch(`/api/customers/${customer.id}/profile`, {
         method: "POST",
@@ -718,17 +726,15 @@ export function PortalProvider({ children }: { children: ReactNode }) {
       });
       const payload = await parseJson(response);
       if (!response.ok) {
-        setError(String(payload?.error || i18n.otpRequestFailed));
-        return { ok: false };
+        return { ok: false, error: String(payload?.error || i18n.profileNameError) };
       }
       const updated = payload.customer as Customer | undefined;
       if (updated) setCustomer(updated);
       else setCustomer({ ...customer, fullName: name, nameMissing: false });
       return { ok: true };
-    } catch {
-      return { ok: false };
-    } finally {
-      setBusy(false);
+    } catch (err) {
+      // Network failure / timeout: report it so the caller can show it inline.
+      return { ok: false, error: err instanceof Error ? err.message : i18n.profileNameError };
     }
   };
 
