@@ -192,6 +192,39 @@ def _load_qr_scan_events(
     return {"count": int(total_row["count"] or 0), "totalPointsSum": int(total_row["points_sum"] or 0), "events": events}
 
 
+class InsufficientPointsError(ValueError):
+    """Raised when a customer cannot afford a gift once reservations are counted.
+
+    Carries the individual figures so the caller can serialise them and let the
+    client render the message in the customer's own language — the app is used
+    in both Russian and Uzbek, so a server-side sentence would be wrong for half
+    the customers.
+    """
+
+    code = "insufficient_points"
+
+    def __init__(self, *, available: int, balance: int, reserved: int, required: int) -> None:
+        self.available = int(available)
+        self.balance = int(balance)
+        self.reserved = int(reserved)
+        self.required = int(required)
+        super().__init__(
+            f"Ball yetarli emas: mavjud {self.available} ball "
+            f"(balans {self.balance}, kutilayotgan so‘rovlarda {self.reserved}), "
+            f"kerak {self.required} ball"
+        )
+
+    def as_payload(self) -> Dict[str, Any]:
+        return {
+            "error": str(self),
+            "code": self.code,
+            "available": self.available,
+            "balance": self.balance,
+            "reserved": self.reserved,
+            "required": self.required,
+        }
+
+
 def _load_gift_by_id(gift_id: str) -> Optional[Dict[str, Any]]:
     return next((gift for gift in catalog_core._load_gifts() if gift["id"] == gift_id), None)
 
@@ -288,9 +321,8 @@ def _create_request(payload: RedemptionRequestCreatePayload) -> Dict[str, Any]:
             available = balance - reserved
             cost = int(gift["pointsCost"])
             if available < cost:
-                raise ValueError(
-                    f"Ball yetarli emas: mavjud {available} ball "
-                    f"(balans {balance}, kutilayotgan so‘rovlarda {reserved}), kerak {cost} ball"
+                raise InsufficientPointsError(
+                    available=available, balance=balance, reserved=reserved, required=cost
                 )
         connection.execute(
             """

@@ -98,6 +98,8 @@ type I18n = {
   authFailed: string;
   portalLoadFailed: string;
   redeemFailed: string;
+  /** (available, required, reserved) -> sentence explaining the shortfall. */
+  redeemInsufficient: (available: number, required: number, reserved: number) => string;
   qrFailed: string;
   otpRequestFailed: string;
   otpVerifyFailed: string;
@@ -169,6 +171,9 @@ const i18nMap: Record<Lang, I18n> = {
     authFailed: "Ошибка авторизации",
     portalLoadFailed: "Не удалось загрузить портал",
     redeemFailed: "Не удалось создать заявку",
+    redeemInsufficient: (available, required, reserved) =>
+      `Недостаточно баллов: доступно ${available.toLocaleString()} из ${required.toLocaleString()}` +
+      (reserved > 0 ? ` — ${reserved.toLocaleString()} уже в заявках на рассмотрении` : ""),
     qrFailed: "Не удалось начислить по QR",
     otpRequestFailed: "Не удалось запросить OTP",
     otpVerifyFailed: "Не удалось подтвердить OTP",
@@ -239,6 +244,9 @@ const i18nMap: Record<Lang, I18n> = {
     authFailed: "Avtorizatsiya xatosi",
     portalLoadFailed: "Portalni yuklab bo'lmadi",
     redeemFailed: "So'rov yaratib bo'lmadi",
+    redeemInsufficient: (available, required, reserved) =>
+      `Ball yetarli emas: mavjud ${available.toLocaleString()}, kerak ${required.toLocaleString()}` +
+      (reserved > 0 ? ` — ${reserved.toLocaleString()} ball ko'rib chiqilayotgan so'rovlarda band` : ""),
     qrFailed: "QR orqali ball qo'shib bo'lmadi",
     otpRequestFailed: "OTP so'rab bo'lmadi",
     otpVerifyFailed: "OTP tasdiqlab bo'lmadi",
@@ -763,6 +771,17 @@ export function PortalProvider({ children }: { children: ReactNode }) {
       });
       const payload = await parseJson(response);
       if (!response.ok) {
+        // The backend sends the shortfall as numbers so it can be phrased in
+        // the language the customer is actually using.
+        if (payload?.code === "insufficient_points") {
+          throw new Error(
+            i18n.redeemInsufficient(
+              Number(payload.available ?? 0),
+              Number(payload.required ?? 0),
+              Number(payload.reserved ?? 0),
+            ),
+          );
+        }
         throw new Error(String(payload?.error || i18n.redeemFailed));
       }
       const message = String(payload?.message || "OK");

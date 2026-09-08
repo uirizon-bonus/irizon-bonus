@@ -138,7 +138,8 @@ export function Market() {
   const [errorMessage, setErrorMessage] = useState("");
   const t = translations[language];
 
-  const userBalance = customer?.totalPoints ?? 0;
+  // Points promised to pending gift requests must not be sellable here.
+  const userBalance = customer?.pointsAvailable ?? customer?.totalPoints ?? 0;
   const hasPendingOrders = useMemo(
     () => transactions.some((item) => item.status === "Pending"),
     [transactions],

@@ -16,6 +16,9 @@ def get_requests_payload():
 def create_request_payload(payload: RedemptionRequestCreatePayload):
     try:
         request = transaction_core._create_request(payload)
+    except transaction_core.InsufficientPointsError as exc:
+        # Structured so the app can phrase it in the customer's language.
+        return JSONResponse(exc.as_payload(), status_code=400)
     except ValueError as exc:
         return JSONResponse({"error": str(exc)}, status_code=400)
     except RuntimeError as exc:

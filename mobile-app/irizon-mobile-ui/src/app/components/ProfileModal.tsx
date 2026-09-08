@@ -48,7 +48,9 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
 
   const name = customer?.fullName || t.guest;
   const phone = customer?.phone || "—";
-  const balance = customer?.totalPoints ?? 0;
+  // Reserved points are still in totalPoints but cannot be spent — show what
+  // the customer can actually use, matching the home screen.
+  const balance = customer?.pointsAvailable ?? customer?.totalPoints ?? 0;
   const earned = customer?.pointsEarned ?? 0;
   const redeemed = customer?.pointsRedeemed ?? 0;
   const accountId = customer?.id || "—";
