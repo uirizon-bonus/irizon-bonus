@@ -276,6 +276,22 @@ def _create_request(payload: RedemptionRequestCreatePayload) -> Dict[str, Any]:
 
         public_id = _legacy._generate_catalog_public_id(connection, "redemption_requests", "REQ", 5000, key_column="public_id")
         initial_status = "Pending" if payload.request_type.strip() == "Customer" else "Approved"
+
+        # A pending request holds its points until an operator approves or rejects
+        # it, so the customer may only spend what is left after those reservations.
+        # Without this a customer can queue up requests worth far more than their
+        # balance, and the extra ones only fail later, at approval time.
+        if initial_status == "Pending":
+            customer_id = payload.customer_id.strip()
+            balance = _get_client_points_balance(connection, customer_id)
+            reserved = _get_client_reserved_points(connection, customer_id)
+            available = balance - reserved
+            cost = int(gift["pointsCost"])
+            if available < cost:
+                raise ValueError(
+                    f"Ball yetarli emas: mavjud {available} ball "
+                    f"(balans {balance}, kutilayotgan so‘rovlarda {reserved}), kerak {cost} ball"
+                )
         connection.execute(
             """
             INSERT INTO redemption_requests (
@@ -974,6 +990,23 @@ def _serialize_market_order_row(row: Any) -> Dict[str, Any]:
 def _get_client_points_balance(connection: Any, client_id: str) -> int:
     row = connection.execute(
         "SELECT COALESCE(SUM(points), 0) AS total FROM bonus_transactions WHERE client_id = ?",
+        (str(client_id),),
+    ).fetchone()
+    return int(row["total"] or 0) if row is not None else 0
+
+
+def _get_client_reserved_points(connection: Any, client_id: str) -> int:
+    """Points locked up by requests that are awaiting an operator decision.
+
+    Pending requests have not touched `bonus_transactions` yet (points_applied = 0),
+    so they are invisible in the balance while still being promised to a gift.
+    """
+    row = connection.execute(
+        """
+        SELECT COALESCE(SUM(points_used), 0) AS total
+        FROM redemption_requests
+        WHERE customer_id = ? AND status = 'Pending' AND points_applied = 0
+        """,
         (str(client_id),),
     ).fetchone()
     return int(row["total"] or 0) if row is not None else 0

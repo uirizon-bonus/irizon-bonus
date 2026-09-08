@@ -830,6 +830,10 @@ def _load_customer_snapshot(client_id: str) -> Optional[Dict[str, Any]]:
     bonus_summary = points_core._load_bonus_summary_for_client(str(client_id))
     total_points = int(bonus_summary.get("points_earned", 0) or 0)
     last_bonus_at = str(bonus_summary.get("last_bonus_at", "") or "")
+    # Points promised to requests that are still awaiting an operator decision.
+    # They are still part of totalPoints, so the app must subtract them before
+    # deciding what the customer can afford.
+    reserved_points = _load_customer_reserved_points(str(client_id))
 
     def _name_missing(name: str, phone: str, cid: str) -> bool:
         n = str(name or "").strip()
@@ -853,6 +857,8 @@ def _load_customer_snapshot(client_id: str) -> Optional[Dict[str, Any]]:
             "totalPoints": total_points,
             "pointsEarned": total_points,
             "pointsRedeemed": 0.0,
+            "pointsReserved": reserved_points,
+            "pointsAvailable": total_points - reserved_points,
             "nameMissing": _name_missing(name, "", client_id),
         }
 
@@ -867,8 +873,20 @@ def _load_customer_snapshot(client_id: str) -> Optional[Dict[str, Any]]:
         "totalPoints": total_points,
         "pointsEarned": total_points,
         "pointsRedeemed": 0.0,
+        "pointsReserved": reserved_points,
+        "pointsAvailable": total_points - reserved_points,
         "nameMissing": _name_missing(full_name, phone, str(client.get("id", client_id))),
     }
+
+
+def _load_customer_reserved_points(client_id: str) -> int:
+    from backend.core import transactions as transaction_core
+
+    connection = bonus_db()
+    try:
+        return transaction_core._get_client_reserved_points(connection, client_id)
+    finally:
+        connection.close()
 
 
 def _load_customer_requests(client_id: str) -> List[Dict[str, Any]]:

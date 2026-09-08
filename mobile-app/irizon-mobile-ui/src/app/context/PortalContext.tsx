@@ -26,6 +26,10 @@ export interface Customer {
   totalPoints: number;
   pointsEarned: number;
   pointsRedeemed: number;
+  /** Points already promised to requests still awaiting an operator decision. */
+  pointsReserved?: number;
+  /** totalPoints minus pointsReserved — what may actually be spent right now. */
+  pointsAvailable?: number;
   nameMissing?: boolean;
 }
 

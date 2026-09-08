@@ -591,6 +591,20 @@ const RequestsView: React.FC<RequestsViewProps> = ({ lang, initialSelectedId }) 
   const currentPage = Math.min(page, totalPages);
   const pageRequests = filteredRequests.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
+  // Points a customer has already promised to *other* pending requests. Their
+  // balance still contains those points (nothing is deducted until approval),
+  // so "balance after redemption" has to subtract every pending request, not
+  // just the one on this row — otherwise several rows each look affordable
+  // while together they exceed the balance.
+  const pendingPointsByCustomer = useMemo(() => {
+    const totals = new Map<string, number>();
+    for (const req of requests) {
+      if (req.status !== 'Pending') continue;
+      totals.set(req.customerId, (totals.get(req.customerId) ?? 0) + req.pointsUsed);
+    }
+    return totals;
+  }, [requests]);
+
   const toggleRow = (id: string) => {
     const next = expandedRowId === id ? null : id;
     setExpandedRowId(next);
@@ -851,7 +865,9 @@ const RequestsView: React.FC<RequestsViewProps> = ({ lang, initialSelectedId }) 
                 const isExpanded = expandedRowId === req.id;
                 const gift = gifts.find(g => g.id === req.giftId);
                 const customer = customers.find(c => c.id === req.customerId);
-                const balanceAfter = customer ? customer.totalPoints - (req.status === 'Pending' ? req.pointsUsed : 0) : 0;
+                const pendingTotal = pendingPointsByCustomer.get(req.customerId) ?? 0;
+                const balanceAfter = customer ? customer.totalPoints - pendingTotal : 0;
+                const overCommitted = balanceAfter < 0;
 
                 return (
                   <React.Fragment key={req.id}>
@@ -891,7 +907,14 @@ const RequestsView: React.FC<RequestsViewProps> = ({ lang, initialSelectedId }) 
                         <span className="text-xs font-black text-rose-500">-{req.pointsUsed}</span>
                       </td>
                       <td className="px-6 py-3 text-center">
-                        <span className="text-xs font-bold text-slate-400">{balanceAfter.toLocaleString()}</span>
+                        <span className={`text-xs font-bold ${overCommitted ? 'text-rose-600' : 'text-slate-400'}`}>
+                          {balanceAfter.toLocaleString()}
+                        </span>
+                        {overCommitted && (
+                          <span className="ml-1 text-[10px] font-bold text-rose-500" title="Kutilayotgan so'rovlar jami balansdan oshib ketgan">
+                            ⚠
+                          </span>
+                        )}
                       </td>
                       <td className="px-6 py-3" onClick={e => e.stopPropagation()}>
                         {/* Click-toggled menu rendered with fixed positioning (see below the
