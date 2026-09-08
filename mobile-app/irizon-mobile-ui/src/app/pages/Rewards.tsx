@@ -109,11 +109,7 @@ export function Rewards() {
     }
   };
 
-  // Points already committed to pending requests are still part of totalPoints
-  // (nothing is deducted until an operator approves), so spend decisions must
-  // use the available figure or the customer can order past their balance.
-  // Older backends don't send it — fall back to the raw balance there.
-  const balance = customer?.pointsAvailable ?? customer?.totalPoints ?? 0;
+  const balance = customer?.totalPoints ?? 0;
 
   if (loading) {
     return (

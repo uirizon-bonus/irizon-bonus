@@ -828,12 +828,18 @@ def _otp_config_debug() -> Dict[str, Any]:
 def _load_customer_snapshot(client_id: str) -> Optional[Dict[str, Any]]:
     client = _get_cached_client_by_id(client_id)
     bonus_summary = points_core._load_bonus_summary_for_client(str(client_id))
-    total_points = int(bonus_summary.get("points_earned", 0) or 0)
+    raw_balance = int(bonus_summary.get("points_earned", 0) or 0)
     last_bonus_at = str(bonus_summary.get("last_bonus_at", "") or "")
-    # Points promised to requests that are still awaiting an operator decision.
-    # They are still part of totalPoints, so the app must subtract them before
-    # deciding what the customer can afford.
+    # Points promised to requests still awaiting an operator decision. Nothing is
+    # deducted from bonus_transactions until approval, so they are still in the
+    # raw balance even though the customer cannot spend them.
+    #
+    # `totalPoints` is what the app puts on screen as the balance, so it carries
+    # the spendable figure: order a 1 200-point gift out of 3 000 and the app
+    # immediately shows 1 800, with no app release needed. The untouched balance
+    # stays available as pointsBalanceGross for anything that needs it.
     reserved_points = _load_customer_reserved_points(str(client_id))
+    total_points = raw_balance - reserved_points
 
     def _name_missing(name: str, phone: str, cid: str) -> bool:
         n = str(name or "").strip()
@@ -858,7 +864,7 @@ def _load_customer_snapshot(client_id: str) -> Optional[Dict[str, Any]]:
             "pointsEarned": total_points,
             "pointsRedeemed": 0.0,
             "pointsReserved": reserved_points,
-            "pointsAvailable": total_points - reserved_points,
+            "pointsBalanceGross": raw_balance,
             "nameMissing": _name_missing(name, "", client_id),
         }
 
@@ -874,7 +880,7 @@ def _load_customer_snapshot(client_id: str) -> Optional[Dict[str, Any]]:
         "pointsEarned": total_points,
         "pointsRedeemed": 0.0,
         "pointsReserved": reserved_points,
-        "pointsAvailable": total_points - reserved_points,
+        "pointsBalanceGross": raw_balance,
         "nameMissing": _name_missing(full_name, phone, str(client.get("id", client_id))),
     }
 

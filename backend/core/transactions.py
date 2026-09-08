@@ -208,10 +208,10 @@ class InsufficientPointsError(ValueError):
         self.balance = int(balance)
         self.reserved = int(reserved)
         self.required = int(required)
+        # Fallback sentence for clients that don't read the structured fields.
+        # The app's default language is Russian, so it is phrased in Russian.
         super().__init__(
-            f"Ball yetarli emas: mavjud {self.available} ball "
-            f"(balans {self.balance}, kutilayotgan so‘rovlarda {self.reserved}), "
-            f"kerak {self.required} ball"
+            f"Недостаточно баллов: доступно {self.available}, нужно {self.required}"
         )
 
     def as_payload(self) -> Dict[str, Any]:

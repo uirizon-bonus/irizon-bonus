@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Clock, Gift, RefreshCw, ScanLine, Settings, TrendingUp, User, Wallet } from "lucide-react";
+import { Gift, RefreshCw, ScanLine, Settings, TrendingUp, User, Wallet } from "lucide-react";
 import { motion } from "motion/react";
 import { toast } from "sonner";
 import { QRScanner } from "../components/QRScanner";
@@ -20,9 +20,6 @@ const copy = {
     earnedReady: "Заявок на обмен",
     latestActivity: "Последняя активность",
     noActivity: "Активности пока нет",
-    balanceAvailable: "Доступно",
-    reservedInRequests: "в заявках на рассмотрении",
-    totalBalance: "Всего",
   },
   UZ: {
     hello: "Salom,",
@@ -32,9 +29,6 @@ const copy = {
     earnedReady: "Almashtirish so'rovlari",
     latestActivity: "So'nggi faollik",
     noActivity: "Hali faollik yo'q",
-    balanceAvailable: "Mavjud",
-    reservedInRequests: "ko'rib chiqilayotgan so'rovlarda",
-    totalBalance: "Jami",
   },
 } as const;
 
@@ -68,25 +62,18 @@ export function Home() {
   const [pendingCode, setPendingCode] = useState("");
   const scanInFlightRef = useRef(false);
 
-  // Points tied up in requests awaiting an operator decision are still part of
-  // totalPoints, but the customer cannot spend them. Leading with the raw total
-  // makes them believe they still have that much to spend, so the headline
-  // number is what is actually available and the reserved part is spelled out.
-  const totalPoints = customer?.totalPoints ?? 0;
-  const reservedPoints = customer?.pointsReserved ?? 0;
-  const availablePoints = customer?.pointsAvailable ?? totalPoints;
-
   useEffect(() => {
+    const totalPoints = customer?.totalPoints ?? 0;
     const duration = 1200;
     const steps = 40;
-    const increment = availablePoints / steps;
+    const increment = totalPoints / steps;
     const stepDuration = duration / steps;
 
     let current = 0;
     const timer = window.setInterval(() => {
       current += increment;
-      if (current >= availablePoints) {
-        setDisplayPoints(availablePoints);
+      if (current >= totalPoints) {
+        setDisplayPoints(totalPoints);
         window.clearInterval(timer);
       } else {
         setDisplayPoints(Math.floor(current));
@@ -94,7 +81,7 @@ export function Home() {
     }, stepDuration);
 
     return () => window.clearInterval(timer);
-  }, [availablePoints]);
+  }, [customer?.totalPoints]);
 
   useEffect(() => {
     if (!error && !info) return;
@@ -106,7 +93,7 @@ export function Home() {
     () => Math.max(...[20000, ...(customer ? [customer.pointsEarned + 5000] : [])]),
     [customer],
   );
-  const progress = customer ? Math.min((availablePoints / activeGifts) * 100, 100) : 0;
+  const progress = customer ? Math.min((customer.totalPoints / activeGifts) * 100, 100) : 0;
   const latestActivity = activities[0] ?? null;
 
   const resolveScanMessage = (code?: string) => {
@@ -198,7 +185,7 @@ export function Home() {
   };
 
   const userName = customer?.fullName || "IRIZON";
-  const remaining = Math.max(activeGifts - availablePoints, 0);
+  const remaining = Math.max(activeGifts - (customer?.totalPoints ?? 0), 0);
 
   if (loading) {
     return (
@@ -300,9 +287,7 @@ export function Home() {
             </div>
 
             <div className="pt-2">
-              <p className="text-gray-500 text-xs mb-3 uppercase tracking-wide font-semibold">
-                {reservedPoints > 0 ? `${t.balance} · ${t.balanceAvailable}` : t.balance}
-              </p>
+              <p className="text-gray-500 text-xs mb-3 uppercase tracking-wide font-semibold">{t.balance}</p>
               <div className="flex items-baseline gap-2">
                 <span
                   className="text-7xl font-black text-transparent bg-gradient-to-r from-[#0F4C81] via-[#1E6FD9] to-[#2F8DE4] bg-clip-text"
@@ -312,18 +297,6 @@ export function Home() {
                 </span>
                 <span className="text-gray-500 text-sm font-medium pb-2">{i18n.points}</span>
               </div>
-
-              {reservedPoints > 0 && (
-                <div className="mt-3 flex items-center gap-2 rounded-2xl bg-amber-50 px-3 py-2">
-                  <Clock className="h-4 w-4 shrink-0 text-amber-500" />
-                  <p className="text-xs font-medium leading-snug text-amber-700">
-                    <span className="font-bold">{reservedPoints.toLocaleString()}</span> {t.reservedInRequests}
-                    <span className="text-amber-600/70">
-                      {" · "}{t.totalBalance} {totalPoints.toLocaleString()}
-                    </span>
-                  </p>
-                </div>
-              )}
             </div>
           </div>
         </div>
