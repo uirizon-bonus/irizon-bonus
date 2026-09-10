@@ -13,6 +13,25 @@ class BonusCreatePayload(BaseModel):
     current_points_earned: int = Field(default=0, ge=0)
 
 
+class CustomerDeductPayload(BaseModel):
+    """Take points off a customer's balance, on the record.
+
+    `points` is the amount to remove, given as a positive number — the ledger
+    entry it produces is negative. A reason is mandatory: a deduction the
+    customer can see in their history but nobody can explain later is worse
+    than no deduction at all.
+    """
+
+    points: int = Field(..., gt=0, le=1_000_000)
+    reason_code: str = Field(..., min_length=1, max_length=40)
+    note: str = Field(..., min_length=3, max_length=500)
+    full_name: str = Field(default="", max_length=300)
+    # Deducting more than the customer can spend is refused unless the operator
+    # explicitly asks for it; the override is recorded in the audit trail.
+    force: bool = Field(default=False)
+    notify: bool = Field(default=True)
+
+
 class CustomerUpsertPayload(BaseModel):
     id: str = Field(default="", max_length=100)
     full_name: str = Field(..., min_length=1, max_length=300)

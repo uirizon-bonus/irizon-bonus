@@ -1,7 +1,14 @@
 from fastapi import APIRouter, Depends, Query
 
 from backend import deps
-from backend.models.schemas import BonusCreatePayload, CustomerProfilePayload, CustomerUpsertPayload, DeviceTokenPayload, QrScanPayload
+from backend.models.schemas import (
+    BonusCreatePayload,
+    CustomerDeductPayload,
+    CustomerProfilePayload,
+    CustomerUpsertPayload,
+    DeviceTokenPayload,
+    QrScanPayload,
+)
 from backend.services import customers as customer_service
 
 
@@ -73,6 +80,23 @@ def get_customer_activity(client_id: str, current_id: str = Depends(deps.require
 @router.post("/api/customers/{client_id}/bonus", dependencies=[Depends(deps.require_admin)])
 def create_customer_bonus(client_id: str, payload: BonusCreatePayload):
     return customer_service.create_customer_bonus_payload(client_id, payload)
+
+
+@router.post("/api/customers/{client_id}/deduct", dependencies=[Depends(deps.require_admin)])
+def deduct_customer_points(client_id: str, payload: CustomerDeductPayload):
+    return customer_service.deduct_customer_points_payload(client_id, payload)
+
+
+@router.get("/api/deduct-reasons", dependencies=[Depends(deps.require_admin)])
+def get_deduct_reasons():
+    from backend.core import points as points_core
+
+    return {
+        "reasons": [
+            {"code": code, "uz": labels["uz"], "ru": labels["ru"]}
+            for code, labels in points_core.DEDUCT_REASONS.items()
+        ]
+    }
 
 
 @router.post("/api/customers/{client_id}/device-token")

@@ -10,7 +10,13 @@ from backend.core import customers as customer_core
 from backend.core import points as points_core
 from backend.core.catalog import QrScanError
 from backend.db import bonus_db
-from backend.models.schemas import BonusCreatePayload, CustomerUpsertPayload, DeviceTokenPayload, QrScanPayload
+from backend.models.schemas import (
+    BonusCreatePayload,
+    CustomerDeductPayload,
+    CustomerUpsertPayload,
+    DeviceTokenPayload,
+    QrScanPayload,
+)
 
 
 def get_clients_payload(*, offset: int, limit: int, refresh: bool):
@@ -214,4 +220,92 @@ def create_customer_qr_points_payload(client_id: str, payload: QrScanPayload, cu
         "quantity": int(result["quantity"]),
         "product": result["product"],
         "customer": result["customer"],
+    }
+
+
+def deduct_customer_points_payload(client_id: str, payload: CustomerDeductPayload):
+    from backend.core import transactions as transaction_core
+    from backend.integrations.firebase_push import send_push_notification
+
+    if payload.reason_code not in points_core.DEDUCT_REASONS:
+        return JSONResponse(
+            {"error": f"Noma'lum sabab: {payload.reason_code}", "code": "unknown_reason"},
+            status_code=400,
+        )
+
+    amount = int(payload.points)
+    connection = bonus_db()
+    try:
+        balance = transaction_core._get_client_points_balance(connection, str(client_id))
+        # Points already promised to pending gift requests are not the
+        # operator's to take — the customer is still owed that gift.
+        reserved = transaction_core._get_client_reserved_points(connection, str(client_id))
+    finally:
+        connection.close()
+    available = balance - reserved
+
+    if amount > available and not payload.force:
+        return JSONResponse(
+            {
+                "error": (
+                    f"Yechib bo'lmaydi: mavjud {available} ball "
+                    f"(balans {balance}, so'rovlarda band {reserved}), yechmoqchi {amount} ball"
+                ),
+                "code": "insufficient_points",
+                "available": available,
+                "balance": balance,
+                "reserved": reserved,
+                "requested": amount,
+            },
+            status_code=400,
+        )
+
+    snapshot = customer_core._load_customer_snapshot(str(client_id))
+    client_name = (payload.full_name or "").strip() or (snapshot or {}).get("fullName", "") or str(client_id)
+
+    new_balance = points_core._create_manual_debit(
+        client_id=str(client_id),
+        client_name=client_name,
+        points=amount,
+        reason_code=payload.reason_code,
+        note=payload.note,
+    )
+
+    operator = ADMIN_USERNAME or "Admin"
+    connection = bonus_db()
+    try:
+        legacy._audit_log(
+            connection,
+            action="bonus_deduct",
+            entity="customer",
+            entity_id=str(client_id),
+            description=(
+                f"Deducted {amount} points ({payload.reason_code}): {payload.note.strip()}"
+                + (f" | FORCED over available {available}" if amount > available else "")
+            ),
+            actor=operator,
+        )
+        connection.commit()
+    finally:
+        connection.close()
+    dashboard_core._invalidate_dashboard_cache()
+
+    if payload.notify:
+        try:
+            send_push_notification(
+                str(client_id),
+                "Ballaringiz o'zgardi",
+                f"-{amount:,} ball. {points_core._deduct_reason_label(payload.reason_code)}: "
+                f"{payload.note.strip()} Balans: {new_balance:,} ball".replace(",", " "),
+            )
+        except Exception as exc:  # a failed push must not undo a recorded deduction
+            legacy.logger.warning("Deduct push failed for %s: %s", client_id, exc)
+
+    return {
+        "message": "Points deducted",
+        "clientId": str(client_id),
+        "deducted": amount,
+        "balance": new_balance,
+        "forced": amount > available,
+        "client": customer_core._load_customer_snapshot(str(client_id)),
     }
