@@ -160,6 +160,18 @@ const CustomersView: React.FC<CustomersViewProps> = ({ lang, onOpenReconciliatio
   const [bonusNote, setBonusNote] = useState('');
   const [bonusError, setBonusError] = useState<string | null>(null);
   const [isSubmittingBonus, setIsSubmittingBonus] = useState(false);
+  // The same modal both credits and debits; a debit additionally needs a reason,
+  // and may need an explicit override when it exceeds what the customer can spend.
+  const [bonusMode, setBonusMode] = useState<'add' | 'deduct'>('add');
+  const [deductReason, setDeductReason] = useState('');
+  const [deductNotify, setDeductNotify] = useState(true);
+  const [deductForce, setDeductForce] = useState(false);
+  const [deductReasons, setDeductReasons] = useState<{ code: string; uz: string }[]>([]);
+  // Set from the server's rejection so the operator sees exactly what is
+  // spendable before deciding to override.
+  const [deductLimits, setDeductLimits] = useState<
+    { available: number; balance: number; reserved: number } | null
+  >(null);
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
   const [isEditingCustomer, setIsEditingCustomer] = useState(false);
   const [customerForm, setCustomerForm] = useState<CustomerFormState>({ fullName: '', phone: '', status: 'active' });
@@ -409,12 +421,30 @@ const CustomersView: React.FC<CustomersViewProps> = ({ lang, onOpenReconciliatio
     URL.revokeObjectURL(url);
   };
 
-  const handleOpenBonusModal = (customer: Customer) => {
-    setSelectedCustomer(customer);
+  const resetBonusForm = () => {
     setBonusPoints('');
     setBonusNote('');
     setBonusError(null);
+    setDeductReason('');
+    setDeductNotify(true);
+    setDeductForce(false);
+    setDeductLimits(null);
+  };
+
+  const handleOpenBonusModal = (customer: Customer) => {
+    setSelectedCustomer(customer);
+    setBonusMode('add');
+    resetBonusForm();
     setIsBonusModalOpen(true);
+    // The reason list lives in the backend so both sides cannot drift apart.
+    if (deductReasons.length === 0) {
+      void fetch(`${API_BASE_URL}/api/deduct-reasons`)
+        .then((response) => (response.ok ? response.json() : null))
+        .then((payload) => {
+          if (payload?.reasons) setDeductReasons(payload.reasons);
+        })
+        .catch(() => undefined);
+    }
   };
 
   const handleCloseBonusModal = () => {
@@ -422,9 +452,83 @@ const CustomersView: React.FC<CustomersViewProps> = ({ lang, onOpenReconciliatio
       return;
     }
     setIsBonusModalOpen(false);
-    setBonusPoints('');
-    setBonusNote('');
+    resetBonusForm();
+  };
+
+  const handleSwitchBonusMode = (mode: 'add' | 'deduct') => {
+    setBonusMode(mode);
     setBonusError(null);
+    setDeductForce(false);
+    setDeductLimits(null);
+  };
+
+  const handleSubmitDeduct = async () => {
+    if (!selectedCustomer) {
+      return;
+    }
+
+    const parsedPoints = Number(bonusPoints);
+    if (!Number.isInteger(parsedPoints) || parsedPoints <= 0) {
+      setBonusError('Yechiladigan ballni musbat butun son sifatida kiriting.');
+      return;
+    }
+    if (!deductReason) {
+      setBonusError('Sababni tanlang.');
+      return;
+    }
+    if (bonusNote.trim().length < 3) {
+      setBonusError('Izoh majburiy — kamida 3 ta belgi yozing.');
+      return;
+    }
+
+    setIsSubmittingBonus(true);
+    setBonusError(null);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/customers/${selectedCustomer.id}/deduct`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          points: parsedPoints,
+          reason_code: deductReason,
+          note: bonusNote.trim(),
+          full_name: selectedCustomer.fullName,
+          force: deductForce,
+          notify: deductNotify,
+        }),
+      });
+
+      const payload = await response.json();
+      if (!response.ok) {
+        // An "insufficient" rejection is recoverable: show the real figures and
+        // reveal the override rather than making the operator guess.
+        if (payload?.code === 'insufficient_points') {
+          setDeductLimits({
+            available: Number(payload.available ?? 0),
+            balance: Number(payload.balance ?? 0),
+            reserved: Number(payload.reserved ?? 0),
+          });
+        }
+        throw new Error(payload?.error || 'Ballarni yechib bo\'lmadi');
+      }
+
+      const updatedCustomer = payload.client as Customer | null;
+      if (updatedCustomer) {
+        const nextCustomers = customers.map((customer) => (
+          customer.id === updatedCustomer.id ? updatedCustomer : customer
+        ));
+        setCustomers(nextCustomers);
+        persistCustomersCache(nextCustomers);
+        setSelectedCustomer(updatedCustomer);
+      }
+      clearApiCache(API_CACHE_KEYS.customerPoints);
+      setIsBonusModalOpen(false);
+      resetBonusForm();
+    } catch (error) {
+      setBonusError(error instanceof Error ? error.message : 'Ballarni yechib bo\'lmadi');
+    } finally {
+      setIsSubmittingBonus(false);
+    }
   };
 
   const handleSubmitBonus = async () => {
@@ -1278,6 +1382,9 @@ const CustomersView: React.FC<CustomersViewProps> = ({ lang, onOpenReconciliatio
               <div>
                 <h3 className="text-lg font-bold text-slate-800">{t.points}</h3>
                 <p className="mt-1 text-sm text-slate-500">{selectedCustomer.fullName}</p>
+                <p className="mt-0.5 text-xs font-semibold text-slate-400">
+                  {t.current_balance}: {selectedCustomer.totalPoints.toLocaleString()}
+                </p>
               </div>
               <button
                 onClick={handleCloseBonusModal}
@@ -1285,6 +1392,26 @@ const CustomersView: React.FC<CustomersViewProps> = ({ lang, onOpenReconciliatio
               >
                 <X className="h-4 w-4" />
               </button>
+            </div>
+
+            <div className="mt-5 flex rounded-2xl border border-slate-100 bg-slate-50 p-1">
+              {(['add', 'deduct'] as const).map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => handleSwitchBonusMode(mode)}
+                  disabled={isSubmittingBonus}
+                  className={`flex-1 rounded-xl px-4 py-2 text-sm font-bold transition-all disabled:opacity-50 ${
+                    bonusMode === mode
+                      ? mode === 'add'
+                        ? 'bg-white text-cyan-600 shadow-sm'
+                        : 'bg-white text-rose-600 shadow-sm'
+                      : 'text-slate-400 hover:text-slate-600'
+                  }`}
+                >
+                  {mode === 'add' ? t.mode_add_points : t.mode_deduct_points}
+                </button>
+              ))}
             </div>
 
             <div className="mt-6 space-y-4">
@@ -1302,18 +1429,78 @@ const CustomersView: React.FC<CustomersViewProps> = ({ lang, onOpenReconciliatio
                 />
               </div>
 
+              {bonusMode === 'deduct' && (
+                <div>
+                  <label className="mb-2 block text-xs font-bold uppercase tracking-widest text-slate-400">
+                    {t.deduct_reason}
+                  </label>
+                  <select
+                    value={deductReason}
+                    onChange={(e) => setDeductReason(e.target.value)}
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition-all focus:border-rose-300 focus:bg-white"
+                  >
+                    <option value="">{t.deduct_reason_placeholder}</option>
+                    {deductReasons.map((reason) => (
+                      <option key={reason.code} value={reason.code}>{reason.uz}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               <div>
                 <label className="mb-2 block text-xs font-bold uppercase tracking-widest text-slate-400">
-                  Note
+                  {bonusMode === 'deduct' ? t.deduct_note_label : 'Note'}
                 </label>
                 <textarea
                   value={bonusNote}
                   onChange={(e) => setBonusNote(e.target.value)}
                   rows={3}
-                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition-all focus:border-cyan-300 focus:bg-white"
-                  placeholder="Manual bonus adjustment"
+                  className={`w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition-all focus:bg-white ${
+                    bonusMode === 'deduct' ? 'focus:border-rose-300' : 'focus:border-cyan-300'
+                  }`}
+                  placeholder={bonusMode === 'deduct' ? t.deduct_note_placeholder : 'Manual bonus adjustment'}
                 />
               </div>
+
+              {bonusMode === 'deduct' && (
+                <label className="flex items-center gap-3 rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
+                  <input
+                    type="checkbox"
+                    checked={deductNotify}
+                    onChange={(e) => setDeductNotify(e.target.checked)}
+                    className="h-4 w-4 rounded border-slate-300 accent-cyan-600"
+                  />
+                  <span className="text-sm font-medium text-slate-600">{t.deduct_notify}</span>
+                </label>
+              )}
+
+              {bonusMode === 'deduct' && deductLimits && (
+                <div className="space-y-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
+                  <div className="grid grid-cols-3 gap-2 text-center">
+                    <div>
+                      <p className="text-[10px] font-bold uppercase text-amber-500">{t.current_balance}</p>
+                      <p className="text-sm font-black text-amber-800">{deductLimits.balance.toLocaleString()}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-bold uppercase text-amber-500">{t.reserved_points}</p>
+                      <p className="text-sm font-black text-amber-800">{deductLimits.reserved.toLocaleString()}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-bold uppercase text-amber-500">{t.available_points}</p>
+                      <p className="text-sm font-black text-amber-800">{deductLimits.available.toLocaleString()}</p>
+                    </div>
+                  </div>
+                  <label className="flex items-center gap-3 border-t border-amber-200 pt-3">
+                    <input
+                      type="checkbox"
+                      checked={deductForce}
+                      onChange={(e) => setDeductForce(e.target.checked)}
+                      className="h-4 w-4 rounded border-amber-300 accent-rose-600"
+                    />
+                    <span className="text-sm font-bold text-rose-700">{t.deduct_force}</span>
+                  </label>
+                </div>
+              )}
 
               {bonusError && (
                 <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-600">
@@ -1331,11 +1518,17 @@ const CustomersView: React.FC<CustomersViewProps> = ({ lang, onOpenReconciliatio
                 {t.cancel}
               </button>
               <button
-                onClick={() => void handleSubmitBonus()}
+                onClick={() => void (bonusMode === 'deduct' ? handleSubmitDeduct() : handleSubmitBonus())}
                 disabled={isSubmittingBonus}
-                className="rounded-2xl bg-cyan-600 px-4 py-2 text-sm font-semibold text-white transition-all hover:bg-cyan-700 disabled:opacity-50"
+                className={`rounded-2xl px-4 py-2 text-sm font-semibold text-white transition-all disabled:opacity-50 ${
+                  bonusMode === 'deduct' ? 'bg-rose-600 hover:bg-rose-700' : 'bg-cyan-600 hover:bg-cyan-700'
+                }`}
               >
-                {isSubmittingBonus ? t.loading : t.confirm_add_points}
+                {isSubmittingBonus
+                  ? t.loading
+                  : bonusMode === 'deduct'
+                    ? t.confirm_deduct_points
+                    : t.confirm_add_points}
               </button>
             </div>
           </div>
