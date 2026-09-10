@@ -749,7 +749,12 @@ const RequestsView: React.FC<RequestsViewProps> = ({ lang, initialSelectedId }) 
   const tabs: (RequestStatus | 'All')[] = ['All', 'Pending', 'Approved', 'Rejected', 'Shipped', 'Completed'];
 
   return (
-    <div className="h-full flex flex-col gap-6 animate-in fade-in duration-300">
+    // No h-full here: the page body is scrolled by the shell's
+    // `flex-1 overflow-y-auto` wrapper in App.tsx. Pinning this to the full
+    // height made the content exactly as tall as its scroll container, so the
+    // wrapper never saw any overflow and the table's lower rows were
+    // unreachable. Letting it grow to its natural height restores scrolling.
+    <div className="flex flex-col gap-6 animate-in fade-in duration-300">
       {loadError && (
         <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-600">
           {loadError}

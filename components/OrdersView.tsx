@@ -287,7 +287,8 @@ const OrdersView: React.FC<OrdersViewProps> = ({ lang, initialSelectedId }) => {
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-300 relative h-full flex flex-col">
+    // Same as RequestsView: h-full would cancel the shell's page scroll.
+    <div className="space-y-6 animate-in fade-in duration-300 relative">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold text-slate-800">{t.bonus_issuance}</h2>
