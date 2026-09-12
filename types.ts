@@ -96,7 +96,20 @@ export interface ReconciliationRow {
   date: string;
   documentName: string;
   documentId: string;
-  type: 'Order' | 'Accrual' | 'Gift' | 'Adjustment';
+  // Mirrors RECONCILIATION_TYPES in backend/core/customers.py. `type` drives
+  // colours and drill-down links; `typeLabel` is the printed wording.
+  type:
+    | 'Order'
+    | 'Accrual'
+    | 'Deduction'
+    | 'Gift'
+    | 'GiftReversal'
+    | 'QrScan'
+    | 'QrUnscan'
+    | 'Reversal'
+    | 'Adjustment';
+  typeLabel?: string;
+  sourceType?: string;
   earned: number; // DT
   spent: number;  // KT
   balanceAfter: number;

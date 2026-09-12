@@ -27,7 +27,9 @@ interface ReconciliationApiResponse {
   customer: {
     id: string;
     fullName: string;
+    phone?: string;
   };
+  period?: { startDate: string; endDate: string };
   rows: ReconciliationRow[];
   summary: {
     openingBalance: number;
@@ -36,6 +38,7 @@ interface ReconciliationApiResponse {
     spent: number;
     orders: number;
     gifts: number;
+    byType?: { type: string; label: string; count: number; earned: number; spent: number }[];
   };
 }
 
@@ -101,8 +104,78 @@ const ReconciliationView: React.FC<ReconciliationViewProps> = ({ lang, customerI
     payload?.customer ?? { id: customerId, fullName: customerId }
   ), [payload, customerId]);
 
+  // Excel opens CSV directly; the BOM keeps Cyrillic and o'/g' readable there,
+  // and ";" is the separator Excel expects under a ru/uz locale.
+  const downloadCsv = () => {
+    const cell = (value: string | number) => {
+      const text = String(value ?? '');
+      return /[";\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+    };
+    const lines = [
+      [t.reconciliation_act],
+      [t.client, customer.fullName],
+      ['ID', customer.id],
+      [t.phone_number, customer.phone || '-'],
+      [t.filter_period, `${startDate} - ${endDate}`],
+      [t.generated_at, new Date().toLocaleString()],
+      [],
+      [t.opening_balance, summary.openingBalance],
+      [],
+      [t.date, t.document, t.type, t.earned_dt, t.spent_kt, t.balance],
+      ...reconciliationData.map((row) => [
+        row.date, row.documentName, row.typeLabel || row.type, row.earned, row.spent, row.balanceAfter,
+      ]),
+      [],
+      [t.total_earned_period, summary.earned],
+      [t.total_spent_period, summary.spent],
+      [t.closing_balance, summary.closingBalance],
+    ];
+    const csv = '\uFEFF' + lines.map((line) => line.map(cell).join(';')).join('\n');
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `akt-sverka-${customer.id}-${startDate}_${endDate}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    // Chrome cancels the download if the blob URL dies too soon.
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  };
+
   return (
-    <div className="max-w-6xl mx-auto space-y-8 animate-in fade-in duration-500">
+    <div className="max-w-6xl mx-auto space-y-8 animate-in fade-in duration-500 print-act">
+      {/* Turn the screen layout into something that survives A4: drop the app
+          chrome, flatten cards, and keep the ledger readable in black on white. */}
+      <style>{`
+        @media print {
+          @page { size: A4 portrait; margin: 14mm; }
+          body { background: #fff !important; }
+          body * { visibility: hidden; }
+          .print-act, .print-act * { visibility: visible; }
+          .print-act { position: absolute; inset: 0; margin: 0; max-width: none; }
+          .no-print { display: none !important; }
+          .print-only { display: block !important; }
+          .print-act .shadow-sm, .print-act .shadow-md, .print-act .shadow-lg { box-shadow: none !important; }
+          .print-act [class*="rounded-["] { border-radius: 8px !important; }
+          .print-act table { font-size: 10px; }
+          .print-act th, .print-act td { padding: 5px 8px !important; }
+          .print-act tr { break-inside: avoid; }
+          thead { display: table-header-group; }
+        }
+        .print-only { display: none; }
+      `}</style>
+
+      <div className="print-only mb-6 border-b-2 border-slate-800 pb-4">
+        <h1 className="text-xl font-black uppercase tracking-wide">{t.reconciliation_act}</h1>
+        <p className="mt-2 text-sm">
+          <b>{t.client}:</b> {customer.fullName} &nbsp;·&nbsp; <b>ID:</b> {customer.id}
+          {customer.phone ? <> &nbsp;·&nbsp; <b>{t.phone_number}:</b> {customer.phone}</> : null}
+        </p>
+        <p className="text-sm">
+          <b>{t.filter_period}:</b> {startDate} — {endDate} &nbsp;·&nbsp;
+          <b>{t.generated_at}:</b> {new Date().toLocaleString()}
+        </p>
+      </div>
       {loadError && (
         <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-600">
           {loadError}
@@ -131,11 +204,19 @@ const ReconciliationView: React.FC<ReconciliationViewProps> = ({ lang, customerI
         </div>
 
         <div className="flex items-center gap-3">
-          <button className="flex items-center gap-2 px-5 py-3 bg-white border border-slate-200 text-slate-600 font-bold text-sm rounded-2xl hover:bg-slate-50 transition-all">
+          <button
+            onClick={() => window.print()}
+            disabled={isLoading}
+            className="no-print flex items-center gap-2 px-5 py-3 bg-white border border-slate-200 text-slate-600 font-bold text-sm rounded-2xl hover:bg-slate-50 transition-all disabled:opacity-50"
+          >
             <Printer className="w-4 h-4" /> {t.print}
           </button>
-          <button className="flex items-center gap-2 px-5 py-3 bg-cyan-600 text-white font-bold text-sm rounded-2xl shadow-lg shadow-cyan-600/20 hover:bg-cyan-700 transition-all">
-            <Download className="w-4 h-4" /> {t.export_pdf}
+          <button
+            onClick={downloadCsv}
+            disabled={isLoading || reconciliationData.length === 0}
+            className="no-print flex items-center gap-2 px-5 py-3 bg-cyan-600 text-white font-bold text-sm rounded-2xl shadow-lg shadow-cyan-600/20 hover:bg-cyan-700 transition-all disabled:opacity-50"
+          >
+            <Download className="w-4 h-4" /> {t.export_excel}
           </button>
         </div>
       </div>
@@ -187,6 +268,30 @@ const ReconciliationView: React.FC<ReconciliationViewProps> = ({ lang, customerI
           ))}
         </div>
       </div>
+
+      {(summary.byType?.length ?? 0) > 0 && (
+        <div className="bg-white rounded-[40px] border border-slate-100 shadow-sm p-8">
+          <h3 className="mb-5 text-sm font-black uppercase tracking-widest text-slate-800">
+            {t.type}
+          </h3>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {summary.byType!.map((bucket) => (
+              <div key={bucket.type} className="rounded-2xl border border-slate-100 bg-slate-50/60 px-4 py-3">
+                <p className="text-xs font-bold text-slate-500">{bucket.label}</p>
+                <p className="mt-1 flex items-baseline gap-2">
+                  {bucket.earned > 0 && (
+                    <span className="text-lg font-black text-emerald-600">+{bucket.earned.toLocaleString()}</span>
+                  )}
+                  {bucket.spent > 0 && (
+                    <span className="text-lg font-black text-rose-600">-{bucket.spent.toLocaleString()}</span>
+                  )}
+                  <span className="text-[11px] font-semibold text-slate-400">{bucket.count} ta</span>
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="bg-white rounded-[40px] border border-slate-100 shadow-sm overflow-hidden">
         <div className="overflow-x-auto custom-scrollbar">
@@ -259,7 +364,7 @@ const ReconciliationView: React.FC<ReconciliationViewProps> = ({ lang, customerI
                               ? 'bg-cyan-50 text-cyan-600 border-cyan-100'
                               : 'bg-slate-50 text-slate-600 border-slate-100'
                       }`}>
-                        {row.type === 'Order' ? t.confirmed : row.type === 'Gift' ? t.redeem : row.type}
+                        {row.typeLabel || row.type}
                       </span>
                     </td>
                     <td className="px-8 py-5 text-right font-bold text-emerald-600 text-sm">
@@ -325,6 +430,17 @@ const ReconciliationView: React.FC<ReconciliationViewProps> = ({ lang, customerI
           <p className="text-2xl font-black text-cyan-400">{summary.closingBalance.toLocaleString()}</p>
         </div>
       </div>
+    <div className="print-only mt-10 grid grid-cols-2 gap-16 text-sm">
+        <div>
+          <p className="mb-10 font-bold">{t.supplier}: IRIZON</p>
+          <p className="border-t border-slate-800 pt-1">{t.signature_stamp}</p>
+        </div>
+        <div>
+          <p className="mb-10 font-bold">{t.client}: {customer.fullName}</p>
+          <p className="border-t border-slate-800 pt-1">{t.signature_stamp}</p>
+        </div>
+      </div>
+
     </div>
   );
 };
