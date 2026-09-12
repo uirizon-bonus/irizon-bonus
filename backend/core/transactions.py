@@ -10,6 +10,7 @@ from backend.core import customers as customer_core
 from backend.core import points as points_core
 from backend.db import bonus_db
 from backend.config import ADMIN_USERNAME
+from backend.core import admin_users
 from backend.models.schemas import (
     MarketOrderCreatePayload,
     MarketOrderStatusPayload,
@@ -627,7 +628,7 @@ def _load_orders(*, offset: int = 0, limit: int = 100, search: str = "", status:
                     "customerName": str(row["client_name"]),
                     "totalPoints": points,
                     "itemsCount": 1,
-                    "createdBy": ADMIN_USERNAME or "Admin",
+                    "createdBy": admin_users.current_actor(),
                     "status": "Reversed" if is_reversed else "Confirmed",
                     "items": [
                         {
@@ -692,7 +693,7 @@ def _serialize_manual_bonus_order(row: Any, *, is_reversed: bool, reversal_reaso
         "customerName": str(row["client_name"]),
         "totalPoints": points,
         "itemsCount": 1,
-        "createdBy": ADMIN_USERNAME or "Admin",
+        "createdBy": admin_users.current_actor(),
         "status": "Reversed" if is_reversed else "Confirmed",
         "items": [
             {

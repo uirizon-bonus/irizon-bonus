@@ -3,15 +3,30 @@ from datetime import datetime
 
 from fastapi import Header, HTTPException
 
-from backend.config import ADMIN_API_KEY
+from backend.config import ADMIN_API_KEY, ADMIN_USERNAME
+from backend.core import admin_users
 from backend.db import bonus_db
 
 
-def require_admin(x_admin_key: str = Header(alias="x-admin-key", default="")) -> None:
-    if not ADMIN_API_KEY:
-        raise HTTPException(status_code=500, detail="ADMIN_API_KEY is not configured on the server")
-    if not hmac.compare_digest(x_admin_key, ADMIN_API_KEY):
-        raise HTTPException(status_code=401, detail="Invalid admin key")
+async def require_admin(x_admin_key: str = Header(alias="x-admin-key", default="")) -> str:
+    """Authenticate an admin request and return who is making it.
+
+    Two kinds of value arrive in this header: a per-user session token issued by
+    /api/admin/login, and the legacy shared ADMIN_API_KEY. The shared key is kept
+    working so scripts and any still-open tab do not break, but it cannot name a
+    person — it is attributed to the configured ADMIN_USERNAME.
+
+    Declared async on purpose: FastAPI runs sync dependencies in a worker thread,
+    and a ContextVar set there would not be visible to the endpoint. Running in
+    the request's own task means the actor set here reaches the service layer.
+    """
+    actor = admin_users.resolve_session(x_admin_key)
+    if actor is None:
+        if not ADMIN_API_KEY or not hmac.compare_digest(x_admin_key, ADMIN_API_KEY):
+            raise HTTPException(status_code=401, detail="Invalid admin key")
+        actor = ADMIN_USERNAME or "Admin"
+    admin_users.set_current_actor(actor)
+    return actor
 
 
 def require_customer(authorization: str = Header(default="")) -> str:
@@ -43,8 +58,14 @@ def require_admin_or_customer(
     authorization: str = Header(default=""),
     x_admin_key: str = Header(alias="x-admin-key", default=""),
 ) -> None:
-    if x_admin_key and ADMIN_API_KEY and hmac.compare_digest(x_admin_key, ADMIN_API_KEY):
-        return
+    if x_admin_key:
+        actor = admin_users.resolve_session(x_admin_key)
+        if actor is not None:
+            admin_users.set_current_actor(actor)
+            return
+        if ADMIN_API_KEY and hmac.compare_digest(x_admin_key, ADMIN_API_KEY):
+            admin_users.set_current_actor(ADMIN_USERNAME or "Admin")
+            return
     token = authorization.removeprefix("Bearer ").strip()
     if token:
         connection = bonus_db()

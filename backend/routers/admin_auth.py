@@ -4,9 +4,11 @@ from collections import defaultdict
 from threading import Lock
 from typing import Dict, List
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 from backend.config import ADMIN_API_KEY, ADMIN_PASSWORD, ADMIN_USERNAME
+from backend import deps
+from backend.core import admin_users
 from backend.models.schemas import AdminLoginPayload
 
 
@@ -54,21 +56,41 @@ def _clear_failures(ip: str) -> None:
 
 @router.post("/api/admin/login")
 def admin_login(payload: AdminLoginPayload, request: Request):
-    if not ADMIN_USERNAME or not ADMIN_PASSWORD or not ADMIN_API_KEY:
-        raise HTTPException(status_code=500, detail="Admin login is not configured on the server")
-
     ip = _client_ip(request)
     now = time.time()
     if _recent_failures(ip, now) >= _MAX_FAILS:
         raise HTTPException(status_code=429, detail="Juda ko‘p urinish. 15 daqiqadan so‘ng qayta urinib ko‘ring.")
 
-    # Compare both fields (constant-time) before combining so failure timing
-    # does not reveal which field was wrong.
-    username_ok = hmac.compare_digest(payload.username.strip(), ADMIN_USERNAME)
-    password_ok = hmac.compare_digest(payload.password, ADMIN_PASSWORD)
-    if not (username_ok and password_ok):
-        _record_failure(ip, now)
-        raise HTTPException(status_code=401, detail="Login yoki parol noto‘g‘ri")
+    # Real accounts first; each gets its own session token so the audit trail can
+    # name the person behind every change.
+    account = admin_users.authenticate(payload.username, payload.password)
+    if account is not None:
+        _clear_failures(ip)
+        token = admin_users.create_session(account["username"], ip)
+        return {"token": token, "username": account["username"], "fullName": account["fullName"]}
 
-    _clear_failures(ip)
-    return {"token": ADMIN_API_KEY}
+    # Fallback to the single env-configured admin, so the panel keeps working on
+    # a deployment where no accounts have been created yet.
+    if ADMIN_USERNAME and ADMIN_PASSWORD and ADMIN_API_KEY:
+        # Compare both fields (constant-time) before combining so failure timing
+        # does not reveal which field was wrong.
+        username_ok = hmac.compare_digest(payload.username.strip(), ADMIN_USERNAME)
+        password_ok = hmac.compare_digest(payload.password, ADMIN_PASSWORD)
+        if username_ok and password_ok:
+            _clear_failures(ip)
+            admin_users.ensure_env_admin(ADMIN_USERNAME, ADMIN_PASSWORD)
+            token = admin_users.create_session(ADMIN_USERNAME.strip().lower(), ip)
+            return {"token": token, "username": ADMIN_USERNAME, "fullName": ADMIN_USERNAME}
+
+    _record_failure(ip, now)
+    raise HTTPException(status_code=401, detail="Login yoki parol noto‘g‘ri")
+
+
+@router.get("/api/admin/me")
+def admin_me(actor: str = Depends(deps.require_admin)):
+    return {"username": actor}
+
+
+@router.get("/api/admin/users", dependencies=[Depends(deps.require_admin)])
+def admin_users_list():
+    return {"users": admin_users.list_users()}

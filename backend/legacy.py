@@ -542,6 +542,32 @@ def _init_bonus_db() -> None:
         )
         connection.execute(
             f"""
+            CREATE TABLE IF NOT EXISTS admin_users (
+                username TEXT PRIMARY KEY,
+                full_name TEXT NOT NULL DEFAULT '',
+                password_hash TEXT NOT NULL,
+                is_active INTEGER NOT NULL DEFAULT 1,
+                created_at {timestamp_column},
+                last_login_at TEXT NOT NULL DEFAULT ''
+            )
+            """
+        )
+        connection.execute(
+            f"""
+            CREATE TABLE IF NOT EXISTS admin_sessions (
+                token TEXT PRIMARY KEY,
+                username TEXT NOT NULL,
+                expires_at TEXT NOT NULL,
+                created_ip TEXT NOT NULL DEFAULT '',
+                created_at {timestamp_column}
+            )
+            """
+        )
+        connection.execute(
+            "CREATE INDEX IF NOT EXISTS idx_admin_sessions_username ON admin_sessions (username)"
+        )
+        connection.execute(
+            f"""
             CREATE TABLE IF NOT EXISTS device_tokens (
                 id {id_column},
                 customer_id TEXT NOT NULL,

@@ -5,6 +5,7 @@ from fastapi.responses import JSONResponse
 
 from backend import legacy
 from backend.config import MANUAL_BONUS_MAX, ADMIN_USERNAME
+from backend.core import admin_users
 from backend.core import dashboard as dashboard_core
 from backend.core import customers as customer_core
 from backend.core import points as points_core
@@ -120,7 +121,7 @@ def create_customer_bonus_payload(client_id: str, payload: BonusCreatePayload):
             {"error": f"Bir martalik bonus {MANUAL_BONUS_MAX:,} balldan oshmasligi kerak"},
             status_code=400,
         )
-    operator = ADMIN_USERNAME or "Admin"
+    operator = admin_users.current_actor()
     points_core._create_bonus_transaction(
         client_id=str(client_id),
         client_name=payload.full_name.strip(),
@@ -277,7 +278,7 @@ def deduct_customer_points_payload(client_id: str, payload: CustomerDeductPayloa
         note=payload.note,
     )
 
-    operator = ADMIN_USERNAME or "Admin"
+    operator = admin_users.current_actor()
     connection = bonus_db()
     try:
         legacy._audit_log(
