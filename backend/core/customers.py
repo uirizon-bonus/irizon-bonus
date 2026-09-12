@@ -1234,6 +1234,22 @@ def _verify_otp(phone: str, otp: str) -> Dict[str, Any]:
     return customer
 
 
+# How a ledger row is presented on the reconciliation statement. The code drives
+# colour and drill-down links in the admin panel; the label is what gets printed.
+# Anything unmapped falls back to "Tuzatish" so a new source_type shows up as an
+# adjustment rather than silently claiming to be something it is not.
+RECONCILIATION_TYPES: Dict[str, Tuple[str, str]] = {
+    "qr_scan": ("QrScan", "QR skan"),
+    "qr_unscan": ("QrUnscan", "QR bekor qilindi"),
+    "manual": ("Accrual", "Qo'lda qo'shildi"),
+    "manual_debit": ("Deduction", "Qo'lda yechildi"),
+    "manual_reversal": ("Reversal", "Bekor qilindi"),
+    "request": ("Gift", "Sovg'a"),
+    "request_reversal": ("GiftReversal", "Sovg'a qaytarildi"),
+    "order": ("Order", "Buyurtma"),
+}
+
+
 def _load_reconciliation(client_id: str, start_date: str, end_date: str) -> Dict[str, Any]:
     client = _get_cached_client_by_id(client_id)
     # The detailed rows come from the database; we keep the logic here to preserve the existing response shape.
@@ -1264,18 +1280,12 @@ def _load_reconciliation(client_id: str, start_date: str, end_date: str) -> Dict
         note = str(row["note"] or "")
         date_value = str(row["created_at"] or "")
 
+        row_type, type_label = RECONCILIATION_TYPES.get(
+            source_type, ("Adjustment", "Tuzatish")
+        )
+        document_name = note or source_ref or f"{type_label} TX-{row['id']}"
         if source_type == "order":
-            row_type = "Order"
-            document_name = source_ref or note or f"Order TX-{row['id']}"
-        elif source_type == "request":
-            row_type = "Gift"
-            document_name = note or source_ref or f"Request TX-{row['id']}"
-        elif source_type == "manual":
-            row_type = "Accrual"
-            document_name = note or f"Manual bonus TX-{row['id']}"
-        else:
-            row_type = "Adjustment"
-            document_name = note or source_ref or f"Adjustment TX-{row['id']}"
+            document_name = source_ref or note or f"Buyurtma TX-{row['id']}"
 
         earned = points if points > 0 else 0
         spent = abs(points) if points < 0 else 0
@@ -1288,6 +1298,8 @@ def _load_reconciliation(client_id: str, start_date: str, end_date: str) -> Dict
                 "documentName": document_name,
                 "documentId": source_ref or f"TX-{row['id']}",
                 "type": row_type,
+                "typeLabel": type_label,
+                "sourceType": source_type,
                 "earned": earned,
                 "spent": spent,
                 "balanceAfter": running_balance,
@@ -1309,11 +1321,25 @@ def _load_reconciliation(client_id: str, start_date: str, end_date: str) -> Dict
     total_earned = sum(int(row["earned"]) for row in filtered_rows)
     total_spent = sum(int(row["spent"]) for row in filtered_rows)
 
+    # Where the movement came from, so the statement can show "QR skandan 12 400,
+    # qo'lda 5 000, sovg'aga -3 200" instead of one opaque earned/spent pair.
+    by_type: Dict[str, Dict[str, Any]] = {}
+    for row in filtered_rows:
+        bucket = by_type.setdefault(
+            row["type"],
+            {"type": row["type"], "label": row["typeLabel"], "count": 0, "earned": 0, "spent": 0},
+        )
+        bucket["count"] += 1
+        bucket["earned"] += int(row["earned"])
+        bucket["spent"] += int(row["spent"])
+
     return {
         "customer": {
             "id": str(client_id),
             "fullName": client_name or str(client_id),
+            "phone": str(client.get("phone") or "") if client is not None else "",
         },
+        "period": {"startDate": start_date, "endDate": end_date},
         "rows": filtered_rows,
         "summary": {
             "openingBalance": opening_balance,
@@ -1322,6 +1348,7 @@ def _load_reconciliation(client_id: str, start_date: str, end_date: str) -> Dict
             "spent": total_spent,
             "orders": len([row for row in filtered_rows if row["type"] == "Order"]),
             "gifts": len([row for row in filtered_rows if row["type"] == "Gift"]),
+            "byType": sorted(by_type.values(), key=lambda b: -(b["earned"] + b["spent"])),
         },
     }
 

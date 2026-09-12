@@ -82,6 +82,15 @@ def create_customer_bonus(client_id: str, payload: BonusCreatePayload):
     return customer_service.create_customer_bonus_payload(client_id, payload)
 
 
+@router.get("/api/customers/{client_id}/reconciliation", dependencies=[Depends(deps.require_admin)])
+def get_customer_reconciliation(
+    client_id: str,
+    start_date: str = Query(..., max_length=10),
+    end_date: str = Query(..., max_length=10),
+):
+    return customer_service.customer_reconciliation_payload(client_id, start_date, end_date)
+
+
 @router.post("/api/customers/{client_id}/deduct", dependencies=[Depends(deps.require_admin)])
 def deduct_customer_points(client_id: str, payload: CustomerDeductPayload):
     return customer_service.deduct_customer_points_payload(client_id, payload)
