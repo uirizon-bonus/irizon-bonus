@@ -28,6 +28,7 @@ import ProductsView from './components/ProductsView';
 import RequestsView from './components/RequestsView';
 import OrdersView from './components/OrdersView';
 import ReconciliationView from './components/ReconciliationView';
+import ReconciliationSummaryView from './components/ReconciliationSummaryView';
 import AuditLogView from './components/AuditLogView';
 import UserPortal from './components/UserPortal';
 import QrScansView from './components/QrScansView';
@@ -169,6 +170,10 @@ const App: React.FC = () => {
       return;
     }
 
+    // Leaving a customer's statement (or landing on /reconciliation directly)
+    // must clear the id, otherwise the summary page keeps rendering the
+    // customer that was open last.
+    setReconciliationCustomerId(null);
     setActiveTab(pathToTab(pathname));
   }, [location.pathname, navigate, tabToPath, viewMode]);
 
@@ -223,7 +228,7 @@ const App: React.FC = () => {
           <ReconciliationView 
             lang={lang} 
             customerId={reconciliationCustomerId} 
-            onBack={() => navigate(tabToPath.customers)}
+            onBack={() => navigate(tabToPath.reconciliation)}
             onNavigate={(tab, id) => {
               setInitialSelectedId(id);
               if (tab === 'reconciliation' && id) {
@@ -233,7 +238,14 @@ const App: React.FC = () => {
               }
             }}
           />
-        ) : null;
+        ) : (
+          // No customer in the path: the page is the all-customers report, and
+          // picking a row drills into that customer's statement.
+          <ReconciliationSummaryView
+            lang={lang}
+            onOpenCustomer={(id) => navigate(`/reconciliation/${id}`)}
+          />
+        );
       case 'orders': return <OrdersView lang={lang} initialSelectedId={initialSelectedId} />;
       case 'points-market': return <PointsMarketView lang={lang} />;
       case 'gifts': return <GiftsView lang={lang} />;

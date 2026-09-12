@@ -15,7 +15,8 @@ import {
   Truck,
   ShoppingCart,
   RefreshCw,
-  BellRing
+  BellRing,
+  FileText
 } from 'lucide-react';
 import { Customer, Gift as GiftType, Product, RedemptionRequest, Activity, Order } from './types';
 
@@ -29,6 +30,7 @@ export const COLORS = {
 export const MENU_ITEMS = [
   { id: 'dashboard', label: { UZ: 'Boshqaruv paneli' }, icon: <LayoutDashboard className="w-5 h-5" />, path: '/' },
   { id: 'customers', label: { UZ: 'Mijozlar' }, icon: <Users className="w-5 h-5" />, path: '/customers' },
+  { id: 'reconciliation', label: { UZ: 'Akt-sverka' }, icon: <FileText className="w-5 h-5" />, path: '/reconciliation' },
   { id: 'orders', label: { UZ: 'Ballar buyurtmasi' }, icon: <ShoppingCart className="w-5 h-5" />, path: '/orders' },
   { id: 'gifts', label: { UZ: 'Sovg\'alar' }, icon: <Gift className="w-5 h-5" />, path: '/gifts' },
   { id: 'products', label: { UZ: 'Mahsulotlar' }, icon: <Package className="w-5 h-5" />, path: '/products' },
@@ -50,6 +52,7 @@ export const NAV_GROUPS = [
     title: { UZ: 'Mijozlarni boshqarish' },
     items: [
       { id: 'customers', label: { UZ: 'Mijozlar' }, icon: <Users className="w-5 h-5" /> },
+      { id: 'reconciliation', label: { UZ: 'Akt-sverka' }, icon: <FileText className="w-5 h-5" /> },
     ]
   },
   {
@@ -250,6 +253,10 @@ export const TRANSLATIONS = {
     mode_add_points: 'Ball qo\'shish',
     mode_deduct_points: 'Ball yechish',
     reconciliation_act: 'Akt-sverka',
+    all_customers: 'Barcha mijozlar bo\'yicha',
+    movements: 'Harakatlar',
+    search: 'Qidirish',
+    only_with_activity: 'Faqat harakat bo\'lganlar',
     client: 'Mijoz',
     phone_number: 'Telefon',
     generated_at: 'Chiqarilgan sana',
