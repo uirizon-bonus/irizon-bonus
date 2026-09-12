@@ -1372,3 +1372,75 @@ def _to_uz_phone(raw_phone: str) -> str:
     if len(digits) >= 9:
         return "998" + digits[-9:]
     raise ValueError("Phone format is invalid")
+
+
+def _load_reconciliation_summary(start_date: str, end_date: str) -> Dict[str, Any]:
+    """One reconciliation line per customer for the period.
+
+    Opening balance is everything booked before the period; earned/spent are the
+    positive and negative movements inside it. Closing is derived rather than
+    queried a fourth time, so the three figures can never disagree.
+    """
+    start_bound = f"{start_date} 00:00:00"
+    end_bound = f"{end_date} 23:59:59"
+
+    connection = bonus_db()
+    try:
+        rows = connection.execute(
+            """
+            SELECT
+                c.id                AS id,
+                c.full_name         AS full_name,
+                c.phone_raw         AS phone_raw,
+                c.status            AS status,
+                COALESCE(SUM(CASE WHEN b.created_at < ? THEN b.points ELSE 0 END), 0) AS opening,
+                COALESCE(SUM(CASE WHEN b.created_at >= ? AND b.created_at <= ? AND b.points > 0
+                                  THEN b.points ELSE 0 END), 0) AS earned,
+                COALESCE(SUM(CASE WHEN b.created_at >= ? AND b.created_at <= ? AND b.points < 0
+                                  THEN -b.points ELSE 0 END), 0) AS spent,
+                COALESCE(SUM(CASE WHEN b.created_at >= ? AND b.created_at <= ?
+                                  THEN 1 ELSE 0 END), 0) AS moves,
+                MAX(b.created_at)   AS last_activity
+            FROM customers c
+            LEFT JOIN bonus_transactions b ON b.client_id = c.id
+            GROUP BY c.id, c.full_name, c.phone_raw, c.status
+            ORDER BY LOWER(c.full_name) ASC, c.id ASC
+            """,
+            (start_bound, start_bound, end_bound, start_bound, end_bound, start_bound, end_bound),
+        ).fetchall()
+    finally:
+        connection.close()
+
+    customers: List[Dict[str, Any]] = []
+    for row in rows:
+        opening = int(row["opening"] or 0)
+        earned = int(row["earned"] or 0)
+        spent = int(row["spent"] or 0)
+        customers.append(
+            {
+                "id": str(row["id"]),
+                "fullName": str(row["full_name"] or row["id"]),
+                "phone": str(row["phone_raw"] or ""),
+                "status": str(row["status"] or "active"),
+                "openingBalance": opening,
+                "earned": earned,
+                "spent": spent,
+                "closingBalance": opening + earned - spent,
+                "moves": int(row["moves"] or 0),
+                "lastActivity": str(row["last_activity"] or ""),
+            }
+        )
+
+    return {
+        "period": {"startDate": start_date, "endDate": end_date},
+        "count": len(customers),
+        "customers": customers,
+        "totals": {
+            "openingBalance": sum(c["openingBalance"] for c in customers),
+            "earned": sum(c["earned"] for c in customers),
+            "spent": sum(c["spent"] for c in customers),
+            "closingBalance": sum(c["closingBalance"] for c in customers),
+            "moves": sum(c["moves"] for c in customers),
+            "activeCustomers": sum(1 for c in customers if c["moves"] > 0),
+        },
+    }

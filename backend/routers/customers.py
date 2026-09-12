@@ -82,6 +82,14 @@ def create_customer_bonus(client_id: str, payload: BonusCreatePayload):
     return customer_service.create_customer_bonus_payload(client_id, payload)
 
 
+@router.get("/api/reconciliation-summary", dependencies=[Depends(deps.require_admin)])
+def get_reconciliation_summary(
+    start_date: str = Query(..., max_length=10),
+    end_date: str = Query(..., max_length=10),
+):
+    return customer_service.reconciliation_summary_payload(start_date, end_date)
+
+
 @router.get("/api/customers/{client_id}/reconciliation", dependencies=[Depends(deps.require_admin)])
 def get_customer_reconciliation(
     client_id: str,

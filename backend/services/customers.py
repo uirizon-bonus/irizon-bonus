@@ -85,6 +85,12 @@ def customer_reconciliation_payload(client_id: str, start_date: str, end_date: s
     return customer_core._load_reconciliation(client_id, start_date, end_date)
 
 
+def reconciliation_summary_payload(start_date: str, end_date: str):
+    if start_date > end_date:
+        return JSONResponse({"error": "start_date must be less than or equal to end_date"}, status_code=400)
+    return customer_core._load_reconciliation_summary(start_date, end_date)
+
+
 def customer_portal_payload(client_id: str, current_id: str):
     if client_id != current_id:
         raise HTTPException(status_code=403, detail="Access denied")
