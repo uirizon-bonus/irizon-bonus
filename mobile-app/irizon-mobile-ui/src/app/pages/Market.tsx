@@ -161,19 +161,12 @@ export function Market() {
     setHistoryLoading(true);
     setErrorMessage("");
     try {
-      const params = new URLSearchParams({
-        offset: "0",
-        limit: "20",
-        search: customer.id,
-      });
-      const response = await apiFetch(`/api/market/orders?${params.toString()}`);
+      const response = await apiFetch(`/api/customers/${customer.id}/market-orders?offset=0&limit=20`);
       const payload = (await parseJson(response)) as MarketOrdersResponse & { error?: string };
       if (!response.ok) {
         throw new Error(payload.error || t.submitFailed);
       }
-      const nextOrders = Array.isArray(payload.orders)
-        ? payload.orders.filter((item) => item.clientId === customer.id)
-        : [];
+      const nextOrders = Array.isArray(payload.orders) ? payload.orders : [];
       setTransactions(nextOrders);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : t.submitFailed);
@@ -266,20 +259,14 @@ export function Market() {
     setIsSubmitting(true);
     setErrorMessage("");
     try {
-      const response = await apiFetch("/api/market/orders", {
+      // Customer, price and status are set by the server; the app only picks these.
+      const response = await apiFetch(`/api/customers/${customer.id}/market-orders`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          client_id: customer.id,
-          client_name: customer.fullName,
           type: mode,
           points,
-          amount_uzs: calculatePrice(points, mode === "buy"),
-          rate: mode === "buy" ? BUY_RATE : SELL_RATE,
           payment_method: mode === "buy" ? paymentMethod || "" : "",
-          status: "Pending",
-          note: "created from mobile app",
-          operator: "mobile-app",
         }),
       });
       const payload = await parseJson(response);

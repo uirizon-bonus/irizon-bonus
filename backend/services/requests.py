@@ -1,11 +1,19 @@
+from fastapi import HTTPException
 from fastapi.responses import JSONResponse
 
 from backend import legacy
+from backend.core import admin_users
+from backend.core import customers as customer_core
 from backend.core import dashboard as dashboard_core
 from backend.core import transactions as transaction_core
 from backend.db import bonus_db
 from backend.integrations.firebase_push import notify_request_status
-from backend.models.schemas import RedemptionRequestBulkStatusPayload, RedemptionRequestCreatePayload, RedemptionRequestStatusPayload
+from backend.models.schemas import (
+    CustomerRedemptionPayload,
+    RedemptionRequestBulkStatusPayload,
+    RedemptionRequestCreatePayload,
+    RedemptionRequestStatusPayload,
+)
 
 
 def get_requests_payload():
@@ -13,7 +21,36 @@ def get_requests_payload():
     return {"count": len(requests_data), "requests": requests_data}
 
 
-def create_request_payload(payload: RedemptionRequestCreatePayload):
+def create_customer_request_payload(client_id: str, payload: CustomerRedemptionPayload, current_id: str):
+    if client_id != current_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+    return _create_customer_request(current_id, payload.gift_id)
+
+
+def create_legacy_customer_request_payload(customer_id: str, payload: RedemptionRequestCreatePayload):
+    # Older app builds post the full admin-shaped body to /api/requests. Only the
+    # gift is read from it; customer_id, request_type and operator are ignored.
+    return _create_customer_request(customer_id, payload.gift_id)
+
+
+def _create_customer_request(customer_id: str, gift_id: str):
+    customer = customer_core._load_customer_snapshot(customer_id)
+    if customer is None:
+        return JSONResponse({"error": "Customer not found"}, status_code=404)
+    # Whose points are spent and how the request is handled come from the session,
+    # never from the app: a customer request always spends the logged-in customer's
+    # own points and always waits in Pending for an operator.
+    request_payload = RedemptionRequestCreatePayload(
+        customer_id=customer_id,
+        customer_name=str(customer.get("fullName") or customer_id),
+        gift_id=gift_id,
+        request_type="Customer",
+        operator="customer-app",
+    )
+    return create_request_payload(request_payload, actor=f"customer:{customer_id}")
+
+
+def create_request_payload(payload: RedemptionRequestCreatePayload, actor: str = ""):
     try:
         request = transaction_core._create_request(payload)
     except transaction_core.InsufficientPointsError as exc:
@@ -31,7 +68,7 @@ def create_request_payload(payload: RedemptionRequestCreatePayload):
             entity="request",
             entity_id=str(request.get("id")),
             description=f"Created request {request.get('id')}",
-            actor=str(payload.operator or "Admin"),
+            actor=actor or admin_users.current_actor(),
         )
         connection.commit()
     finally:
@@ -55,7 +92,7 @@ def update_request_status_payload(request_id: str, payload: RedemptionRequestSta
             entity="request",
             entity_id=str(request_id),
             description=f"Request {request_id} status {payload.status}",
-            actor=str(payload.operator or "Admin"),
+            actor=admin_users.current_actor(),
         )
         connection.commit()
     finally:

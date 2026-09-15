@@ -61,6 +61,10 @@ ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "")
 SESSION_TTL_MINUTES = int(os.getenv("SESSION_TTL_MINUTES", "1440"))
 # Hard cap on a single manual bonus grant (points). Grants above this are rejected.
 MANUAL_BONUS_MAX = int(os.getenv("MANUAL_BONUS_MAX", "1000000"))
+# Points market rates (UZS per point). Customer orders are priced here, on the
+# server, so the amount an operator sees cannot be set by the app.
+MARKET_BUY_RATE = int(os.getenv("MARKET_BUY_RATE", "30"))
+MARKET_SELL_RATE = int(os.getenv("MARKET_SELL_RATE", "24"))
 FIREBASE_SERVICE_ACCOUNT = os.getenv("FIREBASE_SERVICE_ACCOUNT", "firebase-service-account.json")
 
 DEFAULT_FILIAL_ID = os.getenv("SMARTUP_FILIAL_ID", "8516359")

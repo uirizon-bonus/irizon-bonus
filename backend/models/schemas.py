@@ -85,6 +85,11 @@ class RedemptionRequestCreatePayload(BaseModel):
     operator: str = Field(default="Admin", max_length=100)
 
 
+class CustomerRedemptionPayload(BaseModel):
+    # The customer comes from the session token; only the gift is chosen by the app.
+    gift_id: str = Field(..., min_length=1, max_length=100)
+
+
 class RedemptionRequestStatusPayload(BaseModel):
     status: str = Field(..., min_length=1, max_length=50)
     operator: str = Field(default="Admin", max_length=100)
@@ -145,6 +150,13 @@ class MarketOrderCreatePayload(BaseModel):
     status: str = Field(default="Pending", max_length=50)
     note: str = Field(default="", max_length=1000)
     operator: str = Field(default="Admin", max_length=100)
+
+
+class CustomerMarketOrderPayload(BaseModel):
+    # Customer, price and status are decided by the server; the app only picks these.
+    type: str = Field(..., pattern="^(buy|sell)$")
+    points: int = Field(..., ge=1, le=1_000_000)
+    payment_method: str = Field(default="", max_length=50)
 
 
 class MarketOrderStatusPayload(BaseModel):

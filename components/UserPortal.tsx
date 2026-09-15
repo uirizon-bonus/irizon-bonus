@@ -332,16 +332,10 @@ const UserPortal: React.FC<UserPortalProps> = ({ customerId, onSwitchView, onAut
 
     setIsSubmitting(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/requests`, {
+      const response = await fetch(`${API_BASE_URL}/api/customers/${user.id}/redemptions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          customer_id: user.id,
-          customer_name: user.fullName,
-          gift_id: gift.id,
-          request_type: 'Customer',
-          operator: copy.customerPortal,
-        }),
+        body: JSON.stringify({ gift_id: gift.id }),
       });
       const payload = await response.json() as RequestMutationResponse | { error?: string };
       if (!response.ok) {

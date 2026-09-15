@@ -1123,11 +1123,15 @@ def _load_market_orders(
     order_type: str = "all",
     date_from: str = "",
     date_to: str = "",
+    client_id: str = "",
 ) -> Tuple[List[Dict[str, Any]], int]:
     connection = bonus_db()
     try:
         clauses: List[str] = []
         params: List[Any] = []
+        if client_id:
+            clauses.append("client_id = ?")
+            params.append(client_id)
         normalized_search = search.strip().lower()
         if normalized_search:
             clauses.append(

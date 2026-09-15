@@ -4,12 +4,16 @@ from backend import deps
 from backend.models.schemas import (
     BonusCreatePayload,
     CustomerDeductPayload,
+    CustomerMarketOrderPayload,
     CustomerProfilePayload,
+    CustomerRedemptionPayload,
     CustomerUpsertPayload,
     DeviceTokenPayload,
     QrScanPayload,
 )
 from backend.services import customers as customer_service
+from backend.services import market as market_service
+from backend.services import requests as requests_service
 
 
 router = APIRouter(tags=["customers"])
@@ -129,3 +133,23 @@ def update_customer_profile(client_id: str, payload: CustomerProfilePayload, cur
 @router.post("/api/customers/{client_id}/scan-qr")
 def create_customer_qr_points(client_id: str, payload: QrScanPayload, current_id: str = Depends(deps.require_customer)):
     return customer_service.create_customer_qr_points_payload(client_id, payload, current_id)
+
+
+@router.post("/api/customers/{client_id}/redemptions")
+def create_customer_redemption(client_id: str, payload: CustomerRedemptionPayload, current_id: str = Depends(deps.require_customer)):
+    return requests_service.create_customer_request_payload(client_id, payload, current_id)
+
+
+@router.get("/api/customers/{client_id}/market-orders")
+def get_customer_market_orders(
+    client_id: str,
+    offset: int = Query(0, ge=0),
+    limit: int = Query(20, ge=1, le=100),
+    current_id: str = Depends(deps.require_customer),
+):
+    return market_service.get_customer_market_orders_payload(client_id, current_id, offset, limit)
+
+
+@router.post("/api/customers/{client_id}/market-orders")
+def create_customer_market_order(client_id: str, payload: CustomerMarketOrderPayload, current_id: str = Depends(deps.require_customer)):
+    return market_service.create_customer_market_order_payload(client_id, payload, current_id)

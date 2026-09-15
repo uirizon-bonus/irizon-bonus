@@ -13,8 +13,17 @@ def get_requests():
     return requests_service.get_requests_payload()
 
 
-@router.post("/api/requests", dependencies=[Depends(deps.require_admin_or_customer)])
-def create_request(payload: RedemptionRequestCreatePayload):
+# Current app builds redeem through POST /api/customers/{client_id}/redemptions.
+# Older builds still post here with a customer token, so a customer call is
+# accepted, but the customer comes from the session and the request always waits
+# in Pending. Admin calls behave as before.
+@router.post("/api/requests")
+def create_request(
+    payload: RedemptionRequestCreatePayload,
+    caller: deps.Caller = Depends(deps.require_admin_or_customer_identity),
+):
+    if caller.customer_id:
+        return requests_service.create_legacy_customer_request_payload(caller.customer_id, payload)
     return requests_service.create_request_payload(payload)
 
 

@@ -746,16 +746,10 @@ export function PortalProvider({ children }: { children: ReactNode }) {
     setBusy(true);
     clearNotice();
     try {
-      const response = await apiFetch("/api/requests", {
+      const response = await apiFetch(`/api/customers/${customer.id}/redemptions`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          customer_id: customer.id,
-          customer_name: customer.fullName,
-          gift_id: giftId,
-          request_type: "Customer",
-          operator: "mobile-app",
-        }),
+        body: JSON.stringify({ gift_id: giftId }),
       });
       const payload = await parseJson(response);
       if (!response.ok) {

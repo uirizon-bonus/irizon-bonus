@@ -1,4 +1,5 @@
 import hmac
+from dataclasses import dataclass
 from datetime import datetime
 
 from fastapi import Header, HTTPException
@@ -52,6 +53,36 @@ def require_customer(authorization: str = Header(default="")) -> str:
     except ValueError:
         raise HTTPException(status_code=401, detail="Invalid session token")
     return str(row["client_id"])
+
+
+@dataclass(frozen=True)
+class Caller:
+    """Who called a route open to both admins and customers. Exactly one is set."""
+
+    admin_actor: str = ""
+    customer_id: str = ""
+
+
+async def require_admin_or_customer_identity(
+    authorization: str = Header(default=""),
+    x_admin_key: str = Header(alias="x-admin-key", default=""),
+) -> Caller:
+    """Like require_admin_or_customer, but tells the route who is calling.
+
+    Routes shared by the admin panel and the customer app must not trust ids or
+    statuses from the body on a customer call; this lets them take the customer
+    from the session instead. Async for the same ContextVar reason as require_admin.
+    """
+    if x_admin_key:
+        actor = admin_users.resolve_session(x_admin_key)
+        if actor is None and ADMIN_API_KEY and hmac.compare_digest(x_admin_key, ADMIN_API_KEY):
+            actor = ADMIN_USERNAME or "Admin"
+        if actor is not None:
+            admin_users.set_current_actor(actor)
+            return Caller(admin_actor=actor)
+    if not authorization.removeprefix("Bearer ").strip():
+        raise HTTPException(status_code=401, detail="Authentication required")
+    return Caller(customer_id=require_customer(authorization))
 
 
 def require_admin_or_customer(
