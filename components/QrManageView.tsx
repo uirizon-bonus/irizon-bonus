@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { formatDateTime } from '../utils/formatDate';
 import { useSearchParams } from 'react-router-dom';
-import { Check, Copy, Download, QrCode, RefreshCw, RotateCcw, Search, ShieldBan, X } from 'lucide-react';
+import { Check, Copy, Download, QrCode, RefreshCw, RotateCcw, Search, ShieldBan, Trash2, X } from 'lucide-react';
 import { QRCodeCanvas } from 'qrcode.react';
 import LoadingGlass from './LoadingGlass';
 import DateRangeFilter from './DateRangeFilter';
@@ -97,6 +97,11 @@ const COPY = {
   revokeConfirmTitle: 'Tanlangan QR kodlarni bekor qilasizmi?',
   revokeConfirmCta: 'Ha, bekor qilish',
   revokeConfirmNote: 'Bekor qilingan kodlarni skan qilib bo‘lmaydi. Keyinchalik tiklash mumkin.',
+  deleteSelected: 'Tanlanganlarni o‘chirish',
+  deleteConfirmTitle: 'Tanlangan QR kodlarni butunlay o‘chirasizmi?',
+  deleteConfirmCta: 'Ha, o‘chirish',
+  deleteConfirmNote: 'Faqat skan qilinmagan kodlar o‘chiriladi. O‘chirilgan kodlarni tiklab bo‘lmaydi, chop etilgan yorliq skan qilinsa "topilmadi" xatosi chiqadi. Tiklash imkoni kerak bo‘lsa, bekor qilishdan foydalaning.',
+  deleteDone: 'ta QR kod o‘chirildi',
   back: 'Orqaga',
   genDone: 'ta QR kod yaratildi',
   unscanDone: 'ta skan bekor qilindi',
@@ -138,6 +143,7 @@ const QrManageView: React.FC<QrManageViewProps> = ({ lang }) => {
   const [unscanSubmitting, setUnscanSubmitting] = useState(false);
   const [bulkUnscanOpen, setBulkUnscanOpen] = useState(false);
   const [revokeConfirmOpen, setRevokeConfirmOpen] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [qrPreview, setQrPreview] = useState<ProductQrCode | null>(null);
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const copyToClipboard = (value: string, field: string) => {
@@ -310,20 +316,53 @@ const QrManageView: React.FC<QrManageViewProps> = ({ lang }) => {
     }
   };
 
+  // Group ids by product so the per-product endpoints work in the "all" view too.
+  const groupIdsByProduct = (ids: number[]) => {
+    const idsByProduct = new Map<string, number[]>();
+    for (const id of ids) {
+      const row = codes.find((item) => item.id === id);
+      const productId = selectedProductId === 'all' ? (row?.productId || '') : selectedProductId;
+      if (!productId) continue;
+      idsByProduct.set(productId, [...(idsByProduct.get(productId) || []), id]);
+    }
+    return idsByProduct;
+  };
+
+  const confirmDelete = async () => {
+    const ids = selectedDeletableIds;
+    if (ids.length === 0) return;
+    setBusy(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      let deleted = 0;
+      for (const [productId, groupIds] of groupIdsByProduct(ids)) {
+        const response = await fetch(`${API_BASE_URL}/api/products/${productId}/qr-codes/delete`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ids: groupIds }),
+        });
+        const payload = await response.json() as { error?: string; deleted?: number };
+        if (!response.ok) throw new Error(payload.error || 'Delete failed');
+        deleted += payload.deleted ?? 0;
+      }
+      setSelectedIds((current) => current.filter((id) => !ids.includes(id)));
+      setSuccess(`${deleted} ${copy.deleteDone}`);
+      await loadCodes(offset);
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : 'Delete failed');
+    } finally {
+      setBusy(false);
+      setDeleteConfirmOpen(false);
+    }
+  };
+
   const applyRevokeState = async (mode: 'revoke' | 'restore', ids: number[]) => {
     if (ids.length === 0) return;
     setBusy(true);
     setError(null);
     try {
-      // Group ids by product so the per-product endpoint works in the "all" view too.
-      const idsByProduct = new Map<string, number[]>();
-      for (const id of ids) {
-        const row = codes.find((item) => item.id === id);
-        const productId = selectedProductId === 'all' ? (row?.productId || '') : selectedProductId;
-        if (!productId) continue;
-        idsByProduct.set(productId, [...(idsByProduct.get(productId) || []), id]);
-      }
-      for (const [productId, groupIds] of idsByProduct) {
+      for (const [productId, groupIds] of groupIdsByProduct(ids)) {
         const response = await fetch(`${API_BASE_URL}/api/products/${productId}/qr-codes/${mode}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -488,6 +527,8 @@ const QrManageView: React.FC<QrManageViewProps> = ({ lang }) => {
   const selectedUsedIds = useMemo(() => codes.filter((item) => item.isUsed && selectedIds.includes(item.id)).map((item) => item.id), [codes, selectedIds]);
   const selectedUnusedIds = useMemo(() => codes.filter((item) => !item.isUsed && !item.isRevoked && selectedIds.includes(item.id)).map((item) => item.id), [codes, selectedIds]);
   const selectedRevokedIds = useMemo(() => codes.filter((item) => item.isRevoked && selectedIds.includes(item.id)).map((item) => item.id), [codes, selectedIds]);
+  // Anything not scanned can be deleted, revoked or not; scanned codes are never deleted.
+  const selectedDeletableIds = useMemo(() => codes.filter((item) => !item.isUsed && selectedIds.includes(item.id)).map((item) => item.id), [codes, selectedIds]);
 
   return (
     <div className="space-y-6">
@@ -620,6 +661,14 @@ const QrManageView: React.FC<QrManageViewProps> = ({ lang }) => {
         >
           <RotateCcw className="w-4 h-4" />
           {copy.restoreSelected}{selectedRevokedIds.length > 0 ? ` (${selectedRevokedIds.length})` : ''}
+        </button>
+        <button
+          onClick={() => setDeleteConfirmOpen(true)}
+          disabled={busy || selectedDeletableIds.length === 0}
+          className="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-white text-rose-700 px-4 py-2 text-sm font-semibold disabled:opacity-50"
+        >
+          <Trash2 className="w-4 h-4" />
+          {copy.deleteSelected}{selectedDeletableIds.length > 0 ? ` (${selectedDeletableIds.length})` : ''}
         </button>
         <button
           onClick={async () => {
@@ -1062,6 +1111,40 @@ const QrManageView: React.FC<QrManageViewProps> = ({ lang }) => {
                 className="rounded-xl bg-rose-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
               >
                 {busy ? copy.processing : copy.revokeConfirmCta}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deleteConfirmOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => { if (!busy) setDeleteConfirmOpen(false); }} />
+          <div className="relative w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-rose-100 text-rose-600">
+                <Trash2 className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-slate-800">{copy.deleteConfirmTitle}</h3>
+                <p className="text-xs text-slate-500">{copy.selected}: {selectedDeletableIds.length}</p>
+              </div>
+            </div>
+            <p className="mt-4 text-sm text-slate-500">{copy.deleteConfirmNote}</p>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                onClick={() => setDeleteConfirmOpen(false)}
+                disabled={busy}
+                className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 disabled:opacity-50"
+              >
+                {copy.back}
+              </button>
+              <button
+                onClick={() => void confirmDelete()}
+                disabled={busy || selectedDeletableIds.length === 0}
+                className="rounded-xl bg-rose-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+              >
+                {busy ? copy.processing : copy.deleteConfirmCta}
               </button>
             </div>
           </div>

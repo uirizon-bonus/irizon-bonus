@@ -120,6 +120,26 @@ def restore_product_qr_codes_payload(product_id: str, payload: ProductQrBulkIdsP
     return {"message": "QR codes restored", "updated": int(updated)}
 
 
+def delete_product_qr_codes_payload(product_id: str, payload: ProductQrBulkIdsPayload):
+    if str(product_id or "").strip().lower() == "all":
+        return JSONResponse({"error": "Product is required"}, status_code=400)
+    deleted = legacy._delete_unused_product_qr_codes(str(product_id), payload.ids)
+    connection = bonus_db()
+    try:
+        legacy._audit_log(
+            connection,
+            action="delete",
+            entity="product_qr_codes",
+            entity_id=str(product_id),
+            description=f"Deleted {int(deleted)} unused QR codes (requested {len(payload.ids)})",
+            actor=admin_users.current_actor(),
+        )
+        connection.commit()
+    finally:
+        connection.close()
+    return {"message": "QR codes deleted", "deleted": int(deleted)}
+
+
 def unscan_product_qr_code_payload(product_id: str, qr_row_id: int, payload: ProductQrUnscanPayload):
     if str(product_id or "").strip().lower() == "all":
         return JSONResponse({"error": "Product is required"}, status_code=400)

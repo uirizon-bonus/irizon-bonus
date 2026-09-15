@@ -79,6 +79,7 @@ from backend.core.catalog import (
     _create_product,
     _delete_gift,
     _delete_product,
+    _delete_unused_product_qr_codes,
     _export_all_saved_qr_csv,
     _export_all_saved_qr_zip,
     _export_qr_zip_by_ids,

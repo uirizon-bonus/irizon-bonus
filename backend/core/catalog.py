@@ -589,6 +589,32 @@ def _bulk_set_product_qr_revoked(product_id: str, ids: List[int], *, revoked: bo
         connection.close()
 
 
+def _delete_unused_product_qr_codes(product_id: str, ids: List[int]) -> int:
+    """Permanently delete QR codes that were never scanned.
+
+    Scanned codes are never deleted: their points are in the ledger, and taking
+    those back is what unscan is for. The is_used check is part of the DELETE itself,
+    so a code scanned a moment before cannot slip through.
+    """
+    clean_ids = [int(item) for item in ids if int(item) > 0]
+    if not clean_ids:
+        return 0
+    placeholders = ", ".join(["?"] * len(clean_ids))
+    connection = bonus_db()
+    try:
+        cursor = connection.execute(
+            f"""
+            DELETE FROM product_qr_codes
+            WHERE product_id = ? AND id IN ({placeholders}) AND is_used = 0
+            """,
+            tuple([str(product_id), *clean_ids]),
+        )
+        connection.commit()
+        return int(cursor.rowcount or 0)
+    finally:
+        connection.close()
+
+
 def _unscan_product_qr_code(product_id: str, qr_row_id: int, payload: ProductQrUnscanPayload) -> Dict[str, Any]:
     from backend.core import customers as customer_core
     from backend import legacy as _legacy

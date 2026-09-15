@@ -68,6 +68,11 @@ def restore_product_qr_codes(product_id: str, payload: ProductQrBulkIdsPayload):
     return catalog_service.restore_product_qr_codes_payload(product_id, payload)
 
 
+@router.post("/api/products/{product_id}/qr-codes/delete", dependencies=[Depends(deps.require_admin)])
+def delete_product_qr_codes(product_id: str, payload: ProductQrBulkIdsPayload):
+    return catalog_service.delete_product_qr_codes_payload(product_id, payload)
+
+
 @router.post("/api/products/{product_id}/qr-codes/{qr_row_id}/unscan", dependencies=[Depends(deps.require_admin)])
 def unscan_product_qr_code(product_id: str, qr_row_id: int, payload: ProductQrUnscanPayload):
     return catalog_service.unscan_product_qr_code_payload(product_id, qr_row_id, payload)
