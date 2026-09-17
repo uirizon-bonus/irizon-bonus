@@ -22,6 +22,20 @@ export function PullToRefresh({ onRefresh, children, disabled }: PullToRefreshPr
   const pullRef = useRef(0);
   const refreshingRef = useRef(false);
   const [animate, setAnimate] = useState(false);
+  const settleTimer = useRef<number | null>(null);
+
+  // Drop the transform once the pull has sprung back. A transform — even
+  // translateY(0) — makes this element the containing block for any
+  // position:fixed descendant, which would pin modals and sheets to the page
+  // instead of the screen.
+  const settle = () => {
+    if (settleTimer.current) window.clearTimeout(settleTimer.current);
+    settleTimer.current = window.setTimeout(() => setAnimate(false), 320);
+  };
+
+  useEffect(() => () => {
+    if (settleTimer.current) window.clearTimeout(settleTimer.current);
+  }, []);
 
   useEffect(() => {
     pullRef.current = pull;
@@ -68,9 +82,11 @@ export function PullToRefresh({ onRefresh, children, disabled }: PullToRefreshPr
         Promise.resolve(onRefresh()).finally(() => {
           setRefreshing(false);
           setPull(0);
+          settle();
         });
       } else {
         setPull(0);
+        settle();
       }
     };
 
@@ -112,7 +128,7 @@ export function PullToRefresh({ onRefresh, children, disabled }: PullToRefreshPr
       </div>
       <div
         style={{
-          transform: `translateY(${indicatorH}px)`,
+          transform: indicatorH || animate ? `translateY(${indicatorH}px)` : undefined,
           transition: animate ? "transform 0.25s ease" : "none",
         }}
       >

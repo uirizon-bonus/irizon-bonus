@@ -1,6 +1,7 @@
 import { Package, Search } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useLanguage } from "../contexts/LanguageContext";
+import { PullToRefresh } from "../components/PullToRefresh";
 import { usePortal } from "../context/PortalContext";
 import { LoadingScreen } from "../components/LoadingScreen";
 
@@ -25,7 +26,7 @@ const translations = {
 
 export function Products() {
   const { language } = useLanguage();
-  const { loading, products } = usePortal();
+  const { loading, products, refreshPortal } = usePortal();
   const [query, setQuery] = useState("");
   const t = translations[language];
 
@@ -38,11 +39,12 @@ export function Products() {
     });
   }, [products, query]);
 
-  if (loading) {
+  if (loading && !products.length) {
     return <LoadingScreen title={t.title} subtitle={t.subtitle} />;
   }
 
   return (
+    <PullToRefresh onRefresh={refreshPortal}>
     <div className="min-h-screen bg-[#F5F7FB] pb-24">
       <div className="bg-gradient-to-r from-[#0F4C81] via-[#1E6FD9] to-[#2F8DE4] text-white px-5 pt-12 pb-6">
         <h1 className="text-2xl font-bold mb-1">{t.title}</h1>
@@ -89,6 +91,6 @@ export function Products() {
         )}
       </div>
     </div>
+    </PullToRefresh>
   );
 }
-

@@ -12,6 +12,7 @@ import {
 import clickLogo from "../../assets/8e4f930b5199e12d076146f75c183af53a95d712.png";
 import paymeLogo from "../../assets/3981774d4360eebcd66ce2d2cc35fc1125275f68.png";
 import { useLanguage } from "../contexts/LanguageContext";
+import { PullToRefresh } from "../components/PullToRefresh";
 import { usePortal } from "../context/PortalContext";
 
 type MarketMode = "buy" | "sell";
@@ -253,6 +254,11 @@ export function Market() {
     return "text-yellow-600";
   };
 
+  // A pull refreshes the balance and this page's own order list together.
+  const handlePullRefresh = async () => {
+    await Promise.all([refreshPortal(), loadHistory()]);
+  };
+
   const handleTransaction = async () => {
     if (!isValid || !customer) return;
 
@@ -288,6 +294,7 @@ export function Market() {
   };
 
   return (
+    <PullToRefresh onRefresh={handlePullRefresh} disabled={isSubmitting || showSuccess}>
     <div className="min-h-screen bg-[#F5F7FB] pb-24">
       <div className="bg-gradient-to-r from-[#0F4C81] via-[#1E6FD9] to-[#2F8DE4] text-white px-6 pt-12 pb-8">
         <h1 className="text-2xl font-bold mb-6">{t.pointsMarket}</h1>
@@ -540,5 +547,6 @@ export function Market() {
         </AnimatePresence>
       </div>
     </div>
+    </PullToRefresh>
   );
 }

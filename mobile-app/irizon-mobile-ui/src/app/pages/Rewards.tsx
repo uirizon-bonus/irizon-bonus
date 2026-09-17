@@ -3,6 +3,7 @@ import { CheckCircle2, Gift as GiftIcon, Search, SlidersHorizontal, X } from "lu
 import { AnimatePresence, motion } from "motion/react";
 import { useNavigate } from "react-router";
 import { useLanguage } from "../contexts/LanguageContext";
+import { PullToRefresh } from "../components/PullToRefresh";
 import { usePortal } from "../context/PortalContext";
 import { LoadingScreen } from "../components/LoadingScreen";
 
@@ -70,7 +71,7 @@ const translations = {
 export function Rewards() {
   const navigate = useNavigate();
   const { language } = useLanguage();
-  const { customer, gifts, busy, redeemGift, error, loading } = usePortal();
+  const { customer, gifts, busy, redeemGift, error, loading, refreshPortal } = usePortal();
   const t = translations[language];
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
@@ -115,7 +116,8 @@ export function Rewards() {
 
   const balance = customer?.totalPoints ?? 0;
 
-  if (loading) {
+  // Only the very first load takes over the screen; a refresh keeps the gifts visible.
+  if (loading && !gifts.length) {
     return (
       <LoadingScreen
         title={t.title}
@@ -125,6 +127,7 @@ export function Rewards() {
   }
 
   return (
+    <PullToRefresh onRefresh={refreshPortal} disabled={isFilterOpen || Boolean(confirmGift) || showRedeemSuccess}>
     <div className="min-h-screen bg-[#F5F7FB]">
       <div className="p-5 space-y-5 pb-24">
         <div>
@@ -480,5 +483,6 @@ export function Rewards() {
         ) : null}
       </AnimatePresence>
     </div>
+    </PullToRefresh>
   );
 }

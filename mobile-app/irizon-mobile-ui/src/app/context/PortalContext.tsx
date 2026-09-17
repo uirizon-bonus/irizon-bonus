@@ -77,6 +77,7 @@ type I18n = {
   requestOtp: string;
   verifyOtp: string;
   refresh: string;
+  refreshingLabel: string;
   logout: string;
   scanQr: string;
   scanHint: string;
@@ -148,6 +149,7 @@ const i18nMap: Record<Lang, I18n> = {
     requestOtp: "Запросить OTP",
     verifyOtp: "Подтвердить OTP",
     refresh: "Обновить",
+    refreshingLabel: "Обновление...",
     logout: "Выйти",
     scanQr: "Сканировать QR",
     scanHint: "Наведите камеру на QR-код продукта",
@@ -218,6 +220,7 @@ const i18nMap: Record<Lang, I18n> = {
     requestOtp: "OTP so'rash",
     verifyOtp: "OTP tasdiqlash",
     refresh: "Yangilash",
+    refreshingLabel: "Yangilanmoqda...",
     logout: "Chiqish",
     scanQr: "QR skanerlash",
     scanHint: "Kamerani mahsulot QR-kodiga yo'naltiring",
@@ -289,6 +292,9 @@ type PortalContextValue = {
   requests: RequestItem[];
   activities: ActivityItem[];
   loading: boolean;
+  // True only while a refresh runs over data that is already on screen, so pages
+  // can keep their content instead of swapping in the full loading screen.
+  refreshing: boolean;
   busy: boolean;
   error: string;
   info: string;
@@ -367,6 +373,7 @@ export function PortalProvider({ children }: { children: ReactNode }) {
   const [activities, setActivities] = useState<ActivityItem[]>([]);
   const [otpRequested, setOtpRequested] = useState(false);
   const [loading, setLoading] = useState(() => Boolean(localStorage.getItem(SESSION_KEY)));
+  const [refreshing, setRefreshing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
@@ -470,8 +477,16 @@ export function PortalProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const loadPortal = async (customerId: string, fallbackCustomer?: Customer) => {
-    setLoading(true);
+  const loadPortal = async (
+    customerId: string,
+    fallbackCustomer?: Customer,
+    options?: { silent?: boolean },
+  ) => {
+    // A refresh must not blank the page: only the first load, when there is
+    // nothing on screen yet, shows the full loading screen.
+    const silent = options?.silent ?? false;
+    if (silent) setRefreshing(true);
+    else setLoading(true);
     setError("");
     try {
       const [portalRes, giftsRes, productsRes, requestsRes, activityRes] = await Promise.all([
@@ -574,7 +589,8 @@ export function PortalProvider({ children }: { children: ReactNode }) {
     } catch (err) {
       setError(err instanceof Error ? err.message : i18n.portalLoadFailed);
     } finally {
-      setLoading(false);
+      if (silent) setRefreshing(false);
+      else setLoading(false);
     }
   };
 
@@ -658,7 +674,7 @@ export function PortalProvider({ children }: { children: ReactNode }) {
 
   const refreshPortal = async () => {
     if (!customer?.id) return;
-    await loadPortal(customer.id, customer);
+    await loadPortal(customer.id, customer, { silent: true });
   };
 
   const applyQrScan = async (qrCode: string, quantity = 1) => {
@@ -698,7 +714,7 @@ export function PortalProvider({ children }: { children: ReactNode }) {
       const awardedPoints = Number(payload?.awardedPoints || 0);
       const message = `${i18n.qrApplied}: +${awardedPoints}`;
       setInfo(message);
-      await loadPortal(customer.id, customer);
+      await loadPortal(customer.id, customer, { silent: true });
       return { ok: true, awardedPoints, message };
     } catch (err) {
       const message = err instanceof Error ? err.message : i18n.qrFailed;
@@ -757,7 +773,7 @@ export function PortalProvider({ children }: { children: ReactNode }) {
       }
       const message = String(payload?.message || "OK");
       setInfo(message);
-      await loadPortal(customer.id, customer);
+      await loadPortal(customer.id, customer, { silent: true });
       return { ok: true, message };
     } catch (err) {
       const message = err instanceof Error ? err.message : i18n.redeemFailed;
@@ -792,6 +808,7 @@ export function PortalProvider({ children }: { children: ReactNode }) {
     requests,
     activities,
     loading,
+    refreshing,
     busy,
     error,
     info,

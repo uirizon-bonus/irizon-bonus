@@ -1,11 +1,12 @@
 import { Outlet, useLocation, Link } from "react-router";
-import { Home, Gift, History, Package } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
+import { Home, Gift, History, Package, LoaderCircle } from "lucide-react";
 import { usePortal } from "../context/PortalContext";
 import { NameGate } from "./NameGate";
 
 export function Layout() {
   const location = useLocation();
-  const { i18n } = usePortal();
+  const { i18n, refreshing } = usePortal();
   const shouldShowNav = !location.pathname.includes("/support");
 
   const navItems = [
@@ -23,6 +24,25 @@ export function Layout() {
         paddingBottom: "calc(6rem + env(safe-area-inset-bottom))",
       }}
     >
+      {/* One clear signal that data is reloading — the page underneath stays put. */}
+      <AnimatePresence>
+        {refreshing ? (
+          <motion.div
+            initial={{ opacity: 0, y: -16 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -16 }}
+            transition={{ duration: 0.18 }}
+            className="fixed left-1/2 -translate-x-1/2 z-30"
+            style={{ top: "calc(0.75rem + env(safe-area-inset-top))" }}
+          >
+            <div className="flex items-center gap-2 rounded-full bg-[#1E6FD9] text-white pl-3 pr-4 py-2 shadow-lg shadow-[#1E6FD9]/30">
+              <LoaderCircle className="w-4 h-4 animate-spin" />
+              <span className="text-sm font-semibold">{i18n.refreshingLabel}</span>
+            </div>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+
       <div className="max-w-md mx-auto">
         <Outlet />
       </div>

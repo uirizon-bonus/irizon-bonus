@@ -187,7 +187,7 @@ export function Home() {
   const userName = customer?.fullName || "IRIZON";
   const remaining = Math.max(activeGifts - (customer?.totalPoints ?? 0), 0);
 
-  if (loading) {
+  if (loading && !customer) {
     return (
       <LoadingScreen
         title={lang === "RU" ? "Портал клиента" : "Mijoz portali"}
