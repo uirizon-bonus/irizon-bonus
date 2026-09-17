@@ -3,7 +3,11 @@
 Customers pick a delivery address in the app; each gift request keeps a copy of
 that address, and operators open it on a map from the admin panel.
 
-## It already works without Google
+Address lookups go through **Yandex Maps**, which has better street-level data
+for Uzbekistan than the alternatives. The provider is a setting, not a rewrite:
+`GEO_PROVIDER=google` switches the server back to Google (see the last section).
+
+## It already works without any keys
 
 Nothing here blocks a release. With no keys configured:
 
@@ -11,91 +15,71 @@ Nothing here blocks a release. With no keys configured:
 - they type the address themselves;
 - the request carries the address, the note and the coordinates;
 - the admin panel shows all of it, and its "open in maps" link works (that link
-  is a plain google.com/maps URL and costs nothing).
+  is a plain yandex.uz/maps URL and costs nothing).
 
-What the keys add: a draggable map, and the address filled in automatically from
-the pin.
+What the keys add: a draggable map, address search, and the address filled in
+automatically from the pin.
 
-## 1. Google Cloud project
+## 1. Get the Yandex keys
 
-1. Sign in at <https://console.cloud.google.com> and create a project, e.g.
-   `irizon-bonus-maps`.
-2. **Billing → Link a billing account.** Nothing works without it: every call
-   comes back `REQUEST_DENIED — You must enable Billing on the Google Cloud
-   Project`, whatever else is configured. Google's free monthly allowance still
-   applies once billing is attached.
-3. **APIs & Services → Enable APIs**, enable exactly these three:
-   - **Maps JavaScript API** — the map inside the app
-   - **Geocoding API** — pin to address
-   - **Places API (New)** — address search box. Pick the entry named "(New)":
-     projects created recently cannot enable the older Places API, and calling
-     it returns `You're calling a legacy API, which is not enabled for your
-     project`. The server uses the new one.
+Go to the **Yandex Maps API developer dashboard**
+(<https://developer.tech.yandex.ru/services>) and create keys for two services:
 
-## 2. Two keys, never one
+| Service to pick | Covers | Goes into |
+|---|---|---|
+| **JavaScript API and Geocoder HTTP API** | the map in the app **and** pin→address on the server | `VITE_YANDEX_MAPS_KEY` (app) and `YANDEX_GEOCODER_KEY` (server) |
+| **Geosuggest API** | the address search box | `YANDEX_SUGGEST_KEY` (server) |
 
-A key inside the app can be read by anyone who downloads it, so the billable
-lookups use a separate key that never leaves the server.
+Yandex issues a separate key per service, so expect two keys. Check the current
+free limits and commercial terms on the dashboard before launch — the free tier
+carries conditions about non-commercial use.
 
-**Key A — "app map key"** (goes into the app build)
-- Application restrictions → **Android apps**: package `com.irizon.bonus` plus
-  the SHA-1 of the signing certificate (`keytool -list -v -keystore <your.keystore>`).
-- Add an **iOS apps** entry as well: bundle id `com.irizon.bonus`.
-- API restrictions → **Maps JavaScript API only**.
+**If you restrict the JS key by referer**, allow the origins a Capacitor app
+actually uses — `capacitor://localhost`, `http://localhost`, `https://localhost`
+— or the map will refuse to load on phones while working fine in a browser.
 
-**Key B — "server key"** (goes into the server `.env`)
-- Application restrictions → **IP addresses**: `178.104.56.36`.
-- API restrictions → **Geocoding API** and **Places API** only.
+The geocoder and suggest keys are only ever used from the server, so restrict
+them to the server IP `178.104.56.36` where the dashboard allows it.
 
-### Using a single key for now
-
-One key can serve both sides while you are getting started, but leave it
-**unrestricted** and it can be lifted out of the app bundle and spent by anyone.
-The two restrictions are mutually exclusive on one key — an IP restriction locks
-the app out, an app restriction locks the server out — so a single key means no
-restrictions at all. Treat that as temporary, keep the quota caps low, and split
-it into key A and key B before the app reaches a wide audience.
-
-## 3. Where the keys go
+## 2. Where the keys go
 
 Server — `/opt/irizon-backend/irizon-bonus-v0.1/.env`, then
 `sudo systemctl restart irizon-bonus-api2 irizon-bonus-api`:
 
 ```
-GOOGLE_MAPS_SERVER_KEY=<key B>
+GEO_PROVIDER=yandex
+YANDEX_GEOCODER_KEY=<JavaScript API and Geocoder key>
+YANDEX_SUGGEST_KEY=<Geosuggest key>
 ```
 
-App — set before building the mobile app:
+App — `mobile-app/irizon-mobile-ui/.env.production` (git-ignored), read at build
+time:
 
 ```
-VITE_GOOGLE_MAPS_KEY=<key A>
+VITE_YANDEX_MAPS_KEY=<JavaScript API and Geocoder key>
 ```
 
 Never commit either key.
 
-## 4. Spending controls
-
-Set these the same day you enable billing:
-
-- **Budget alert:** Billing → Budgets & alerts → e.g. $20/month, alert at 50/90/100%.
-- **Quota caps:** APIs & Services → each API → Quotas → cap requests per day.
-  A few thousand a day is plenty for this app.
+## 3. Keeping the bill small
 
 The app is built to keep calls low: the map script loads only when the picker is
-open, the address lookup runs when the pin stops moving rather than during
-dragging, answers are cached on the server by rounded coordinates, and address
-search waits for three characters and uses one billing session per search.
+open, the address lookup runs once the pin stops moving rather than during
+dragging, answers are cached on the server by rounded coordinate
+(`GEOCODE_CACHE_TTL_DAYS`, default 90), and address search waits for three
+characters. Set whatever daily limits the dashboard offers.
 
-## 5. Other settings (server `.env`)
+## 4. Other settings (server `.env`)
 
 | Setting | Default | What it does |
 |---|---|---|
-| `REQUIRE_DELIVERY_ADDRESS` | `true` | Gifts are delivered, so a customer request needs an address. Set `false` to let requests through without one. |
+| `GEO_PROVIDER` | `yandex` | `yandex` or `google`. |
+| `REQUIRE_DELIVERY_ADDRESS` | `true` | Gifts are delivered, so a customer request needs an address. Set `false` while older app builds without the picker are still in use. |
 | `GEO_BBOX_ENFORCED` | `true` | Refuse pins outside Uzbekistan as mistakes. |
 | `GEO_LAT_MIN` / `GEO_LAT_MAX` / `GEO_LNG_MIN` / `GEO_LNG_MAX` | 37.0 / 45.7 / 55.9 / 73.2 | The accepted area. |
 | `GEOCODE_CACHE_TTL_DAYS` | `90` | How long a cached address stays valid. |
 
-## 6. Building the app
+## 5. Building the app
 
 ```bash
 cd mobile-app
@@ -110,7 +94,7 @@ after `npx cap add android` or `npx cap add ios` on a new machine, run it again
 For iOS: `npx cap sync ios && npm run native:permissions`, then open the project
 in Xcode.
 
-## 7. Before the store release
+## 6. Before the store release
 
 - **Play Console → Data safety:** declare that approximate and precise location
   are collected, used for "App functionality" (delivery), not shared, and
@@ -120,3 +104,17 @@ in Xcode.
 - **In-app legal pages** (`/legal/:type`): say that location is used to deliver
   gifts, is taken only while the customer opens the address picker, and is never
   collected in the background.
+
+## 7. Switching back to Google
+
+The server keeps a full Google implementation. Set on the server:
+
+```
+GEO_PROVIDER=google
+GOOGLE_MAPS_SERVER_KEY=<server key, restricted to 178.104.56.36>
+```
+
+Enable **Maps JavaScript API**, **Geocoding API** and **Places API (New)** —
+the "(New)" one; recent projects cannot enable the older Places endpoints — and
+attach a billing account, or every call returns `REQUEST_DENIED`. The app's map
+would then need the Google SDK again; only the server side switches by setting.

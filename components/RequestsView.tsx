@@ -1023,7 +1023,7 @@ const RequestsView: React.FC<RequestsViewProps> = ({ lang, initialSelectedId }) 
                                       {req.deliveryLat && req.deliveryLng ? (
                                         <div className="flex items-center gap-3 pt-1">
                                           <a
-                                            href={`https://www.google.com/maps?q=${req.deliveryLat},${req.deliveryLng}`}
+                                            href={`https://yandex.uz/maps/?pt=${req.deliveryLng},${req.deliveryLat}&z=17&l=map`}
                                             target="_blank"
                                             rel="noreferrer"
                                             className="text-xs font-black text-cyan-600 hover:text-cyan-700 uppercase tracking-tight"

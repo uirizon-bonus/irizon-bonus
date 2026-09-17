@@ -4,7 +4,7 @@ import { Crosshair, LoaderCircle, MapPin, Search, X } from "lucide-react";
 import { Geolocation } from "@capacitor/geolocation";
 import { useLanguage } from "../contexts/LanguageContext";
 import { usePortal, type PlaceSuggestion } from "../context/PortalContext";
-import { TASHKENT, hasMapsKey, loadGoogleMaps } from "../lib/googleMaps";
+import { TASHKENT, hasMapsKey, loadYandexMaps } from "../lib/yandexMaps";
 
 const translations = {
   RU: {
@@ -78,7 +78,7 @@ export function LocationPicker({ isOpen, onClose, onSaved }: LocationPickerProps
   const [searchAvailable, setSearchAvailable] = useState(true);
 
   const mapNodeRef = useRef<HTMLDivElement | null>(null);
-  const mapRef = useRef<google.maps.Map | null>(null);
+  const mapRef = useRef<YMapInstance | null>(null);
   // The map reports every idle, including ones we caused ourselves; this keeps
   // a programmatic recentre from bouncing back through the lookup.
   const skipNextIdle = useRef(false);
@@ -91,24 +91,28 @@ export function LocationPicker({ isOpen, onClose, onSaved }: LocationPickerProps
   useEffect(() => {
     if (!isOpen || !mapsEnabled) return;
     let cancelled = false;
-    void loadGoogleMaps(language.toLowerCase()).then((maps) => {
+    void loadYandexMaps(language.toLowerCase()).then((maps) => {
       if (cancelled || !maps || !mapNodeRef.current || mapRef.current) return;
-      const map = new maps.Map(mapNodeRef.current, {
-        center,
-        zoom: saved ? 17 : 13,
-        disableDefaultUI: true,
-        clickableIcons: false,
-        gestureHandling: "greedy",
+      // Yandex takes coordinates as [longitude, latitude].
+      const map = new maps.YMap(mapNodeRef.current, {
+        location: { center: [center.lng, center.lat], zoom: saved ? 17 : 13 },
       });
-      map.addListener("idle", () => {
-        const next = map.getCenter();
-        if (!next) return;
-        if (skipNextIdle.current) {
-          skipNextIdle.current = false;
-          return;
-        }
-        setCenter({ lat: Number(next.lat().toFixed(6)), lng: Number(next.lng().toFixed(6)) });
-      });
+      map.addChild(new maps.YMapDefaultSchemeLayer());
+      map.addChild(
+        new maps.YMapListener({
+          onUpdate: (event) => {
+            const next = event?.location?.center;
+            if (!next) return;
+            if (skipNextIdle.current) {
+              skipNextIdle.current = false;
+              return;
+            }
+            // Still dragging: wait for the gesture to finish before looking up.
+            if (event.mapInAction) return;
+            setCenter({ lat: Number(next[1].toFixed(6)), lng: Number(next[0].toFixed(6)) });
+          },
+        }),
+      );
       mapRef.current = map;
       setMapReady(true);
     });
@@ -144,8 +148,7 @@ export function LocationPicker({ isOpen, onClose, onSaved }: LocationPickerProps
   const moveTo = (lat: number, lng: number) => {
     skipNextIdle.current = true;
     setCenter({ lat, lng });
-    mapRef.current?.setCenter({ lat, lng });
-    mapRef.current?.setZoom(17);
+    mapRef.current?.update({ location: { center: [lng, lat], zoom: 17, duration: 300 } });
   };
 
   // --- GPS ---------------------------------------------------------------

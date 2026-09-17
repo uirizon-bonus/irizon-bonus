@@ -108,7 +108,17 @@ QR_USED_BY_SHOW_FULL_PHONE = os.getenv("QR_USED_BY_SHOW_FULL_PHONE", "false").st
     "on",
 }
 
-# ─── Delivery location / Google Maps ────────────────────────────────────────
+# ─── Delivery location / maps ───────────────────────────────────────────────
+# Which provider answers address lookups: "yandex" (better street data in
+# Uzbekistan) or "google". The app's map SDK is chosen at build time and should
+# match, but the two are independent — nothing breaks if they differ.
+GEO_PROVIDER = os.getenv("GEO_PROVIDER", "yandex").strip().lower()
+# Yandex issues one key per service: the Geocoder key also covers the
+# JavaScript map, while address suggestions need their own key.
+YANDEX_GEOCODER_KEY = os.getenv("YANDEX_GEOCODER_KEY", "").strip()
+YANDEX_SUGGEST_KEY = os.getenv("YANDEX_SUGGEST_KEY", "").strip()
+
+
 # Server-side key for Geocoding and Places. It must NOT be the key shipped in
 # the app: this one is restricted by server IP, the app's key by app identity.
 # Empty means the app can still save a pin and a typed address — only the
