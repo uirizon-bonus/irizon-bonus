@@ -31,7 +31,7 @@ export function Layout() {
 
       {shouldShowNav ? (
         <div
-          className="fixed left-1/2 -translate-x-1/2 z-50"
+          className="fixed left-1/2 -translate-x-1/2 z-40"
           style={{ bottom: "calc(1.5rem + env(safe-area-inset-bottom))" }}
         >
           <nav className="bg-white rounded-[28px] shadow-2xl px-6 py-3 flex gap-6 border border-gray-100">

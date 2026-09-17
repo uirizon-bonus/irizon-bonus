@@ -12,6 +12,8 @@ const translations = {
     yourBalance: "Ваш баланс",
     searchPlaceholder: "Поиск наград",
     filters: "Фильтры",
+    category: "Категория",
+    sortBy: "Сортировка",
     allCategories: "Все категории",
     sortCheap: "Сначала дешевле",
     sortExpensive: "Сначала дороже",
@@ -39,6 +41,8 @@ const translations = {
     yourBalance: "Sizning balansingiz",
     searchPlaceholder: "Sovg'alarni qidirish",
     filters: "Filtrlar",
+    category: "Kategoriya",
+    sortBy: "Saralash",
     allCategories: "Barcha kategoriyalar",
     sortCheap: "Arzonidan",
     sortExpensive: "Qimmatidan",
@@ -269,7 +273,8 @@ export function Rewards() {
               exit={{ y: "100%" }}
               transition={{ type: "spring", damping: 25, stiffness: 300 }}
               onClick={(e) => e.stopPropagation()}
-              className="bg-white rounded-t-3xl w-full p-6 space-y-6"
+              className="bg-white rounded-t-3xl w-full p-6 space-y-6 max-h-[85vh] overflow-y-auto"
+              style={{ paddingBottom: "calc(1.5rem + env(safe-area-inset-bottom))" }}
             >
               <div className="flex items-center justify-between">
                 <h3 className="text-xl font-bold text-gray-900">{t.filters}</h3>
@@ -281,9 +286,10 @@ export function Rewards() {
                 </button>
               </div>
 
+              {categories.length > 1 ? (
               <div>
                 <label className="text-sm font-semibold text-gray-700 mb-3 block">
-                  {t.allCategories}
+                  {t.category}
                 </label>
                 <div className="grid grid-cols-2 gap-2">
                   {categories.map((category) => (
@@ -301,8 +307,13 @@ export function Rewards() {
                   ))}
                 </div>
               </div>
+              ) : null}
 
-              <div className="space-y-2">
+              <div>
+                <label className="text-sm font-semibold text-gray-700 mb-3 block">
+                  {t.sortBy}
+                </label>
+                <div className="space-y-2">
                 {([
                   ["cheap", t.sortCheap],
                   ["expensive", t.sortExpensive],
@@ -319,6 +330,7 @@ export function Rewards() {
                     {label}
                   </button>
                 ))}
+                </div>
               </div>
 
               <div className="flex gap-3">
