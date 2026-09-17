@@ -53,6 +53,9 @@ def _create_customer_request(customer_id: str, gift_id: str):
 def create_request_payload(payload: RedemptionRequestCreatePayload, actor: str = ""):
     try:
         request = transaction_core._create_request(payload)
+    except transaction_core.DeliveryAddressRequired as exc:
+        # The app turns this code into "add your address" rather than an error.
+        return JSONResponse(exc.as_payload(), status_code=400)
     except transaction_core.InsufficientPointsError as exc:
         # Structured so the app can phrase it in the customer's language.
         return JSONResponse(exc.as_payload(), status_code=400)

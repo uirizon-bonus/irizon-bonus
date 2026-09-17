@@ -666,6 +666,59 @@ def _init_bonus_db() -> None:
                 WHERE customers.id = sub.client_id AND customers.first_activity_at IS NULL
                 """
             )
+        # ─── Delivery location ──────────────────────────────────────────────
+        # Where a customer wants gifts delivered. Coordinates are nullable on
+        # purpose: NULL means "never set", which 0,0 (a point in the ocean)
+        # could not express.
+        geo_float = "DOUBLE PRECISION" if DB_BACKEND == "postgres" else "REAL"
+        nullable_ts_geo = "TIMESTAMP" if DB_BACKEND == "postgres" else "TEXT"
+        if "address_text" not in customer_columns:
+            connection.execute("ALTER TABLE customers ADD COLUMN address_text TEXT NOT NULL DEFAULT ''")
+        if "address_lat" not in customer_columns:
+            connection.execute(f"ALTER TABLE customers ADD COLUMN address_lat {geo_float}")
+        if "address_lng" not in customer_columns:
+            connection.execute(f"ALTER TABLE customers ADD COLUMN address_lng {geo_float}")
+        if "address_note" not in customer_columns:
+            connection.execute("ALTER TABLE customers ADD COLUMN address_note TEXT NOT NULL DEFAULT ''")
+        if "address_updated_at" not in customer_columns:
+            connection.execute(f"ALTER TABLE customers ADD COLUMN address_updated_at {nullable_ts_geo}")
+
+        # Each request keeps its own copy of the address. Pointing at the profile
+        # instead would rewrite the destination of orders already shipped as soon
+        # as the customer moves.
+        if DB_BACKEND == "postgres":
+            request_columns = {
+                str(row["column_name"])
+                for row in connection.execute(
+                    "SELECT column_name FROM information_schema.columns "
+                    "WHERE table_schema = 'public' AND table_name = 'redemption_requests'"
+                ).fetchall()
+            }
+        else:
+            request_columns = {
+                str(row["name"]) for row in connection.execute("PRAGMA table_info(redemption_requests)").fetchall()
+            }
+        if "delivery_address" not in request_columns:
+            connection.execute("ALTER TABLE redemption_requests ADD COLUMN delivery_address TEXT NOT NULL DEFAULT ''")
+        if "delivery_lat" not in request_columns:
+            connection.execute(f"ALTER TABLE redemption_requests ADD COLUMN delivery_lat {geo_float}")
+        if "delivery_lng" not in request_columns:
+            connection.execute(f"ALTER TABLE redemption_requests ADD COLUMN delivery_lng {geo_float}")
+        if "delivery_note" not in request_columns:
+            connection.execute("ALTER TABLE redemption_requests ADD COLUMN delivery_note TEXT NOT NULL DEFAULT ''")
+
+        # Reverse geocoding is billed per call, so answers are kept by rounded
+        # coordinate: dragging a pin around the same block costs one lookup.
+        connection.execute(
+            f"""
+            CREATE TABLE IF NOT EXISTS geocode_cache (
+                cache_key TEXT PRIMARY KEY,
+                address TEXT NOT NULL DEFAULT '',
+                created_at {timestamp_column}
+            )
+            """
+        )
+
         connection.execute(
             """
             DELETE FROM products

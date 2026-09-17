@@ -1,8 +1,10 @@
-import { X, User, Phone, Wallet, ArrowUpRight, ArrowDownRight, Hash, LogOut } from "lucide-react";
+import { X, User, Phone, Wallet, ArrowUpRight, ArrowDownRight, Hash, LogOut, MapPin, ChevronRight } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
+import { useState } from "react";
 import { useNavigate } from "react-router";
 import { useLanguage } from "../contexts/LanguageContext";
 import { usePortal } from "../context/PortalContext";
+import { LocationPicker } from "./LocationPicker";
 
 const translations = {
   RU: {
@@ -15,6 +17,9 @@ const translations = {
     accountId: "ID аккаунта",
     points: "баллов",
     logout: "Выйти из аккаунта",
+    address: "Адрес доставки",
+    addressMissing: "Добавить адрес",
+    addressChange: "Изменить",
   },
   UZ: {
     profile: "Profil",
@@ -26,6 +31,9 @@ const translations = {
     accountId: "Akkaunt ID",
     points: "ball",
     logout: "Akkauntdan chiqish",
+    address: "Yetkazib berish manzili",
+    addressMissing: "Manzil qo'shish",
+    addressChange: "O'zgartirish",
   },
 } as const;
 
@@ -39,6 +47,8 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
   const { language } = useLanguage();
   const { customer, logout } = usePortal();
   const t = translations[language];
+  const [isLocationOpen, setLocationOpen] = useState(false);
+  const location = customer?.location ?? null;
 
   const handleLogout = () => {
     logout();
@@ -130,6 +140,33 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
                 </div>
               </div>
 
+              {/* Delivery address */}
+              <button
+                onClick={() => setLocationOpen(true)}
+                className="w-full flex items-center justify-between gap-3 px-5 py-4 rounded-2xl bg-gray-50 text-left active:bg-gray-100"
+              >
+                <div className="flex items-start gap-2 min-w-0">
+                  <MapPin className="w-4 h-4 text-[#1E6FD9] mt-0.5 flex-shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-gray-500">{t.address}</p>
+                    {location ? (
+                      <>
+                        <p className="text-sm font-semibold text-gray-900 truncate">{location.address || "—"}</p>
+                        {location.note ? (
+                          <p className="text-xs text-gray-400 truncate">{location.note}</p>
+                        ) : null}
+                      </>
+                    ) : (
+                      <p className="text-sm font-semibold text-[#1E6FD9]">{t.addressMissing}</p>
+                    )}
+                  </div>
+                </div>
+                <span className="flex items-center gap-1 text-xs font-semibold text-[#1E6FD9] flex-shrink-0">
+                  {location ? t.addressChange : ""}
+                  <ChevronRight className="w-4 h-4" />
+                </span>
+              </button>
+
               {/* Account ID */}
               <div className="flex items-center justify-between px-5 py-4 rounded-2xl bg-gray-50">
                 <div className="flex items-center gap-2 text-gray-500">
@@ -150,6 +187,7 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
               </motion.button>
             </div>
           </motion.div>
+          <LocationPicker isOpen={isLocationOpen} onClose={() => setLocationOpen(false)} />
         </>
       ) : null}
     </AnimatePresence>

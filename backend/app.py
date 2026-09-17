@@ -4,6 +4,7 @@ from .routers.auth import router as auth_router
 from .routers.catalog import router as catalog_router
 from .routers.customers import router as customers_router
 from .routers.dashboard import router as dashboard_router
+from .routers.geo import router as geo_router
 from .routers.market import router as market_router
 from .routers.orders import router as orders_router
 from .routers.push import router as push_router
@@ -15,6 +16,7 @@ app.include_router(auth_router)
 app.include_router(catalog_router)
 app.include_router(customers_router)
 app.include_router(dashboard_router)
+app.include_router(geo_router)
 app.include_router(market_router)
 app.include_router(orders_router)
 app.include_router(push_router)

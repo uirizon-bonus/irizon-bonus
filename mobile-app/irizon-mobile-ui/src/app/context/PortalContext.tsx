@@ -31,6 +31,21 @@ export interface Customer {
   pointsReserved?: number;
   pointsBalanceGross?: number;
   nameMissing?: boolean;
+  // Where gifts get delivered. null until the customer picks a place.
+  location?: CustomerLocation | null;
+}
+
+export interface CustomerLocation {
+  lat: number;
+  lng: number;
+  address: string;
+  note: string;
+  updatedAt?: string;
+}
+
+export interface PlaceSuggestion {
+  placeId: string;
+  description: string;
 }
 
 export interface GiftItem {
@@ -152,6 +167,7 @@ type I18n = {
   profileNameSaving: string;
   profileNameLater: string;
   profileNameError: string;
+  locationSaveFailed: string;
 };
 
 const i18nMap: Record<Lang, I18n> = {
@@ -228,6 +244,7 @@ const i18nMap: Record<Lang, I18n> = {
     profileNameSaving: "Сохранение...",
     profileNameLater: "Позже",
     profileNameError: "Не удалось сохранить. Проверьте интернет и попробуйте снова.",
+    locationSaveFailed: "Не удалось сохранить адрес",
   },
   UZ: {
     home: "Asosiy",
@@ -302,6 +319,7 @@ const i18nMap: Record<Lang, I18n> = {
     profileNameSaving: "Saqlanmoqda...",
     profileNameLater: "Keyinroq",
     profileNameError: "Saqlab bo'lmadi. Internetni tekshirib, qayta urinib ko'ring.",
+    locationSaveFailed: "Manzilni saqlab bo'lmadi",
   },
 };
 
@@ -342,7 +360,18 @@ type PortalContextValue = {
     usedBySelf?: boolean;
     productName?: string;
   }>;
-  redeemGift: (giftId: string) => Promise<{ ok: boolean; message?: string }>;
+  redeemGift: (giftId: string) => Promise<{ ok: boolean; message?: string; code?: string }>;
+  saveLocation: (location: {
+    lat: number;
+    lng: number;
+    address?: string;
+    note?: string;
+  }) => Promise<{ ok: boolean; error?: string; code?: string }>;
+  // Geocoding runs on our server; "" means no address could be resolved and
+  // null means the lookup is unavailable, so the customer types it instead.
+  lookupAddress: (lat: number, lng: number) => Promise<string | null>;
+  searchPlaces: (query: string) => Promise<PlaceSuggestion[] | null>;
+  resolvePlace: (placeId: string) => Promise<{ lat: number; lng: number; address: string } | null>;
   updateProfile: (fullName: string) => Promise<{ ok: boolean; error?: string }>;
   clearNotice: () => void;
 };
@@ -816,6 +845,83 @@ export function PortalProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const saveLocation = async (location: { lat: number; lng: number; address?: string; note?: string }) => {
+    if (!customer?.id) return { ok: false, error: i18n.portalLoadFailed };
+    try {
+      const response = await apiFetch(`/api/customers/${customer.id}/location`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          lat: location.lat,
+          lng: location.lng,
+          address: location.address ?? "",
+          note: location.note ?? "",
+        }),
+      });
+      const payload = await parseJson(response);
+      if (!response.ok) {
+        return {
+          ok: false,
+          error: String(payload?.error || i18n.locationSaveFailed),
+          code: typeof payload?.code === "string" ? payload.code : "",
+        };
+      }
+      const updated = payload.customer as Customer | undefined;
+      if (updated) setCustomer(updated);
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : i18n.locationSaveFailed };
+    }
+  };
+
+  const lookupAddress = async (lat: number, lng: number) => {
+    try {
+      const response = await apiFetch(`/api/geo/reverse?lat=${lat}&lng=${lng}&language=${lang.toLowerCase()}`);
+      if (!response.ok) return null;
+      const payload = await parseJson(response);
+      return String(payload?.address ?? "");
+    } catch {
+      return null;
+    }
+  };
+
+  const searchPlaces = async (query: string) => {
+    const text = query.trim();
+    if (text.length < 3) return [];
+    try {
+      const response = await apiFetch(
+        `/api/geo/search?q=${encodeURIComponent(text)}&language=${lang.toLowerCase()}`,
+      );
+      if (!response.ok) return null;
+      const payload = await parseJson(response);
+      return ((payload?.results as PlaceSuggestion[]) || []).map((item) => ({
+        placeId: String(item.placeId || ""),
+        description: String(item.description || ""),
+      }));
+    } catch {
+      return null;
+    }
+  };
+
+  const resolvePlace = async (placeId: string) => {
+    try {
+      const response = await apiFetch(
+        `/api/geo/place?place_id=${encodeURIComponent(placeId)}&language=${lang.toLowerCase()}`,
+      );
+      if (!response.ok) return null;
+      const payload = await parseJson(response);
+      const place = payload?.place;
+      if (!place) return null;
+      return {
+        lat: Number(place.lat),
+        lng: Number(place.lng),
+        address: String(place.address || ""),
+      };
+    } catch {
+      return null;
+    }
+  };
+
   const redeemGift = async (giftId: string) => {
     if (!customer?.id) {
       return { ok: false, message: i18n.redeemFailed };
@@ -831,7 +937,11 @@ export function PortalProvider({ children }: { children: ReactNode }) {
       });
       const payload = await parseJson(response);
       if (!response.ok) {
-        throw new Error(String(payload?.error || i18n.redeemFailed));
+        const code = typeof payload?.code === "string" ? payload.code : "";
+        const message = String(payload?.error || i18n.redeemFailed);
+        // A missing delivery address is a prompt, not a failure to shout about.
+        if (code !== "delivery_address_required") setError(message);
+        return { ok: false, message, code };
       }
       const message = String(payload?.message || "OK");
       setInfo(message);
@@ -881,6 +991,10 @@ export function PortalProvider({ children }: { children: ReactNode }) {
     logout,
     applyQrScan,
     redeemGift,
+    saveLocation,
+    lookupAddress,
+    searchPlaces,
+    resolvePlace,
     updateProfile,
     clearNotice,
   };

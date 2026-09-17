@@ -24,7 +24,8 @@ import {
   MoreHorizontal,
   Check,
   AlertTriangle,
-  History
+  History,
+  MapPin
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { TRANSLATIONS } from '../constants';
@@ -1004,6 +1005,43 @@ const RequestsView: React.FC<RequestsViewProps> = ({ lang, initialSelectedId }) 
                                       <p className="text-lg font-black text-emerald-600">{balanceAfter.toLocaleString()}</p>
                                     </div>
                                   </div>
+                                </div>
+
+                                {/* Delivery address */}
+                                <div className="p-6 rounded-3xl bg-white border border-slate-100 shadow-sm">
+                                  <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                                    <MapPin className="w-3 h-3" /> {t.delivery_address}
+                                  </h4>
+                                  {req.deliveryAddress || req.deliveryLat ? (
+                                    <div className="space-y-2">
+                                      <p className="text-sm font-bold text-slate-800 break-words">
+                                        {req.deliveryAddress || '—'}
+                                      </p>
+                                      {req.deliveryNote ? (
+                                        <p className="text-xs font-medium text-slate-500 break-words">{req.deliveryNote}</p>
+                                      ) : null}
+                                      {req.deliveryLat && req.deliveryLng ? (
+                                        <div className="flex items-center gap-3 pt-1">
+                                          <a
+                                            href={`https://www.google.com/maps?q=${req.deliveryLat},${req.deliveryLng}`}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="text-xs font-black text-cyan-600 hover:text-cyan-700 uppercase tracking-tight"
+                                          >
+                                            {t.open_in_maps}
+                                          </a>
+                                          <button
+                                            onClick={() => navigator.clipboard?.writeText(`${req.deliveryLat},${req.deliveryLng}`)}
+                                            className="text-xs font-bold text-slate-400 hover:text-slate-600"
+                                          >
+                                            {req.deliveryLat.toFixed(5)}, {req.deliveryLng.toFixed(5)}
+                                          </button>
+                                        </div>
+                                      ) : null}
+                                    </div>
+                                  ) : (
+                                    <p className="text-sm font-bold text-slate-400">{t.delivery_address_missing}</p>
+                                  )}
                                 </div>
 
                                 {/* Timeline & Actions */}

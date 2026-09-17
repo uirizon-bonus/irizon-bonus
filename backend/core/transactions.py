@@ -9,7 +9,7 @@ from backend.core import catalog as catalog_core
 from backend.core import customers as customer_core
 from backend.core import points as points_core
 from backend.db import bonus_db
-from backend.config import ADMIN_USERNAME
+from backend.config import ADMIN_USERNAME, REQUIRE_DELIVERY_ADDRESS
 from backend.core import admin_users
 from backend.models.schemas import (
     MarketOrderCreatePayload,
@@ -28,7 +28,8 @@ def _load_requests() -> List[Dict[str, Any]]:
             """
             SELECT
                 public_id, created_at, customer_id, customer_name, gift_id, gift_name, gift_image,
-                points_used, status, operator, reject_reason, request_type
+                points_used, status, operator, reject_reason, request_type,
+                delivery_address, delivery_lat, delivery_lng, delivery_note
             FROM redemption_requests
             ORDER BY datetime(created_at) DESC, id DESC
             """
@@ -55,6 +56,11 @@ def _serialize_request_row(row: Any) -> Dict[str, Any]:
         "operator": str(row["operator"] or ""),
         "rejectReason": str(row["reject_reason"] or ""),
         "requestType": str(row["request_type"] or "Admin"),
+        # Where this one goes, as it was when the request was made.
+        "deliveryAddress": str(row["delivery_address"] or ""),
+        "deliveryLat": float(row["delivery_lat"]) if row["delivery_lat"] is not None else None,
+        "deliveryLng": float(row["delivery_lng"]) if row["delivery_lng"] is not None else None,
+        "deliveryNote": str(row["delivery_note"] or ""),
     }
 
 
@@ -65,7 +71,8 @@ def _load_request_by_id(public_id: str) -> Optional[Dict[str, Any]]:
             """
             SELECT
                 public_id, created_at, customer_id, customer_name, gift_id, gift_name, gift_image,
-                points_used, status, operator, reject_reason, request_type
+                points_used, status, operator, reject_reason, request_type,
+                delivery_address, delivery_lat, delivery_lng, delivery_note
             FROM redemption_requests
             WHERE public_id = ?
             """,
@@ -193,6 +200,18 @@ def _load_qr_scan_events(
     return {"count": int(total_row["count"] or 0), "totalPointsSum": int(total_row["points_sum"] or 0), "events": events}
 
 
+class DeliveryAddressRequired(ValueError):
+    """The customer has no saved delivery location and the gift must be shipped."""
+
+    code = "delivery_address_required"
+
+    def __init__(self) -> None:
+        super().__init__("Yetkazib berish manzili kiritilmagan")
+
+    def as_payload(self) -> Dict[str, Any]:
+        return {"error": str(self), "code": self.code}
+
+
 class InsufficientPointsError(ValueError):
     """Raised when a customer cannot afford a gift once reservations are counted.
 
@@ -311,6 +330,13 @@ def _create_request(payload: RedemptionRequestCreatePayload) -> Dict[str, Any]:
         public_id = _legacy._generate_catalog_public_id(connection, "redemption_requests", "REQ", 5000, key_column="public_id")
         initial_status = "Pending" if payload.request_type.strip() == "Customer" else "Approved"
 
+        # The request carries its own copy of the address: the profile may change
+        # later, and an operator must still see where this parcel was going.
+        # Operators creating a request by hand are not blocked by a missing one.
+        location = customer_core._load_customer_location(connection, payload.customer_id.strip())
+        if location is None and REQUIRE_DELIVERY_ADDRESS and payload.request_type.strip() == "Customer":
+            raise DeliveryAddressRequired()
+
         # A pending request holds its points until an operator approves or rejects
         # it, so the customer may only spend what is left after those reservations.
         # Without this a customer can queue up requests worth far more than their
@@ -329,8 +355,9 @@ def _create_request(payload: RedemptionRequestCreatePayload) -> Dict[str, Any]:
             """
             INSERT INTO redemption_requests (
                 public_id, customer_id, customer_name, gift_id, gift_name, gift_image,
-                points_used, status, operator, reject_reason, request_type
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, '', ?)
+                points_used, status, operator, reject_reason, request_type,
+                delivery_address, delivery_lat, delivery_lng, delivery_note
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, '', ?, ?, ?, ?, ?)
             """,
             (
                 public_id,
@@ -343,6 +370,10 @@ def _create_request(payload: RedemptionRequestCreatePayload) -> Dict[str, Any]:
                 initial_status,
                 payload.operator.strip() or "Admin",
                 payload.request_type.strip() or "Admin",
+                str((location or {}).get("address") or ""),
+                (location or {}).get("lat"),
+                (location or {}).get("lng"),
+                str((location or {}).get("note") or ""),
             ),
         )
         request_row = connection.execute(
@@ -478,7 +509,8 @@ def _update_requests_status_bulk(payload: RedemptionRequestBulkStatusPayload) ->
             f"""
             SELECT
                 public_id, created_at, customer_id, customer_name, gift_id, gift_name, gift_image,
-                points_used, status, operator, reject_reason, request_type
+                points_used, status, operator, reject_reason, request_type,
+                delivery_address, delivery_lat, delivery_lng, delivery_note
             FROM redemption_requests
             WHERE public_id IN ({placeholders})
             """,

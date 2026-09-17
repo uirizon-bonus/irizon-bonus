@@ -4,6 +4,7 @@ from backend import deps
 from backend.models.schemas import (
     BonusCreatePayload,
     CustomerDeductPayload,
+    CustomerLocationPayload,
     CustomerMarketOrderPayload,
     CustomerProfilePayload,
     CustomerRedemptionPayload,
@@ -133,6 +134,11 @@ def update_customer_profile(client_id: str, payload: CustomerProfilePayload, cur
 @router.post("/api/customers/{client_id}/scan-qr")
 def create_customer_qr_points(client_id: str, payload: QrScanPayload, current_id: str = Depends(deps.require_customer)):
     return customer_service.create_customer_qr_points_payload(client_id, payload, current_id)
+
+
+@router.post("/api/customers/{client_id}/location")
+def update_customer_location(client_id: str, payload: CustomerLocationPayload, current_id: str = Depends(deps.require_customer)):
+    return customer_service.update_customer_location_payload(client_id, payload, current_id)
 
 
 @router.post("/api/customers/{client_id}/redemptions")

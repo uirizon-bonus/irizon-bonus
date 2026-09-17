@@ -8,17 +8,19 @@
     "build": "npm --prefix irizon-mobile-ui run build",
     "preview": "npm --prefix irizon-mobile-ui run preview",
     "lint": "npm --prefix irizon-mobile-ui run lint",
-    "cap:sync": "npm run build && npx cap sync android",
+    "cap:sync": "npm run build && npx cap sync android && npm run native:permissions",
     "cap:open:android": "npx cap open android",
     "cap:run:android": "npm run cap:sync && npx cap run android",
     "apk:debug": "npm run cap:sync && cd android && gradlew.bat assembleDebug",
-    "apk:release": "npm run cap:sync && cd android && gradlew.bat assembleRelease"
+    "apk:release": "npm run cap:sync && cd android && gradlew.bat assembleRelease",
+    "native:permissions": "node scripts/native-permissions.mjs"
   },
   "dependencies": {
     "@capacitor-firebase/messaging": "^8.5.1",
     "@capacitor/android": "^8.5.1",
     "@capacitor/cli": "^8.5.1",
     "@capacitor/core": "^8.5.1",
+    "@capacitor/geolocation": "^8.2.2",
     "@capacitor/ios": "^8.5.1"
   },
   "devDependencies": {

@@ -13,6 +13,8 @@ import requests
 
 from backend.config import (
     CLIENTS_CACHE_PATH,
+    GEO_BBOX,
+    GEO_BBOX_ENFORCED,
     CLIENTS_CACHE_TTL_SEC,
     ESKIZ_BASE_URL,
     ESKIZ_CALLBACK_URL,
@@ -866,6 +868,7 @@ def _load_customer_snapshot(client_id: str) -> Optional[Dict[str, Any]]:
             "pointsReserved": reserved_points,
             "pointsBalanceGross": raw_balance,
             "nameMissing": _name_missing(name, "", client_id),
+            "location": _load_customer_location_for_client(str(client_id)),
         }
 
     full_name = str(client.get("fullName") or client.get("name") or client_id)
@@ -882,6 +885,7 @@ def _load_customer_snapshot(client_id: str) -> Optional[Dict[str, Any]]:
         "pointsReserved": reserved_points,
         "pointsBalanceGross": raw_balance,
         "nameMissing": _name_missing(full_name, phone, str(client.get("id", client_id))),
+        "location": _load_customer_location_for_client(str(client.get("id", client_id))),
     }
 
 
@@ -1080,6 +1084,96 @@ def _provision_self_registered_customer(normalized_phone: str) -> str:
         pass
     logger.info("Self-registered customer created: %s (%s)", customer_id, normalized_phone)
     return customer_id
+
+
+class LocationError(ValueError):
+    """A pin the system will not store, with a code the app can act on."""
+
+    def __init__(self, message: str, *, code: str = "invalid_location") -> None:
+        super().__init__(message)
+        self.code = str(code or "invalid_location")
+
+
+def _normalize_location(lat: Any, lng: Any) -> Tuple[float, float]:
+    try:
+        lat_value = round(float(lat), 6)
+        lng_value = round(float(lng), 6)
+    except (TypeError, ValueError):
+        raise LocationError("Koordinatalar noto'g'ri", code="invalid_location")
+    if not (-90.0 <= lat_value <= 90.0) or not (-180.0 <= lng_value <= 180.0):
+        raise LocationError("Koordinatalar noto'g'ri", code="invalid_location")
+    # 0,0 is in the Atlantic: it means the device returned nothing, not a home.
+    if abs(lat_value) < 0.0001 and abs(lng_value) < 0.0001:
+        raise LocationError("Manzil tanlanmadi", code="empty_location")
+    if GEO_BBOX_ENFORCED:
+        lat_min, lat_max, lng_min, lng_max = GEO_BBOX
+        if not (lat_min <= lat_value <= lat_max and lng_min <= lng_value <= lng_max):
+            raise LocationError("Manzil xizmat hududidan tashqarida", code="outside_area")
+    return (lat_value, lng_value)
+
+
+def _load_customer_location(connection: Any, client_id: str) -> Optional[Dict[str, Any]]:
+    """The customer's saved delivery location, or None when never set."""
+    row = connection.execute(
+        """
+        SELECT address_text, address_lat, address_lng, address_note, address_updated_at
+        FROM customers WHERE id = ?
+        """,
+        (str(client_id),),
+    ).fetchone()
+    if row is None or row["address_lat"] is None or row["address_lng"] is None:
+        return None
+    return {
+        "address": str(row["address_text"] or ""),
+        "lat": float(row["address_lat"]),
+        "lng": float(row["address_lng"]),
+        "note": str(row["address_note"] or ""),
+        "updatedAt": str(row["address_updated_at"] or ""),
+    }
+
+
+def _load_customer_location_for_client(client_id: str) -> Optional[Dict[str, Any]]:
+    connection = bonus_db()
+    try:
+        return _load_customer_location(connection, str(client_id))
+    finally:
+        connection.close()
+
+
+def _set_customer_location(
+    client_id: str,
+    *,
+    lat: Any,
+    lng: Any,
+    address: str = "",
+    note: str = "",
+) -> Optional[Dict[str, Any]]:
+    lat_value, lng_value = _normalize_location(lat, lng)
+    address_text = str(address or "").strip()[:500]
+    note_text = str(note or "").strip()[:300]
+    connection = bonus_db()
+    try:
+        _bootstrap_customers_from_cache(connection)
+        update_sql = """
+            UPDATE customers
+            SET address_text = ?, address_lat = ?, address_lng = ?, address_note = ?,
+                address_updated_at = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        """
+        params = (address_text, lat_value, lng_value, note_text, _now_text(), str(client_id))
+        cursor = connection.execute(update_sql, params)
+        if int(cursor.rowcount or 0) == 0:
+            # A customer can hold points without ever having been written to the
+            # customers table (ledger-only holders). Materialise the row rather
+            # than telling them their own account does not exist.
+            _ensure_ledger_holders_present(connection)
+            cursor = connection.execute(update_sql, params)
+        connection.commit()
+        if int(cursor.rowcount or 0) == 0:
+            return None
+    finally:
+        connection.close()
+    return _load_customer_snapshot(str(client_id))
 
 
 def _set_customer_name(client_id: str, full_name: str) -> Optional[Dict[str, Any]]:

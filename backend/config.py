@@ -108,6 +108,38 @@ QR_USED_BY_SHOW_FULL_PHONE = os.getenv("QR_USED_BY_SHOW_FULL_PHONE", "false").st
     "on",
 }
 
+# ─── Delivery location / Google Maps ────────────────────────────────────────
+# Server-side key for Geocoding and Places. It must NOT be the key shipped in
+# the app: this one is restricted by server IP, the app's key by app identity.
+# Empty means the app can still save a pin and a typed address — only the
+# automatic address lookup is unavailable.
+GOOGLE_MAPS_SERVER_KEY = os.getenv("GOOGLE_MAPS_SERVER_KEY", "").strip()
+GEOCODE_CACHE_TTL_DAYS = int(os.getenv("GEOCODE_CACHE_TTL_DAYS", "90"))
+# Gifts are delivered, so a customer request needs somewhere to deliver to.
+# Turn off during a transition while older app builds are still in use.
+REQUIRE_DELIVERY_ADDRESS = os.getenv("REQUIRE_DELIVERY_ADDRESS", "true").strip().lower() in {
+    "1",
+    "true",
+    "yes",
+    "y",
+    "on",
+}
+# Rough bounding box for Uzbekistan; a pin outside it is refused as a mistake.
+# Set GEO_BBOX_ENFORCED=false to accept coordinates anywhere.
+GEO_BBOX_ENFORCED = os.getenv("GEO_BBOX_ENFORCED", "true").strip().lower() in {
+    "1",
+    "true",
+    "yes",
+    "y",
+    "on",
+}
+GEO_BBOX = (
+    float(os.getenv("GEO_LAT_MIN", "37.0")),
+    float(os.getenv("GEO_LAT_MAX", "45.7")),
+    float(os.getenv("GEO_LNG_MIN", "55.9")),
+    float(os.getenv("GEO_LNG_MAX", "73.2")),
+)
+
 QR_CODE_PREFIX = os.getenv("QR_CODE_PREFIX", "IRIZON-PRODUCT")
 QR_CODE_SECRET = os.getenv("QR_CODE_SECRET", "irizon-qr-secret")
 ITEM_QR_CODE_PREFIX = os.getenv("ITEM_QR_CODE_PREFIX", "IRIZON-ITEM")

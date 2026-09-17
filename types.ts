@@ -56,6 +56,11 @@ export interface RedemptionRequest {
   operator?: string;
   rejectReason?: string;
   requestType: 'Customer' | 'Admin';
+  // Delivery target as it stood when the request was made.
+  deliveryAddress?: string;
+  deliveryLat?: number | null;
+  deliveryLng?: number | null;
+  deliveryNote?: string;
 }
 
 export interface Activity {

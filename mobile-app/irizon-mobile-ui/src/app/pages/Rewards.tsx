@@ -3,6 +3,7 @@ import { CheckCircle2, Gift as GiftIcon, Search, SlidersHorizontal, X } from "lu
 import { AnimatePresence, motion } from "motion/react";
 import { useNavigate } from "react-router";
 import { useLanguage } from "../contexts/LanguageContext";
+import { LocationPicker } from "../components/LocationPicker";
 import { PullToRefresh } from "../components/PullToRefresh";
 import { usePortal } from "../context/PortalContext";
 import { LoadingScreen } from "../components/LoadingScreen";
@@ -36,6 +37,10 @@ const translations = {
     confirmYes: "Обменять",
     confirmCancel: "Отмена",
     balanceAfter: "Баланс после обмена",
+    deliveryTo: "Доставка на адрес",
+    deliveryMissing: "Адрес доставки не указан",
+    deliveryAdd: "Указать адрес",
+    deliveryChange: "Изменить",
   },
   UZ: {
     title: "Sovg'alar do'koni",
@@ -65,6 +70,10 @@ const translations = {
     confirmYes: "Almashtirish",
     confirmCancel: "Bekor qilish",
     balanceAfter: "Almashtirish dan keyin balans",
+    deliveryTo: "Yetkazib berish manzili",
+    deliveryMissing: "Manzil ko'rsatilmagan",
+    deliveryAdd: "Manzilni ko'rsatish",
+    deliveryChange: "O'zgartirish",
   },
 } as const;
 
@@ -72,6 +81,10 @@ export function Rewards() {
   const navigate = useNavigate();
   const { language } = useLanguage();
   const { customer, gifts, busy, redeemGift, error, loading, refreshPortal } = usePortal();
+  const [isLocationOpen, setLocationOpen] = useState(false);
+  // Set while a redemption waits for an address, so it can resume once saved.
+  const [pendingGiftId, setPendingGiftId] = useState<string | null>(null);
+  const location = customer?.location ?? null;
   const t = translations[language];
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
@@ -111,7 +124,20 @@ export function Rewards() {
     if (result.ok) {
       setRedeemedId(giftId);
       setShowRedeemSuccess(true);
+      return;
     }
+    // Gifts are delivered, so a missing address is a question, not a dead end:
+    // ask for it and finish the redemption afterwards.
+    if (result.code === "delivery_address_required") {
+      setPendingGiftId(giftId);
+      setLocationOpen(true);
+    }
+  };
+
+  const handleLocationSaved = () => {
+    const giftId = pendingGiftId;
+    setPendingGiftId(null);
+    if (giftId) void handleRedeem(giftId);
   };
 
   const balance = customer?.totalPoints ?? 0;
@@ -127,6 +153,7 @@ export function Rewards() {
   }
 
   return (
+    <>
     <PullToRefresh onRefresh={refreshPortal} disabled={isFilterOpen || Boolean(confirmGift) || showRedeemSuccess}>
     <div className="min-h-screen bg-[#F5F7FB]">
       <div className="p-5 space-y-5 pb-24">
@@ -457,6 +484,21 @@ export function Rewards() {
                 {t.confirmPoints}
               </p>
 
+              <button
+                onClick={() => setLocationOpen(true)}
+                className="w-full bg-gray-50 rounded-2xl px-4 py-3 mb-3 flex items-start justify-between gap-3 text-left"
+              >
+                <div className="min-w-0">
+                  <span className="text-xs text-gray-500 font-medium">{t.deliveryTo}</span>
+                  <p className={`text-sm font-semibold truncate ${location ? "text-gray-900" : "text-[#3A7BFF]"}`}>
+                    {location?.address || t.deliveryMissing}
+                  </p>
+                </div>
+                <span className="text-xs font-semibold text-[#3A7BFF] flex-shrink-0 pt-0.5">
+                  {location ? t.deliveryChange : t.deliveryAdd}
+                </span>
+              </button>
+
               <div className="bg-gray-50 rounded-2xl px-4 py-3 mb-5 flex items-center justify-between">
                 <span className="text-xs text-gray-500 font-medium">{t.balanceAfter}:</span>
                 <span className="font-bold text-gray-900">
@@ -484,5 +526,14 @@ export function Rewards() {
       </AnimatePresence>
     </div>
     </PullToRefresh>
+    <LocationPicker
+      isOpen={isLocationOpen}
+      onClose={() => {
+        setLocationOpen(false);
+        setPendingGiftId(null);
+      }}
+      onSaved={handleLocationSaved}
+    />
+    </>
   );
 }

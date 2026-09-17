@@ -9,6 +9,7 @@ from backend.core import admin_users
 from backend.core import dashboard as dashboard_core
 from backend.core import customers as customer_core
 from backend.core import points as points_core
+from backend.core import geo as geo_core
 from backend.core.catalog import QrScanError
 from backend.db import bonus_db
 from backend.models.schemas import (
@@ -193,6 +194,45 @@ def update_customer_profile_payload(client_id: str, payload, current_id: str):
     if customer is None:
         return JSONResponse({"error": "Customer not found"}, status_code=404)
     return {"message": "Profile updated", "customer": customer}
+
+
+def update_customer_location_payload(client_id: str, payload, current_id: str):
+    if client_id != current_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+    address = str(payload.address or "").strip()
+    if not address:
+        # The app could not name the place (no key, no network, or Google knows
+        # no address there). Try once here; an empty address is still storable.
+        try:
+            address = geo_core.reverse_geocode(payload.lat, payload.lng)
+        except geo_core.GeoUnavailable:
+            address = ""
+    try:
+        customer = customer_core._set_customer_location(
+            str(client_id),
+            lat=payload.lat,
+            lng=payload.lng,
+            address=address,
+            note=payload.note,
+        )
+    except customer_core.LocationError as exc:
+        return JSONResponse({"error": str(exc), "code": exc.code}, status_code=400)
+    if customer is None:
+        return JSONResponse({"error": "Customer not found"}, status_code=404)
+    connection = bonus_db()
+    try:
+        legacy._audit_log(
+            connection,
+            action="location_update",
+            entity="customer",
+            entity_id=str(client_id),
+            description="Delivery location updated",
+            actor=f"customer:{client_id}",
+        )
+        connection.commit()
+    finally:
+        connection.close()
+    return {"message": "Location updated", "customer": customer}
 
 
 def create_customer_qr_points_payload(client_id: str, payload: QrScanPayload, current_id: str):

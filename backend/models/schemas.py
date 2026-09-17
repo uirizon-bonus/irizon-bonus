@@ -119,6 +119,14 @@ class CustomerProfilePayload(BaseModel):
     full_name: str = Field(..., min_length=1, max_length=100)
 
 
+class CustomerLocationPayload(BaseModel):
+    # The pin is the truth; the text is what a courier reads. Both are kept.
+    lat: float = Field(..., ge=-90, le=90)
+    lng: float = Field(..., ge=-180, le=180)
+    address: str = Field(default="", max_length=500)
+    note: str = Field(default="", max_length=300)
+
+
 class PushNotificationPayload(BaseModel):
     customer_id: str = Field(default="", max_length=100)
     audience: str = Field(default="customer", max_length=20)
