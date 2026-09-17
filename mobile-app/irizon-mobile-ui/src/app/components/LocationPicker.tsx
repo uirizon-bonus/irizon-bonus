@@ -73,6 +73,9 @@ export function LocationPicker({ isOpen, onClose, onSaved }: LocationPickerProps
   const [gpsBusy, setGpsBusy] = useState(false);
   const [error, setError] = useState("");
   const [mapReady, setMapReady] = useState(false);
+  // The SDK can be configured-but-refused (unconfigured key, restricted host,
+  // no network). Then the picker must fall back, not spin forever.
+  const [mapFailed, setMapFailed] = useState(false);
   const [query, setQuery] = useState("");
   const [suggestions, setSuggestions] = useState<PlaceSuggestion[]>([]);
   const [searchAvailable, setSearchAvailable] = useState(true);
@@ -86,13 +89,19 @@ export function LocationPicker({ isOpen, onClose, onSaved }: LocationPickerProps
   const addressTouched = useRef(false);
 
   const mapsEnabled = useMemo(() => hasMapsKey(), []);
+  const showMap = mapsEnabled && !mapFailed;
 
   // --- map ---------------------------------------------------------------
   useEffect(() => {
     if (!isOpen || !mapsEnabled) return;
     let cancelled = false;
     void loadYandexMaps(language.toLowerCase()).then((maps) => {
-      if (cancelled || !maps || !mapNodeRef.current || mapRef.current) return;
+      if (cancelled) return;
+      if (!maps) {
+        setMapFailed(true);
+        return;
+      }
+      if (!mapNodeRef.current || mapRef.current) return;
       // Yandex takes coordinates as [longitude, latitude].
       const map = new maps.YMap(mapNodeRef.current, {
         location: { center: [center.lng, center.lat], zoom: saved ? 17 : 13 },
@@ -125,6 +134,7 @@ export function LocationPicker({ isOpen, onClose, onSaved }: LocationPickerProps
     if (!isOpen) {
       mapRef.current = null;
       setMapReady(false);
+      setMapFailed(false);
     }
   }, [isOpen]);
 
@@ -286,11 +296,11 @@ export function LocationPicker({ isOpen, onClose, onSaved }: LocationPickerProps
         </div>
 
         <div className="relative flex-1 min-h-[220px] bg-gray-200">
-          {mapsEnabled ? <div ref={mapNodeRef} className="absolute inset-0" /> : null}
+          {showMap ? <div ref={mapNodeRef} className="absolute inset-0" /> : null}
 
-          {!mapsEnabled || !mapReady ? (
+          {!showMap || !mapReady ? (
             <div className="absolute inset-0 flex flex-col items-center justify-center px-8 text-center bg-gray-100">
-              {mapsEnabled ? (
+              {showMap ? (
                 <LoaderCircle className="w-8 h-8 text-[#1E6FD9] animate-spin" />
               ) : (
                 <>
