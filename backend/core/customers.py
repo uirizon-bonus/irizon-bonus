@@ -944,6 +944,10 @@ def _load_customer_activity(client_id: str) -> List[Dict[str, Any]]:
                 "time": str(row["created_at"] or ""),
                 "user": "System",
                 "points": points,
+                # The app links a ledger row to its redemption request with these,
+                # instead of fishing a REQ id out of the note text.
+                "sourceType": source_type,
+                "sourceRef": str(row["source_ref"] or ""),
             }
         )
     return activities

@@ -26,6 +26,10 @@ export interface Customer {
   totalPoints: number;
   pointsEarned: number;
   pointsRedeemed: number;
+  // Points held by pending requests: already subtracted from totalPoints, but
+  // not yet taken out of the ledger.
+  pointsReserved?: number;
+  pointsBalanceGross?: number;
   nameMissing?: boolean;
 }
 
@@ -51,7 +55,9 @@ export interface ProductItem {
 export interface RequestItem {
   id: string;
   giftName: string;
+  giftImage: string;
   status: string;
+  rejectReason: string;
   requestedAt: string;
   pointsUsed: number;
 }
@@ -62,6 +68,16 @@ export interface ActivityItem {
   description: string;
   time: string;
   points: number;
+  sourceType?: string;
+  sourceRef?: string;
+  // Set when the row belongs to a gift redemption, so the history screen can
+  // show its current status instead of a bare amount.
+  requestId?: string;
+  status?: string;
+  giftName?: string;
+  rejectReason?: string;
+  // Points only held while an operator decides; nothing has left the ledger.
+  reserved?: boolean;
 }
 
 type I18n = {
@@ -549,36 +565,65 @@ export function PortalProvider({ children }: { children: ReactNode }) {
       const nextRequests = ((requestsPayload.requests as any[]) || []).map((request) => ({
         id: normalizeRequestId(request.id),
         giftName: String(request.giftName || ""),
+        giftImage: String(request.giftImage || ""),
         status: String(request.status || "Pending"),
+        rejectReason: String(request.rejectReason || ""),
         requestedAt: String(request.requestedAt || request.date || request.createdAt || ""),
         pointsUsed: Number(request.pointsUsed || 0),
       }));
       setRequests(nextRequests);
 
-      const baseActivities = ((activityPayload.activities as any[]) || []).map((activity) => ({
-        id: String(activity.id || ""),
-        type: String(activity.type || ""),
-        description: String(activity.description || ""),
-        time: String(activity.time || ""),
-        points: Number(activity.points || 0),
-      }));
+      const requestById = new Map(nextRequests.filter((request) => request.id).map((request) => [request.id, request]));
+
+      const baseActivities = ((activityPayload.activities as any[]) || []).map((activity) => {
+        const sourceType = String(activity.sourceType || "");
+        const sourceRef = String(activity.sourceRef || "");
+        const description = String(activity.description || "");
+        // Newer servers name the request outright; older ones only mention it in
+        // the note, so fall back to reading the REQ id out of the text.
+        const requestId = normalizeRequestId(
+          (sourceType.startsWith("request") ? sourceRef : "") || description.match(/REQ-\d+/i)?.[0] || "",
+        );
+        const linked = requestId ? requestById.get(requestId) : undefined;
+        return {
+          id: String(activity.id || ""),
+          type: String(activity.type || ""),
+          description,
+          time: String(activity.time || ""),
+          points: Number(activity.points || 0),
+          sourceType,
+          sourceRef,
+          requestId: linked ? requestId : "",
+          status: linked?.status || "",
+          giftName: linked?.giftName || "",
+          rejectReason: linked?.rejectReason || "",
+        };
+      });
       const seenRequestIds = new Set(
-        baseActivities
-          .map((activity) => activity.description || "")
-          .filter(Boolean)
-          .map((desc) => normalizeRequestId(desc.match(/REQ-\d+/i)?.[0] || ""))
-          .filter(Boolean),
+        baseActivities.map((activity) => activity.requestId).filter(Boolean),
       );
       const requestActivities = nextRequests
         .filter((request) => request.id)
-        .filter((request) => !seenRequestIds.has(normalizeRequestId(request.id)))
-        .map((request) => ({
-          id: request.id,
-          type: "request",
-          description: request.giftName ? `${request.id} • ${request.giftName}` : request.id,
-          time: request.requestedAt,
-          points: request.pointsUsed ? -Math.abs(request.pointsUsed) : 0,
-        }));
+        .filter((request) => !seenRequestIds.has(request.id))
+        .map((request) => {
+          // A rejected request never touched the ledger, so showing it as a
+          // deduction was wrong; a pending one only holds its points aside.
+          const rejected = request.status === "Rejected";
+          return {
+            id: request.id,
+            type: "request",
+            description: request.giftName ? `${request.id} • ${request.giftName}` : request.id,
+            time: request.requestedAt,
+            points: rejected ? 0 : -Math.abs(request.pointsUsed),
+            sourceType: "request_open",
+            sourceRef: request.id,
+            requestId: request.id,
+            status: request.status,
+            giftName: request.giftName,
+            rejectReason: request.rejectReason,
+            reserved: !rejected,
+          };
+        });
       const mergedActivities = [...baseActivities, ...requestActivities].sort((a, b) => {
         const aTime = new Date(a.time).getTime();
         const bTime = new Date(b.time).getTime();
