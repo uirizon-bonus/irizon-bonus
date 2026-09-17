@@ -13,8 +13,11 @@ from backend.config import (
 from backend.db import bonus_db
 
 GEOCODE_ENDPOINT = "https://maps.googleapis.com/maps/api/geocode/json"
-AUTOCOMPLETE_ENDPOINT = "https://maps.googleapis.com/maps/api/place/autocomplete/json"
-PLACE_DETAILS_ENDPOINT = "https://maps.googleapis.com/maps/api/place/details/json"
+# Places API (New). The older /maps/api/place/* endpoints cannot be enabled on
+# projects created from 2025 onwards, so this is the only address search that
+# works for a fresh project.
+AUTOCOMPLETE_ENDPOINT = "https://places.googleapis.com/v1/places:autocomplete"
+PLACE_DETAILS_ENDPOINT = "https://places.googleapis.com/v1/places"
 GEO_TIMEOUT_SEC = 12
 # Autocomplete is limited to Uzbekistan: a customer picking a street in another
 # country is a mistake, not a delivery address.
@@ -109,66 +112,78 @@ def reverse_geocode(lat: float, lng: float, language: str = "ru") -> str:
     return address
 
 
+def _places_error(payload: Dict[str, Any]) -> str:
+    return str(((payload or {}).get("error") or {}).get("message") or "")
+
+
 def search_places(query: str, language: str = "ru", session_token: str = "") -> List[Dict[str, Any]]:
     """Address suggestions for what the customer typed."""
     key = _require_key()
     text = str(query or "").strip()
     if len(text) < 3:
         return []
-    params: Dict[str, Any] = {
+    body: Dict[str, Any] = {
         "input": text,
-        "language": language,
-        "components": f"country:{PLACES_COUNTRY}",
-        "key": key,
+        "languageCode": language,
+        "includedRegionCodes": [PLACES_COUNTRY],
     }
     # A session token bills a whole search-then-pick as one operation.
     if session_token:
-        params["sessiontoken"] = session_token
+        body["sessionToken"] = session_token
     try:
-        response = requests.get(AUTOCOMPLETE_ENDPOINT, params=params, timeout=GEO_TIMEOUT_SEC)
+        response = requests.post(
+            AUTOCOMPLETE_ENDPOINT,
+            json=body,
+            headers={"X-Goog-Api-Key": key, "Content-Type": "application/json"},
+            timeout=GEO_TIMEOUT_SEC,
+        )
         payload = response.json()
     except Exception as exc:
         raise GeoUnavailable(f"Places request failed: {exc}")
-    status = str(payload.get("status") or "")
-    if status == "ZERO_RESULTS":
-        return []
-    if status != "OK":
-        logger.warning("Places returned %s: %s", status, payload.get("error_message", ""))
-        raise GeoUnavailable(f"Places returned {status}")
-    return [
-        {
-            "placeId": str(item.get("place_id") or ""),
-            "description": str(item.get("description") or ""),
-        }
-        for item in (payload.get("predictions") or [])
-        if item.get("place_id")
-    ][:8]
+    if response.status_code != 200:
+        logger.warning("Places autocomplete failed (%s): %s", response.status_code, _places_error(payload))
+        raise GeoUnavailable(f"Places returned {response.status_code}")
+    results: List[Dict[str, Any]] = []
+    for item in payload.get("suggestions") or []:
+        prediction = item.get("placePrediction") or {}
+        place_id = str(prediction.get("placeId") or "")
+        description = str(((prediction.get("text") or {}).get("text")) or "")
+        if place_id and description:
+            results.append({"placeId": place_id, "description": description})
+    return results[:8]
 
 
 def place_location(place_id: str, language: str = "ru", session_token: str = "") -> Dict[str, Any]:
     """Turn a chosen suggestion into a pin the map can show."""
     key = _require_key()
-    params: Dict[str, Any] = {
-        "place_id": str(place_id or "").strip(),
-        "language": language,
-        "fields": "geometry,formatted_address",
-        "key": key,
-    }
+    identifier = str(place_id or "").strip()
+    if not identifier:
+        raise GeoUnavailable("No place id given")
+    params: Dict[str, Any] = {"languageCode": language}
     if session_token:
-        params["sessiontoken"] = session_token
+        params["sessionToken"] = session_token
     try:
-        response = requests.get(PLACE_DETAILS_ENDPOINT, params=params, timeout=GEO_TIMEOUT_SEC)
+        response = requests.get(
+            f"{PLACE_DETAILS_ENDPOINT}/{identifier}",
+            params=params,
+            headers={
+                "X-Goog-Api-Key": key,
+                # Asking for two fields keeps this in the cheapest billing tier.
+                "X-Goog-FieldMask": "location,formattedAddress",
+            },
+            timeout=GEO_TIMEOUT_SEC,
+        )
         payload = response.json()
     except Exception as exc:
         raise GeoUnavailable(f"Place details request failed: {exc}")
-    if str(payload.get("status") or "") != "OK":
-        raise GeoUnavailable(f"Place details returned {payload.get('status')}")
-    result = payload.get("result") or {}
-    location = ((result.get("geometry") or {}).get("location")) or {}
-    if "lat" not in location or "lng" not in location:
+    if response.status_code != 200:
+        logger.warning("Place details failed (%s): %s", response.status_code, _places_error(payload))
+        raise GeoUnavailable(f"Place details returned {response.status_code}")
+    location = payload.get("location") or {}
+    if "latitude" not in location or "longitude" not in location:
         raise GeoUnavailable("Place details carried no coordinates")
     return {
-        "lat": round(float(location["lat"]), 6),
-        "lng": round(float(location["lng"]), 6),
-        "address": str(result.get("formatted_address") or ""),
+        "lat": round(float(location["latitude"]), 6),
+        "lng": round(float(location["longitude"]), 6),
+        "address": str(payload.get("formattedAddress") or ""),
     }

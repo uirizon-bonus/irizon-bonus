@@ -20,11 +20,17 @@ the pin.
 
 1. Sign in at <https://console.cloud.google.com> and create a project, e.g.
    `irizon-bonus-maps`.
-2. **Billing → Link a billing account.** Maps refuses to serve without it.
+2. **Billing → Link a billing account.** Nothing works without it: every call
+   comes back `REQUEST_DENIED — You must enable Billing on the Google Cloud
+   Project`, whatever else is configured. Google's free monthly allowance still
+   applies once billing is attached.
 3. **APIs & Services → Enable APIs**, enable exactly these three:
    - **Maps JavaScript API** — the map inside the app
    - **Geocoding API** — pin to address
-   - **Places API** — address search box
+   - **Places API (New)** — address search box. Pick the entry named "(New)":
+     projects created recently cannot enable the older Places API, and calling
+     it returns `You're calling a legacy API, which is not enabled for your
+     project`. The server uses the new one.
 
 ## 2. Two keys, never one
 
@@ -40,6 +46,15 @@ lookups use a separate key that never leaves the server.
 **Key B — "server key"** (goes into the server `.env`)
 - Application restrictions → **IP addresses**: `178.104.56.36`.
 - API restrictions → **Geocoding API** and **Places API** only.
+
+### Using a single key for now
+
+One key can serve both sides while you are getting started, but leave it
+**unrestricted** and it can be lifted out of the app bundle and spent by anyone.
+The two restrictions are mutually exclusive on one key — an IP restriction locks
+the app out, an app restriction locks the server out — so a single key means no
+restrictions at all. Treat that as temporary, keep the quota caps low, and split
+it into key A and key B before the app reaches a wide audience.
 
 ## 3. Where the keys go
 
