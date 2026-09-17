@@ -204,6 +204,15 @@ def create_customer_qr_points_payload(client_id: str, payload: QrScanPayload, cu
         body: Dict[str, Any] = {"error": str(exc), "code": exc.code}
         if exc.used_at:
             body["usedAt"] = exc.used_at
+        # Who used it, so the app can explain the refusal instead of just stating it.
+        if exc.used_by_name:
+            body["usedByName"] = exc.used_by_name
+        if exc.used_by_phone:
+            body["usedByPhone"] = exc.used_by_phone
+        if exc.used_by_self:
+            body["usedBySelf"] = True
+        if exc.product_name:
+            body["productName"] = exc.product_name
         return JSONResponse(body, status_code=400)
     except ValueError as exc:
         return JSONResponse({"error": str(exc)}, status_code=400)

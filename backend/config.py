@@ -97,6 +97,17 @@ GIFTS_XLSX_PATH = BASE_DIR / "Gifts.xlsx"
 MOCK_OTP_CODE = os.getenv("MOCK_OTP_CODE", "111111")
 MOCK_OTP_TTL_MINUTES = int(os.getenv("MOCK_OTP_TTL_MINUTES", "10"))
 
+# When a customer scans a QR code somebody already used, the app names who used
+# it. The phone is masked by default so one customer cannot read another's full
+# number off a label; set this to show the digits in full.
+QR_USED_BY_SHOW_FULL_PHONE = os.getenv("QR_USED_BY_SHOW_FULL_PHONE", "false").strip().lower() in {
+    "1",
+    "true",
+    "yes",
+    "y",
+    "on",
+}
+
 QR_CODE_PREFIX = os.getenv("QR_CODE_PREFIX", "IRIZON-PRODUCT")
 QR_CODE_SECRET = os.getenv("QR_CODE_SECRET", "irizon-qr-secret")
 ITEM_QR_CODE_PREFIX = os.getenv("ITEM_QR_CODE_PREFIX", "IRIZON-ITEM")

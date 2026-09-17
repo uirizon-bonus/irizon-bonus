@@ -14,6 +14,10 @@ interface QRScannerProps {
   resultMessage?: string;
   pointsEarned?: number;
   usedAt?: string;
+  usedByName?: string;
+  usedByPhone?: string;
+  usedBySelf?: boolean;
+  usedProductName?: string;
   pendingCode?: string;
   onConfirm?: () => void;
   onCancel?: () => void;
@@ -37,6 +41,10 @@ export function QRScanner({
   resultMessage = "",
   pointsEarned = 0,
   usedAt = "",
+  usedByName = "",
+  usedByPhone = "",
+  usedBySelf = false,
+  usedProductName = "",
   pendingCode = "",
   onConfirm,
   onCancel,
@@ -149,6 +157,15 @@ export function QRScanner({
 
   const overlay = useMemo(() => {
     const usedAtLabel = usedAt ? `${i18n.scanUsedAtLabel} ${formatUsedAt(usedAt, lang)}` : "";
+    // Who used the code: the customer's own name reads better as "you".
+    const usedByValue = usedBySelf
+      ? i18n.scanUsedBySelf
+      : [usedByName, usedByPhone].filter(Boolean).join(" • ");
+    const alreadyUsedLines = [
+      usedProductName ? `${i18n.scanProductLabel} ${usedProductName}` : "",
+      usedByValue ? `${i18n.scanUsedByLabel} ${usedByValue}` : "",
+      usedAtLabel,
+    ].filter(Boolean);
     switch (scanResult) {
       case "processing":
         return {
@@ -162,7 +179,7 @@ export function QRScanner({
           icon: <CheckCircle2 className="w-24 h-24 text-white mb-4" />,
           title: i18n.scanSuccessTitle,
           body: resultMessage,
-          meta: `${i18n.scanPointsEarnedLabel}: +${pointsEarned}`,
+          metaLines: [`${i18n.scanPointsEarnedLabel}: +${pointsEarned}`],
           className: "bg-gradient-to-br from-green-500/95 to-emerald-600/95",
         };
       case "already-used":
@@ -170,7 +187,7 @@ export function QRScanner({
           icon: <AlertCircle className="w-24 h-24 text-white mb-4" />,
           title: i18n.scanAlreadyUsedTitle,
           body: resultMessage,
-          meta: usedAtLabel,
+          metaLines: alreadyUsedLines,
           className: "bg-gradient-to-br from-orange-500/95 to-amber-600/95",
         };
       case "invalid":
@@ -178,13 +195,27 @@ export function QRScanner({
           icon: <XCircle className="w-24 h-24 text-white mb-4" />,
           title: i18n.scanInvalidTitle,
           body: resultMessage,
-          meta: usedAtLabel,
+          metaLines: usedAtLabel ? [usedAtLabel] : [],
           className: "bg-gradient-to-br from-red-500/95 to-rose-600/95",
         };
       default:
         return null;
     }
-  }, [i18n, lang, pointsEarned, resultMessage, scanResult, usedAt]);
+  }, [
+    i18n,
+    lang,
+    pointsEarned,
+    resultMessage,
+    scanResult,
+    usedAt,
+    usedByName,
+    usedByPhone,
+    usedBySelf,
+    usedProductName,
+  ]);
+
+  const overlayMetaLines: string[] =
+    overlay && "metaLines" in overlay && overlay.metaLines ? overlay.metaLines : [];
 
   if (!isOpen) return null;
 
@@ -256,9 +287,13 @@ export function QRScanner({
                   {overlay.icon}
                   <h3 className="text-white text-3xl font-bold mb-2">{overlay.title}</h3>
                   <p className="text-white/90 text-lg">{overlay.body}</p>
-                  {"meta" in overlay && overlay.meta ? (
-                    <div className="mt-5 bg-white/15 rounded-2xl px-5 py-3 text-white font-semibold">
-                      {overlay.meta}
+                  {overlayMetaLines.length ? (
+                    <div className="mt-5 bg-white/15 rounded-2xl px-5 py-3 text-white font-semibold space-y-1 max-w-full">
+                      {overlayMetaLines.map((line) => (
+                        <div key={line} className="text-sm leading-snug break-words">
+                          {line}
+                        </div>
+                      ))}
                     </div>
                   ) : null}
                 </motion.div>

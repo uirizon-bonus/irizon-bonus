@@ -4,7 +4,7 @@ import io
 import math
 import secrets
 import zipfile
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 import pandas as pd
 import segno
 
@@ -14,6 +14,7 @@ from backend.config import (
     PRODUCTS_XLSX_PATH,
     QR_CODE_PREFIX,
     QR_CODE_SECRET,
+    QR_USED_BY_SHOW_FULL_PHONE,
     logger,
 )
 from backend.core import points as points_core
@@ -22,10 +23,65 @@ from backend.models.schemas import GiftCreatePayload, ProductCreatePayload, Prod
 
 
 class QrScanError(ValueError):
-    def __init__(self, message: str, *, code: str = "qr_failed", used_at: str = ""):
+    def __init__(
+        self,
+        message: str,
+        *,
+        code: str = "qr_failed",
+        used_at: str = "",
+        used_by_name: str = "",
+        used_by_phone: str = "",
+        used_by_self: bool = False,
+        product_name: str = "",
+    ):
         super().__init__(message)
         self.code = str(code or "qr_failed")
         self.used_at = str(used_at or "")
+        # Who already used this code, so the app can say so instead of just refusing.
+        self.used_by_name = str(used_by_name or "")
+        self.used_by_phone = str(used_by_phone or "")
+        self.used_by_self = bool(used_by_self)
+        self.product_name = str(product_name or "")
+
+
+def _format_phone_for_display(phone: str) -> str:
+    """A phone the scanner may see. Masked unless the deployment opts out."""
+    digits = "".join(character for character in str(phone or "") if character.isdigit())
+    if not digits:
+        return ""
+    if QR_USED_BY_SHOW_FULL_PHONE:
+        if len(digits) == 12 and digits.startswith("998"):
+            return f"+{digits[:3]} {digits[3:5]} {digits[5:8]} {digits[8:10]} {digits[10:]}"
+        return f"+{digits}"
+    # Enough for people to recognise their own number, not enough to collect
+    # someone else's off a label.
+    if len(digits) >= 9:
+        return f"+{digits[:3]} {digits[3:5]} ••• •• {digits[-2:]}"
+    return f"••• {digits[-2:]}"
+
+
+def _load_qr_holder(connection: Any, client_id: str) -> Tuple[str, str]:
+    """Name and displayable phone of the customer who used a QR code."""
+    if not client_id:
+        return ("", "")
+    name = ""
+    phone = ""
+    row = connection.execute(
+        "SELECT full_name, phone_raw FROM customers WHERE id = ?",
+        (str(client_id),),
+    ).fetchone()
+    if row is not None:
+        name = str(row["full_name"] or "")
+        phone = str(row["phone_raw"] or "")
+    if not phone:
+        index_row = connection.execute(
+            "SELECT full_name, phone_raw FROM clients_phone_index WHERE client_id = ?",
+            (str(client_id),),
+        ).fetchone()
+        if index_row is not None:
+            name = name or str(index_row["full_name"] or "")
+            phone = str(index_row["phone_raw"] or "")
+    return (name, _format_phone_for_display(phone))
 
 
 DEFAULT_PRODUCTS = [
@@ -693,7 +749,8 @@ def _apply_qr_scan(client_id: str, payload: QrScanPayload) -> Dict[str, Any]:
         points_per_unit = 0
         unique_qr_row = connection.execute(
             """
-            SELECT id, product_id, product_name, points_per_unit, is_used, is_revoked, used_at
+            SELECT id, product_id, product_name, points_per_unit, is_used, is_revoked, used_at,
+                   used_by_client_id
             FROM product_qr_codes
             WHERE qr_code = ?
             """,
@@ -712,7 +769,17 @@ def _apply_qr_scan(client_id: str, payload: QrScanPayload) -> Dict[str, Any]:
             raise QrScanError("QR code is revoked", code="revoked")
         if int(unique_qr_row["is_used"] or 0) == 1:
             used_at = str(unique_qr_row["used_at"] or "")
-            raise QrScanError("QR code already used", code="already_used", used_at=used_at)
+            used_by = str(unique_qr_row["used_by_client_id"] or "")
+            holder_name, holder_phone = _load_qr_holder(connection, used_by)
+            raise QrScanError(
+                "QR code already used",
+                code="already_used",
+                used_at=used_at,
+                used_by_name=holder_name,
+                used_by_phone=holder_phone,
+                used_by_self=bool(used_by) and used_by == str(client_id),
+                product_name=str(unique_qr_row["product_name"] or ""),
+            )
 
         product_id = str(unique_qr_row["product_id"] or "")
         product_name = str(unique_qr_row["product_name"] or "")

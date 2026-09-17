@@ -59,6 +59,7 @@ export function Home() {
   const [scanMessage, setScanMessage] = useState("");
   const [pointsEarned, setPointsEarned] = useState(0);
   const [scanUsedAt, setScanUsedAt] = useState("");
+  const [scanUsedBy, setScanUsedBy] = useState({ name: "", phone: "", self: false, product: "" });
   const [pendingCode, setPendingCode] = useState("");
   const scanInFlightRef = useRef(false);
 
@@ -174,6 +175,12 @@ export function Home() {
     setScanResult(resolved.result);
     setScanMessage(resolved.message);
     setScanUsedAt(result.usedAt || "");
+    setScanUsedBy({
+      name: result.usedByName || "",
+      phone: result.usedByPhone || "",
+      self: Boolean(result.usedBySelf),
+      product: result.productName || "",
+    });
     toast.error(resolved.message);
     window.setTimeout(closeScanner, 2400);
   };
@@ -394,6 +401,10 @@ export function Home() {
         resultMessage={scanMessage}
         pointsEarned={pointsEarned}
         usedAt={scanUsedAt}
+        usedByName={scanUsedBy.name}
+        usedByPhone={scanUsedBy.phone}
+        usedBySelf={scanUsedBy.self}
+        usedProductName={scanUsedBy.product}
         pendingCode={pendingCode}
         onConfirm={confirmScan}
         onCancel={cancelScan}

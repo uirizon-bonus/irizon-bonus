@@ -126,6 +126,9 @@ type I18n = {
   scanAlreadyUsedTitle: string;
   scanInvalidTitle: string;
   scanUsedAtLabel: string;
+  scanUsedByLabel: string;
+  scanUsedBySelf: string;
+  scanProductLabel: string;
   scanPointsEarnedLabel: string;
   scanCodeAlreadyUsedText: string;
   scanNotRegisteredText: string;
@@ -198,6 +201,9 @@ const i18nMap: Record<Lang, I18n> = {
     scanAlreadyUsedTitle: "Код уже использован",
     scanInvalidTitle: "Неверный код",
     scanUsedAtLabel: "Использован:",
+    scanUsedByLabel: "Кем использован:",
+    scanUsedBySelf: "Вами",
+    scanProductLabel: "Товар:",
     scanPointsEarnedLabel: "Начислено",
     scanCodeAlreadyUsedText: "Этот QR-код уже был использован",
     scanNotRegisteredText: "Этот QR-код не зарегистрирован в системе",
@@ -269,6 +275,9 @@ const i18nMap: Record<Lang, I18n> = {
     scanAlreadyUsedTitle: "Kod allaqachon ishlatilgan",
     scanInvalidTitle: "Noto'g'ri kod",
     scanUsedAtLabel: "Ishlatilgan vaqt:",
+    scanUsedByLabel: "Kim ishlatgan:",
+    scanUsedBySelf: "O'zingiz",
+    scanProductLabel: "Mahsulot:",
     scanPointsEarnedLabel: "Qo'shilgan ball",
     scanCodeAlreadyUsedText: "Bu QR-kod avval ishlatilgan",
     scanNotRegisteredText: "Bu QR-kod tizimda ro'yxatdan o'tmagan",
@@ -328,6 +337,10 @@ type PortalContextValue = {
     message?: string;
     code?: string;
     usedAt?: string;
+    usedByName?: string;
+    usedByPhone?: string;
+    usedBySelf?: boolean;
+    productName?: string;
   }>;
   redeemGift: (giftId: string) => Promise<{ ok: boolean; message?: string }>;
   updateProfile: (fullName: string) => Promise<{ ok: boolean; error?: string }>;
@@ -753,6 +766,10 @@ export function PortalProvider({ children }: { children: ReactNode }) {
           message,
           code: typeof payload?.code === "string" ? payload.code : "qr_failed",
           usedAt: typeof payload?.usedAt === "string" ? payload.usedAt : "",
+          usedByName: typeof payload?.usedByName === "string" ? payload.usedByName : "",
+          usedByPhone: typeof payload?.usedByPhone === "string" ? payload.usedByPhone : "",
+          usedBySelf: Boolean(payload?.usedBySelf),
+          productName: typeof payload?.productName === "string" ? payload.productName : "",
         };
       }
 
