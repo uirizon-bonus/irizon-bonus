@@ -1086,6 +1086,43 @@ def _provision_self_registered_customer(normalized_phone: str) -> str:
     return customer_id
 
 
+def _ensure_customer_row(connection: Any, client_id: str) -> bool:
+    """Guarantee a customers row exists for anyone who can log in.
+
+    Some accounts hold a session without ever being written to the table: demo
+    logins are synthesised at verify time, and points can be recorded against an
+    id that was never seeded. Their profile updates then matched zero rows and
+    reported success while saving nothing. Returns whether a row exists after
+    this call.
+    """
+    identifier = str(client_id or "").strip()
+    if not identifier:
+        return False
+    exists = connection.execute(
+        "SELECT 1 FROM customers WHERE id = ?", (identifier,)
+    ).fetchone()
+    if exists is not None:
+        return True
+    # Ledger holders can be filled in properly, with their name and phone.
+    _ensure_ledger_holders_present(connection)
+    exists = connection.execute(
+        "SELECT 1 FROM customers WHERE id = ?", (identifier,)
+    ).fetchone()
+    if exists is not None:
+        return True
+    # Otherwise create the minimum needed to own a profile. A demo id carries
+    # its phone number after the prefix.
+    phone = identifier[len("DEMO-"):] if identifier.startswith("DEMO-") else ""
+    connection.execute(
+        """
+        INSERT INTO customers (id, full_name, phone_raw, phone_norm, status, last_updated)
+        VALUES (?, ?, ?, ?, 'active', ?)
+        """,
+        (identifier, "", phone, _normalize_phone(phone), _now_text()),
+    )
+    return True
+
+
 class LocationError(ValueError):
     """A pin the system will not store, with a code the app can act on."""
 
@@ -1163,10 +1200,9 @@ def _set_customer_location(
         params = (address_text, lat_value, lng_value, note_text, _now_text(), str(client_id))
         cursor = connection.execute(update_sql, params)
         if int(cursor.rowcount or 0) == 0:
-            # A customer can hold points without ever having been written to the
-            # customers table (ledger-only holders). Materialise the row rather
-            # than telling them their own account does not exist.
-            _ensure_ledger_holders_present(connection)
+            # Materialise the row rather than telling customers their own
+            # account does not exist.
+            _ensure_customer_row(connection, str(client_id))
             cursor = connection.execute(update_sql, params)
         connection.commit()
         if int(cursor.rowcount or 0) == 0:
@@ -1186,11 +1222,17 @@ def _set_customer_name(client_id: str, full_name: str) -> Optional[Dict[str, Any
     connection = bonus_db()
     try:
         _bootstrap_customers_from_cache(connection)
-        connection.execute(
-            "UPDATE customers SET full_name = ?, last_updated = ? WHERE id = ?",
-            (name, _now_text(), str(client_id)),
-        )
+        update_sql = "UPDATE customers SET full_name = ?, last_updated = ? WHERE id = ?"
+        params = (name, _now_text(), str(client_id))
+        cursor = connection.execute(update_sql, params)
+        if int(cursor.rowcount or 0) == 0:
+            # No row yet (demo login, or an id that was never seeded). Create one
+            # instead of committing nothing and reporting success.
+            _ensure_customer_row(connection, str(client_id))
+            cursor = connection.execute(update_sql, params)
         connection.commit()
+        if int(cursor.rowcount or 0) == 0:
+            return None
     finally:
         connection.close()
     snap = _load_customer_snapshot(str(client_id))
