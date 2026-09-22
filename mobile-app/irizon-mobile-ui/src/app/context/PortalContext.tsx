@@ -52,7 +52,10 @@ export interface PlaceSuggestion {
 export interface GiftItem {
   id: string;
   name: string;
+  description: string;
   image: string;
+  // Cover first, then any extra photos, for the gift's own page.
+  images: string[];
   pointsCost: number;
   stock: number;
   category: string;
@@ -586,7 +589,11 @@ export function PortalProvider({ children }: { children: ReactNode }) {
           .map((gift) => ({
             id: String(gift.id),
             name: mapGiftName(gift.name),
+            description: mapGiftName(gift.description),
             image: String(gift.image || ""),
+            images: Array.isArray(gift.images)
+              ? (gift.images as unknown[]).map((url) => String(url)).filter(Boolean)
+              : [String(gift.image || "")].filter(Boolean),
             pointsCost: Number(gift.pointsCost || 0),
             stock: Number(gift.stock || 0),
             category: String(gift.category || ""),

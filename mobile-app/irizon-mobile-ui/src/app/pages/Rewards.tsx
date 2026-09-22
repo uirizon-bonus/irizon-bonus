@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { CheckCircle2, Gift as GiftIcon, Search, SlidersHorizontal, X } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { ArrowLeft, CheckCircle2, Gift as GiftIcon, Package, Search, SlidersHorizontal, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useNavigate } from "react-router";
 import { useLanguage } from "../contexts/LanguageContext";
@@ -43,6 +43,13 @@ const translations = {
     deliveryMissing: "Адрес доставки не указан",
     deliveryAdd: "Указать адрес",
     deliveryChange: "Изменить",
+    detailsTitle: "О подарке",
+    detailsDescription: "Описание",
+    detailsNoDescription: "Описание пока не добавлено",
+    detailsStock: "В наличии",
+    detailsOutOfStock: "Нет в наличии",
+    detailsCategory: "Категория",
+    detailsPhotoOf: "из",
     deliverHere: "Доставить сюда",
     useHere: "Я здесь",
     locationBusy: "Определяем...",
@@ -80,6 +87,13 @@ const translations = {
     deliveryMissing: "Manzil ko'rsatilmagan",
     deliveryAdd: "Manzilni ko'rsatish",
     deliveryChange: "O'zgartirish",
+    detailsTitle: "Sovg'a haqida",
+    detailsDescription: "Tavsif",
+    detailsNoDescription: "Tavsif hali qo'shilmagan",
+    detailsStock: "Mavjud",
+    detailsOutOfStock: "Tugagan",
+    detailsCategory: "Kategoriya",
+    detailsPhotoOf: "dan",
     deliverHere: "Shu manzilga yetkazish",
     useHere: "Men shu yerdaman",
     locationBusy: "Aniqlanmoqda...",
@@ -94,6 +108,8 @@ export function Rewards() {
   const [isLocationOpen, setLocationOpen] = useState(false);
   // Set while a redemption waits for an address, so it can resume once saved.
   const [pendingGiftId, setPendingGiftId] = useState<string | null>(null);
+  const [detailGift, setDetailGift] = useState<(typeof gifts)[0] | null>(null);
+  const [photoIndex, setPhotoIndex] = useState(0);
   const [useHereBusy, setUseHereBusy] = useState(false);
   const [addressError, setAddressError] = useState("");
   const [pickerFix, setPickerFix] = useState<{ lat: number; lng: number } | null>(null);
@@ -185,6 +201,26 @@ export function Rewards() {
 
   const balance = customer?.totalPoints ?? 0;
 
+  const openDetail = (gift: (typeof gifts)[0]) => {
+    setPhotoIndex(0);
+    setDetailGift(gift);
+    // Give the phone's back gesture something to close, so it does not leave
+    // the gifts list entirely.
+    window.history.pushState({ giftDetail: true }, "");
+  };
+
+  const closeDetail = () => {
+    if (window.history.state?.giftDetail) window.history.back();
+    else setDetailGift(null);
+  };
+
+  useEffect(() => {
+    if (!detailGift) return;
+    const onPop = () => setDetailGift(null);
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, [detailGift]);
+
   // Only the very first load takes over the screen; a refresh keeps the gifts visible.
   if (loading && !gifts.length) {
     return (
@@ -197,7 +233,7 @@ export function Rewards() {
 
   return (
     <>
-    <PullToRefresh onRefresh={refreshPortal} disabled={isFilterOpen || Boolean(confirmGift) || showRedeemSuccess}>
+    <PullToRefresh onRefresh={refreshPortal} disabled={isFilterOpen || Boolean(confirmGift) || Boolean(detailGift) || showRedeemSuccess}>
     <div className="min-h-screen bg-[#F5F7FB]">
       <div className="p-5 space-y-5 pb-24">
         <div>
@@ -253,15 +289,24 @@ export function Rewards() {
                   animate={{ opacity: 1, scale: 1 }}
                   className="bg-white/80 backdrop-blur-md rounded-2xl shadow-lg overflow-hidden border border-white/50 flex flex-col"
                 >
-                  <div className="aspect-square bg-gradient-to-br from-gray-100 to-gray-50 relative">
+                  <button
+                    type="button"
+                    onClick={() => openDetail(gift)}
+                    className="aspect-square bg-gradient-to-br from-gray-100 to-gray-50 relative block w-full"
+                  >
                     <img src={gift.image} alt={gift.name} className="w-full h-full object-cover" />
-                  </div>
+                    {gift.images.length > 1 ? (
+                      <span className="absolute bottom-2 right-2 rounded-full bg-black/55 px-2 py-0.5 text-[10px] font-semibold text-white">
+                        {gift.images.length} 📷
+                      </span>
+                    ) : null}
+                  </button>
 
                   <div className="p-3.5 flex flex-col flex-1 gap-3">
-                    <div>
+                    <button type="button" onClick={() => openDetail(gift)} className="text-left">
                       <h3 className="font-bold text-gray-900 text-sm line-clamp-2 mb-1">{gift.name}</h3>
                       <p className="text-xs text-gray-500 line-clamp-1">{gift.category || "-"}</p>
-                    </div>
+                    </button>
 
                     <div className="flex items-baseline gap-1.5">
                       <span className="text-2xl font-bold text-transparent bg-gradient-to-r from-[#3A7BFF] via-[#6A5CFF] to-[#8A3CFF] bg-clip-text">
@@ -292,8 +337,8 @@ export function Rewards() {
                     </div>
 
                     <button
-                      onClick={() => canAfford && setConfirmGift(gift)}
-                      disabled={!canAfford || isLoading}
+                      onClick={() => (canAfford ? setConfirmGift(gift) : openDetail(gift))}
+                      disabled={isLoading}
                       className={`mt-auto w-full py-2.5 rounded-xl font-bold text-sm transition-all ${
                         canAfford
                           ? "bg-gradient-to-r from-[#3A7BFF] via-[#6A5CFF] to-[#8A3CFF] text-white hover:shadow-lg"
@@ -594,6 +639,132 @@ export function Rewards() {
       </AnimatePresence>
     </div>
     </PullToRefresh>
+    <AnimatePresence>
+      {detailGift ? (
+        <motion.div
+          initial={{ opacity: 0, y: 24 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 24 }}
+          transition={{ duration: 0.18 }}
+          className="fixed inset-0 z-[65] bg-[#F5F7FB] overflow-y-auto"
+        >
+          <div className="relative">
+            {/* Gallery: swipe through the photos, cover first. */}
+            <div
+              className="flex overflow-x-auto snap-x snap-mandatory bg-white"
+              onScroll={(event) => {
+                const el = event.currentTarget;
+                setPhotoIndex(Math.round(el.scrollLeft / Math.max(el.clientWidth, 1)));
+              }}
+            >
+              {(detailGift.images.length ? detailGift.images : [detailGift.image]).map((src, index) => (
+                <img
+                  key={`${src}-${index}`}
+                  src={src}
+                  alt={detailGift.name}
+                  className="w-full flex-shrink-0 snap-center aspect-square object-cover"
+                />
+              ))}
+            </div>
+
+            <button
+              onClick={closeDetail}
+              aria-label={t.confirmCancel}
+              className="absolute left-4 rounded-full bg-black/45 p-2.5 text-white backdrop-blur-sm"
+              style={{ top: "calc(env(safe-area-inset-top) + 12px)" }}
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+
+            {detailGift.images.length > 1 ? (
+              <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5">
+                {detailGift.images.map((src, index) => (
+                  <span
+                    key={`dot-${src}-${index}`}
+                    className={`h-1.5 rounded-full transition-all ${
+                      index === photoIndex ? "w-5 bg-white" : "w-1.5 bg-white/60"
+                    }`}
+                  />
+                ))}
+              </div>
+            ) : null}
+          </div>
+
+          <div className="px-5 py-5 space-y-4" style={{ paddingBottom: "calc(7rem + env(safe-area-inset-bottom))" }}>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">{t.detailsTitle}</p>
+              <h1 className="text-2xl font-bold text-gray-900 mt-1">{detailGift.name}</h1>
+              <p className="text-sm text-gray-500 mt-1">
+                {t.detailsCategory}: {detailGift.category || "-"}
+              </p>
+            </div>
+
+            <div className="flex items-center justify-between rounded-2xl bg-white p-4 shadow-sm">
+              <div>
+                <p className="text-3xl font-bold text-transparent bg-gradient-to-r from-[#3A7BFF] via-[#6A5CFF] to-[#8A3CFF] bg-clip-text">
+                  {detailGift.pointsCost.toLocaleString()}
+                </p>
+                <p className="text-xs text-gray-500 font-medium">баллов</p>
+              </div>
+              <div className="flex items-center gap-1.5 text-sm font-semibold">
+                <Package className="w-4 h-4 text-gray-400" />
+                <span className={detailGift.stock > 0 ? "text-emerald-600" : "text-red-500"}>
+                  {detailGift.stock > 0 ? `${t.detailsStock}: ${detailGift.stock}` : t.detailsOutOfStock}
+                </span>
+              </div>
+            </div>
+
+            <div className="rounded-2xl bg-white p-4 shadow-sm">
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-2">
+                {t.detailsDescription}
+              </p>
+              <p className="text-sm leading-relaxed text-gray-700 whitespace-pre-line">
+                {detailGift.description || t.detailsNoDescription}
+              </p>
+            </div>
+
+            {balance < detailGift.pointsCost ? (
+              <div className="rounded-2xl bg-white p-4 shadow-sm">
+                <div className="flex items-center justify-between text-xs font-semibold text-gray-500 mb-2">
+                  <span>{t.needMorePoints}</span>
+                  <span>
+                    {Math.max(detailGift.pointsCost - balance, 0).toLocaleString()} {t.pointsLeft}
+                  </span>
+                </div>
+                <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-[#3A7BFF] via-[#6A5CFF] to-[#8A3CFF]"
+                    style={{ width: `${Math.min((balance / Math.max(detailGift.pointsCost, 1)) * 100, 100)}%` }}
+                  />
+                </div>
+              </div>
+            ) : null}
+          </div>
+
+          <div
+            className="fixed inset-x-0 bottom-0 bg-white/95 backdrop-blur-md px-5 pt-3 shadow-[0_-8px_24px_rgba(15,76,129,0.08)]"
+            style={{ paddingBottom: "calc(1rem + env(safe-area-inset-bottom))" }}
+          >
+            <button
+              onClick={() => {
+                const gift = detailGift;
+                closeDetail();
+                setConfirmGift(gift);
+              }}
+              disabled={balance < detailGift.pointsCost || detailGift.stock <= 0 || loadingId === detailGift.id}
+              className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-[#3A7BFF] via-[#6A5CFF] to-[#8A3CFF] text-white font-bold disabled:opacity-50"
+            >
+              {detailGift.stock <= 0
+                ? t.detailsOutOfStock
+                : balance < detailGift.pointsCost
+                  ? t.needMorePoints
+                  : t.redeemReward}
+            </button>
+          </div>
+        </motion.div>
+      ) : null}
+    </AnimatePresence>
+
     <LocationPicker
       isOpen={isLocationOpen}
       initialFix={pickerFix}

@@ -75,6 +75,8 @@ class GiftCreatePayload(BaseModel):
     stock: int = Field(default=0, ge=0, le=1_000_000)
     is_active: bool = True
     image: str = Field(default="", max_length=2000)
+    # Extra photos shown on the gift's own page, beyond the cover.
+    images: List[str] = Field(default_factory=list, max_length=8)
 
 
 class RedemptionRequestCreatePayload(BaseModel):

@@ -29,6 +29,8 @@ export interface Gift {
   stock: number;
   isActive: boolean;
   image: string;
+  // Cover first, then extra photos shown on the gift's page in the app.
+  images?: string[];
 }
 
 export interface Product {

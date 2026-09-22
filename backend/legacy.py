@@ -666,6 +666,23 @@ def _init_bonus_db() -> None:
                 WHERE customers.id = sub.client_id AND customers.first_activity_at IS NULL
                 """
             )
+        # Extra photos for a gift, one URL per line. The single `image` column
+        # stays the cover, so nothing that reads it needs to change.
+        if DB_BACKEND == "postgres":
+            gift_columns = {
+                str(row["column_name"])
+                for row in connection.execute(
+                    "SELECT column_name FROM information_schema.columns "
+                    "WHERE table_schema = 'public' AND table_name = 'gifts'"
+                ).fetchall()
+            }
+        else:
+            gift_columns = {
+                str(row["name"]) for row in connection.execute("PRAGMA table_info(gifts)").fetchall()
+            }
+        if "images" not in gift_columns:
+            connection.execute("ALTER TABLE gifts ADD COLUMN images TEXT NOT NULL DEFAULT ''")
+
         # Where a scan happened. Nullable: a customer may refuse location, be
         # underground, or run an older app build — none of which may block the
         # scan or the points.

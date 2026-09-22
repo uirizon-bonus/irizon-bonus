@@ -1378,6 +1378,28 @@ def _delete_product(product_id: str) -> bool:
         connection.close()
 
 
+def _gift_gallery(cover: Any, extras: Any) -> List[str]:
+    """Cover plus extra photos, in order, without blanks or duplicates."""
+    gallery: List[str] = []
+    for candidate in [str(cover or "")] + str(extras or "").splitlines():
+        url = candidate.strip()
+        if url and url not in gallery:
+            gallery.append(url)
+    return gallery[:9]
+
+
+def _clean_gift_images(images: Any) -> str:
+    """Store extra photos as one URL per line."""
+    if not images:
+        return ""
+    cleaned: List[str] = []
+    for candidate in images:
+        url = str(candidate or "").strip()
+        if url and url not in cleaned:
+            cleaned.append(url[:2000])
+    return "\n".join(cleaned[:8])
+
+
 def _load_gifts() -> List[Dict[str, Any]]:
     connection = bonus_db()
     try:
@@ -1385,7 +1407,7 @@ def _load_gifts() -> List[Dict[str, Any]]:
             """
             SELECT
                 id, name_ru, description_ru,
-                points_cost, category, stock, is_active, image
+                points_cost, category, stock, is_active, image, images
             FROM gifts
             ORDER BY id
             """
@@ -1412,6 +1434,8 @@ def _load_gifts() -> List[Dict[str, Any]]:
             "stock": int(row["stock"] or 0),
             "isActive": bool(row["is_active"]),
             "image": str(row["image"] or ""),
+            # Cover first, then the extras: the app shows this as one gallery.
+            "images": _gift_gallery(row["image"], row["images"]),
         }
         for row in rows
         if str(row["id"]) not in deleted_ids
@@ -1427,8 +1451,8 @@ def _create_gift(payload: GiftCreatePayload) -> Dict[str, Any]:
         connection.execute(
             """
             INSERT INTO gifts (
-                id, name_ru, description_ru, points_cost, category, stock, is_active, image
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                id, name_ru, description_ru, points_cost, category, stock, is_active, image, images
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 gift_id,
@@ -1439,6 +1463,7 @@ def _create_gift(payload: GiftCreatePayload) -> Dict[str, Any]:
                 int(payload.stock),
                 1 if payload.is_active else 0,
                 payload.image.strip(),
+                _clean_gift_images(payload.images),
             ),
         )
         connection.commit()
@@ -1459,7 +1484,7 @@ def _update_gift(gift_id: str, payload: GiftCreatePayload) -> Optional[Dict[str,
             SET
                 name_ru = ?,
                 description_ru = ?,
-                points_cost = ?, category = ?, stock = ?, is_active = ?, image = ?
+                points_cost = ?, category = ?, stock = ?, is_active = ?, image = ?, images = ?
             WHERE id = ?
             """,
             (
@@ -1470,6 +1495,7 @@ def _update_gift(gift_id: str, payload: GiftCreatePayload) -> Optional[Dict[str,
                 int(payload.stock),
                 1 if payload.is_active else 0,
                 payload.image.strip(),
+                _clean_gift_images(payload.images),
                 gift_id,
             ),
         )

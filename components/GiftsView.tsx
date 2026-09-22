@@ -52,6 +52,7 @@ const GiftsView: React.FC<GiftsViewProps> = ({ lang }) => {
     stock: '',
     category: '',
     image: '',
+    images: '',
     isActive: true,
   });
 
@@ -95,6 +96,7 @@ const GiftsView: React.FC<GiftsViewProps> = ({ lang }) => {
       stock: '',
       category: '',
       image: '',
+      images: '',
       isActive: true,
     });
     setFormError(null);
@@ -115,6 +117,7 @@ const GiftsView: React.FC<GiftsViewProps> = ({ lang }) => {
       stock: String(gift.stock),
       category: gift.category,
       image: gift.image,
+      images: (gift.images || []).filter((url) => url && url !== gift.image).join('\n'),
       isActive: gift.isActive,
     });
     setFormError(null);
@@ -176,6 +179,7 @@ const GiftsView: React.FC<GiftsViewProps> = ({ lang }) => {
             category: form.category,
             stock,
             image: form.image,
+            images: form.images.split('\n').map((url) => url.trim()).filter(Boolean),
             is_active: form.isActive,
           }),
         },
@@ -394,6 +398,19 @@ const GiftsView: React.FC<GiftsViewProps> = ({ lang }) => {
                   placeholder="https://..."
                   className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none"
                 />
+                <label className="mt-6 mb-2 block text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                  Qo'shimcha rasmlar (har qatorga bitta URL)
+                </label>
+                <textarea
+                  value={form.images}
+                  onChange={(e) => setForm((current) => ({ ...current, images: e.target.value }))}
+                  rows={3}
+                  placeholder={"https://...\nhttps://..."}
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none font-mono"
+                />
+                <p className="mt-1 text-[11px] text-slate-400">
+                  Mijoz sovg'a sahifasida barcha rasmlarni ko'radi. Birinchisi — yuqoridagi asosiy rasm.
+                </p>
                 {form.image ? (
                   <img
                     src={form.image}
