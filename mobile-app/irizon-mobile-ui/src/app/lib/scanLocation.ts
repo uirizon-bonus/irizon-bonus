@@ -16,13 +16,50 @@ export interface ScanFix {
 let lastFix: ScanFix | null = null;
 let inFlight: Promise<ScanFix | null> | null = null;
 
+// Someone who says no should be asked again in a fortnight, not at every scan.
+// Android re-prompts each time it is asked, so the refusal is remembered here.
+const REFUSED_KEY = "irizon_scan_location_refused_at";
+const ASK_AGAIN_AFTER_MS = 14 * 24 * 60 * 60 * 1000;
+
+const refusedRecently = (): boolean => {
+  try {
+    const raw = localStorage.getItem(REFUSED_KEY);
+    return Boolean(raw) && Date.now() - Number(raw) < ASK_AGAIN_AFTER_MS;
+  } catch {
+    return false;
+  }
+};
+
+const rememberRefusal = () => {
+  try {
+    localStorage.setItem(REFUSED_KEY, String(Date.now()));
+  } catch {
+    // Private mode or blocked storage: worst case we ask again next time.
+  }
+};
+
+const forgetRefusal = () => {
+  try {
+    localStorage.removeItem(REFUSED_KEY);
+  } catch {
+    /* nothing to clean up */
+  }
+};
+
 const acquire = async (timeout: number): Promise<ScanFix | null> => {
   try {
     const permission = await Geolocation.checkPermissions();
-    if (permission.location !== "granted" && permission.coarseLocation !== "granted") {
+    const granted = permission.location === "granted" || permission.coarseLocation === "granted";
+    if (!granted) {
+      if (refusedRecently()) return null;
       const asked = await Geolocation.requestPermissions();
-      if (asked.location !== "granted" && asked.coarseLocation !== "granted") return null;
+      if (asked.location !== "granted" && asked.coarseLocation !== "granted") {
+        rememberRefusal();
+        return null;
+      }
     }
+    // Granted now — including the case where it was switched on in Settings later.
+    forgetRefusal();
     const position = await Geolocation.getCurrentPosition({
       enableHighAccuracy: true,
       timeout,
