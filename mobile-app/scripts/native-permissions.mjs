@@ -24,7 +24,7 @@ const ANDROID_PERMISSIONS = [
 const IOS_KEYS = [
   [
     "NSLocationWhenInUseUsageDescription",
-    "IRIZON uses your location only when you choose your delivery address, so gifts can be delivered to you.",
+    "IRIZON uses your location when you scan a product QR code and when you choose your delivery address, so scans can be attributed to a place and gifts delivered to you.",
   ],
 ];
 
@@ -48,6 +48,20 @@ if (existsSync(ANDROID_MANIFEST)) {
 
 if (existsSync(IOS_PLIST)) {
   let plist = readFileSync(IOS_PLIST, "utf8");
+
+  // Apple requires the purpose string to describe every use of the permission,
+  // so a key that is present but out of date gets corrected, not left alone.
+  for (const [key, value] of IOS_KEYS) {
+    const pattern = new RegExp(`(<key>${key}</key>\\s*<string>)([\\s\\S]*?)(</string>)`);
+    const match = plist.match(pattern);
+    if (match && match[2] !== value) {
+      plist = plist.replace(pattern, `$1${value}$3`);
+      writeFileSync(IOS_PLIST, plist);
+      console.log(`ios: updated the wording of ${key}`);
+      changed += 1;
+    }
+  }
+
   const missing = IOS_KEYS.filter(([key]) => !plist.includes(`<key>${key}</key>`));
   if (missing.length) {
     const entries = missing

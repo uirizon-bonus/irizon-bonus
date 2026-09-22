@@ -7,6 +7,7 @@ import { SettingsModal } from "../components/SettingsModal";
 import { ProfileModal } from "../components/ProfileModal";
 import { LoadingScreen } from "../components/LoadingScreen";
 import { PullToRefresh } from "../components/PullToRefresh";
+import { primeScanLocation } from "../lib/scanLocation";
 import { usePortal } from "../context/PortalContext";
 
 type ScanResult = "idle" | "confirm" | "processing" | "success" | "already-used" | "invalid";
@@ -252,7 +253,12 @@ export function Home() {
         ) : null}
 
         <motion.button
-          onClick={() => setIsScannerOpen(true)}
+          onClick={() => {
+            // Ask for location as the camera opens, so the fix is ready by the
+            // time a code is read.
+            primeScanLocation();
+            setIsScannerOpen(true);
+          }}
           whileTap={{ scale: 0.98 }}
           className="w-full relative bg-gradient-to-br from-[#0F4C81] via-[#1E6FD9] to-[#2F8DE4] rounded-3xl p-10 overflow-hidden group"
           style={{

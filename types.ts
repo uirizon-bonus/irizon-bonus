@@ -134,6 +134,10 @@ export interface QrScanEvent {
   reversalNote?: string;
   qrRowId?: number;
   isUsed?: boolean;
+  // Where the customer stood when scanning; null when they did not share it.
+  scanLat?: number | null;
+  scanLng?: number | null;
+  scanAccuracy?: number | null;
 }
 
 export interface ProductQrCode {

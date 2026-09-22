@@ -813,11 +813,35 @@ def _apply_qr_scan(client_id: str, payload: QrScanPayload) -> Dict[str, Any]:
         )
         if used_cursor.rowcount <= 0:
             raise QrScanError("QR code already used", code="already_used")
+        # Keep a plausible fix only. A scan outside the usual area is exactly what
+        # this is for, so no bounds are applied — but 0,0 means the device gave up.
+        scan_lat = scan_lng = scan_accuracy = None
+        lat_in, lng_in = getattr(payload, "lat", None), getattr(payload, "lng", None)
+        if lat_in is not None and lng_in is not None:
+            try:
+                lat_value, lng_value = round(float(lat_in), 6), round(float(lng_in), 6)
+            except (TypeError, ValueError):
+                lat_value = lng_value = None
+            if (
+                lat_value is not None
+                and -90.0 <= lat_value <= 90.0
+                and -180.0 <= lng_value <= 180.0
+                and not (abs(lat_value) < 0.0001 and abs(lng_value) < 0.0001)
+            ):
+                scan_lat, scan_lng = lat_value, lng_value
+                accuracy_in = getattr(payload, "accuracy", None)
+                if accuracy_in is not None:
+                    try:
+                        scan_accuracy = round(float(accuracy_in), 1)
+                    except (TypeError, ValueError):
+                        scan_accuracy = None
+
         connection.execute(
             """
             INSERT INTO qr_scan_events (
-                client_id, client_name, product_id, product_name, qr_code, quantity, points_awarded
-            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                client_id, client_name, product_id, product_name, qr_code, quantity, points_awarded,
+                scan_lat, scan_lng, scan_accuracy
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 str(client_id),
@@ -827,6 +851,9 @@ def _apply_qr_scan(client_id: str, payload: QrScanPayload) -> Dict[str, Any]:
                 raw_qr,
                 quantity,
                 awarded_points,
+                scan_lat,
+                scan_lng,
+                scan_accuracy,
             ),
         )
         connection.commit()

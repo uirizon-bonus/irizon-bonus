@@ -42,6 +42,10 @@ const COPY = {
   export: 'Eksport',
   totals: 'Jami',
   qrCodeCol: 'QR kod',
+  scan_location: 'Joylashuv',
+  scan_location_missing: 'Ko\'rsatilmagan',
+  scan_accuracy: 'aniqlik',
+  open_in_maps: 'Xaritada',
   actions: 'Amallar',
   reverse: 'Bekor qilish',
   reverseReasonLabel: 'Bekor qilish sababi',
@@ -124,10 +128,13 @@ const QrScansView: React.FC<QrScansViewProps> = () => {
       if (!response.ok) throw new Error('error' in payload && payload.error ? payload.error : 'Failed to export');
       const rows = Array.isArray((payload as QrScansApiResponse).events) ? (payload as QrScansApiResponse).events : [];
       const csvRows = [
-        [copy.date, copy.customer, 'ID', copy.product, 'ID', copy.qrCodeCol, copy.points, copy.reversed],
+        [copy.date, copy.customer, 'ID', copy.product, 'ID', copy.qrCodeCol, copy.points, copy.reversed,
+         'lat', 'lng', copy.scan_accuracy],
         ...rows.map((e) => [
           formatDate(e.date), e.customerName, e.customerId, e.productName, e.productId,
           e.qrCode, String(e.pointsAwarded), e.reversed ? 'HA' : '',
+          e.scanLat != null ? String(e.scanLat) : '', e.scanLng != null ? String(e.scanLng) : '',
+          e.scanAccuracy != null ? String(Math.round(e.scanAccuracy)) : '',
         ]),
       ];
       const esc = (v: string) => `"${String(v).replace(/"/g, '""')}"`;
@@ -297,6 +304,7 @@ const QrScansView: React.FC<QrScansViewProps> = () => {
                 <th scope="col" className="px-6 py-4">{copy.customer}</th>
                 <th scope="col" className="px-6 py-4">{copy.product}</th>
                 <th scope="col" className="px-6 py-4">{copy.qrCodeCol}</th>
+                <th scope="col" className="px-6 py-4">{copy.scan_location}</th>
                 <th scope="col" className="px-6 py-4 text-center">{copy.points}</th>
                 <th scope="col" className="px-6 py-4 text-right">{copy.actions}</th>
               </tr>
@@ -340,6 +348,26 @@ const QrScansView: React.FC<QrScansViewProps> = () => {
                     </td>
                     <td className="px-6 py-4">
                       <span className="font-mono text-[11px] text-slate-500 break-all" title={event.qrCode}>{event.qrCode || '—'}</span>
+                    </td>
+                    <td className="px-6 py-4">
+                      {event.scanLat != null && event.scanLng != null ? (
+                        <div className="flex flex-col gap-0.5">
+                          <a
+                            href={`https://yandex.uz/maps/?pt=${event.scanLng},${event.scanLat}&z=17&l=map`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-[11px] font-black text-cyan-600 hover:text-cyan-700 uppercase tracking-tight"
+                          >
+                            {copy.open_in_maps}
+                          </a>
+                          <span className="font-mono text-[10px] text-slate-400">
+                            {event.scanLat.toFixed(5)}, {event.scanLng.toFixed(5)}
+                            {event.scanAccuracy != null ? ` · ±${Math.round(event.scanAccuracy)}m` : ''}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-[11px] font-semibold text-slate-300">{copy.scan_location_missing}</span>
+                      )}
                     </td>
                     <td className="px-6 py-4 text-center text-sm font-black">
                       {event.reversed ? (

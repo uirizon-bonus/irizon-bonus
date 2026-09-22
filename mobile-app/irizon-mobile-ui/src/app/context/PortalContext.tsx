@@ -7,6 +7,7 @@ import {
   type ReactNode,
 } from "react";
 import { Capacitor } from "@capacitor/core";
+import { takeScanLocation } from "../lib/scanLocation";
 import { FirebaseMessaging } from "@capacitor-firebase/messaging";
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").trim();
@@ -776,6 +777,8 @@ export function PortalProvider({ children }: { children: ReactNode }) {
 
     setBusy(true);
     clearNotice();
+    // Already primed when the scanner opened, so this normally returns at once.
+    const fix = await takeScanLocation();
     try {
       const response = await apiFetch(`/api/customers/${customer.id}/scan-qr`, {
         method: "POST",
@@ -783,6 +786,11 @@ export function PortalProvider({ children }: { children: ReactNode }) {
         body: JSON.stringify({
           qr_code: qrCode,
           quantity: Math.max(1, quantity),
+          // Null when the customer declined location or had no fix; the scan
+          // still counts.
+          lat: fix?.lat ?? null,
+          lng: fix?.lng ?? null,
+          accuracy: fix?.accuracy ?? null,
         }),
       });
       const payload = await parseJson(response);

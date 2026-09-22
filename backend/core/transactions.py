@@ -140,7 +140,8 @@ def _load_qr_scan_events(
         ).fetchone()
         rows = connection.execute(
             f"""
-            SELECT id, created_at, client_id, client_name, product_id, product_name, qr_code, quantity, points_awarded
+            SELECT id, created_at, client_id, client_name, product_id, product_name, qr_code, quantity,
+                   points_awarded, scan_lat, scan_lng, scan_accuracy
             FROM qr_scan_events
             {where_sql}
             ORDER BY datetime(created_at) DESC, id DESC
@@ -189,6 +190,10 @@ def _load_qr_scan_events(
             "qrCode": str(row["qr_code"] or ""),
             "quantity": int(row["quantity"] or 0),
             "pointsAwarded": int(row["points_awarded"] or 0),
+            # Where the scan happened; null when the customer did not share it.
+            "scanLat": float(row["scan_lat"]) if row["scan_lat"] is not None else None,
+            "scanLng": float(row["scan_lng"]) if row["scan_lng"] is not None else None,
+            "scanAccuracy": float(row["scan_accuracy"]) if row["scan_accuracy"] is not None else None,
             "reversed": qr_used_by_code.get(str(row["qr_code"] or ""), 0) == 0 and str(row["qr_code"] or "") in reversed_codes,
             "reversalNote": reversed_codes.get(str(row["qr_code"] or ""), ""),
             "qrRowId": qr_row_ids.get(str(row["qr_code"] or ""), 0),

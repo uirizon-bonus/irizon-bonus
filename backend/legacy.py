@@ -666,6 +666,29 @@ def _init_bonus_db() -> None:
                 WHERE customers.id = sub.client_id AND customers.first_activity_at IS NULL
                 """
             )
+        # Where a scan happened. Nullable: a customer may refuse location, be
+        # underground, or run an older app build — none of which may block the
+        # scan or the points.
+        if DB_BACKEND == "postgres":
+            scan_columns = {
+                str(row["column_name"])
+                for row in connection.execute(
+                    "SELECT column_name FROM information_schema.columns "
+                    "WHERE table_schema = 'public' AND table_name = 'qr_scan_events'"
+                ).fetchall()
+            }
+        else:
+            scan_columns = {
+                str(row["name"]) for row in connection.execute("PRAGMA table_info(qr_scan_events)").fetchall()
+            }
+        scan_float = "DOUBLE PRECISION" if DB_BACKEND == "postgres" else "REAL"
+        if "scan_lat" not in scan_columns:
+            connection.execute(f"ALTER TABLE qr_scan_events ADD COLUMN scan_lat {scan_float}")
+        if "scan_lng" not in scan_columns:
+            connection.execute(f"ALTER TABLE qr_scan_events ADD COLUMN scan_lng {scan_float}")
+        if "scan_accuracy" not in scan_columns:
+            connection.execute(f"ALTER TABLE qr_scan_events ADD COLUMN scan_accuracy {scan_float}")
+
         # ─── Delivery location ──────────────────────────────────────────────
         # Where a customer wants gifts delivered. Coordinates are nullable on
         # purpose: NULL means "never set", which 0,0 (a point in the ocean)

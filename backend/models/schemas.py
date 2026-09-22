@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -107,6 +107,11 @@ class QrScanPayload(BaseModel):
     qr_code: str = Field(..., min_length=8, max_length=500)
     quantity: int = Field(default=1, ge=1, le=1000)
     note: str = Field(default="", max_length=500)
+    # Where the customer was when they scanned. Optional on purpose: refusing
+    # location, having no signal, or running an older build must still earn points.
+    lat: Optional[float] = Field(default=None, ge=-90, le=90)
+    lng: Optional[float] = Field(default=None, ge=-180, le=180)
+    accuracy: Optional[float] = Field(default=None, ge=0, le=100000)
 
 
 class DeviceTokenPayload(BaseModel):
