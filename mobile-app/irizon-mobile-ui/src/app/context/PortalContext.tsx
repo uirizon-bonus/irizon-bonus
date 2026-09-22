@@ -7,7 +7,7 @@ import {
   type ReactNode,
 } from "react";
 import { Capacitor } from "@capacitor/core";
-import { takeScanLocation } from "../lib/scanLocation";
+import { takeScanLocation } from "../lib/deviceLocation";
 import { FirebaseMessaging } from "@capacitor-firebase/messaging";
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").trim();

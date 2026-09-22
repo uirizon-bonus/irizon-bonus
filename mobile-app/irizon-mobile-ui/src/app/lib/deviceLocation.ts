@@ -1,6 +1,7 @@
 import { Geolocation } from "@capacitor/geolocation";
 
-// Where the customer was when they scanned, for the admin's scan log.
+// The device's location, used for the admin's scan log and for
+// "deliver to where I am now" when redeeming a gift.
 //
 // The fix is acquired when the scanner opens rather than when a code is read:
 // a GPS lock takes seconds, and nobody should wait for satellites to receive
@@ -84,6 +85,11 @@ export function primeScanLocation(): void {
   inFlight = acquire(15000).finally(() => {
     inFlight = null;
   });
+}
+
+/** A fresh fix on demand, for "deliver to where I am now". */
+export async function getCurrentFix(timeout = 12000): Promise<ScanFix | null> {
+  return acquire(timeout);
 }
 
 /** The fix to send with a scan: the primed one, or a quick last attempt. */

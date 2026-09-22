@@ -3,7 +3,9 @@ import { CheckCircle2, Gift as GiftIcon, Search, SlidersHorizontal, X } from "lu
 import { AnimatePresence, motion } from "motion/react";
 import { useNavigate } from "react-router";
 import { useLanguage } from "../contexts/LanguageContext";
+import { Crosshair, LoaderCircle } from "lucide-react";
 import { LocationPicker } from "../components/LocationPicker";
+import { getCurrentFix } from "../lib/deviceLocation";
 import { PullToRefresh } from "../components/PullToRefresh";
 import { usePortal } from "../context/PortalContext";
 import { LoadingScreen } from "../components/LoadingScreen";
@@ -41,6 +43,10 @@ const translations = {
     deliveryMissing: "Адрес доставки не указан",
     deliveryAdd: "Указать адрес",
     deliveryChange: "Изменить",
+    deliverHere: "Доставить сюда",
+    useHere: "Я здесь",
+    locationBusy: "Определяем...",
+    locationFailed: "Не удалось определить местоположение",
   },
   UZ: {
     title: "Sovg'alar do'koni",
@@ -74,17 +80,54 @@ const translations = {
     deliveryMissing: "Manzil ko'rsatilmagan",
     deliveryAdd: "Manzilni ko'rsatish",
     deliveryChange: "O'zgartirish",
+    deliverHere: "Shu manzilga yetkazish",
+    useHere: "Men shu yerdaman",
+    locationBusy: "Aniqlanmoqda...",
+    locationFailed: "Joylashuvni aniqlab bo'lmadi",
   },
 } as const;
 
 export function Rewards() {
   const navigate = useNavigate();
   const { language } = useLanguage();
-  const { customer, gifts, busy, redeemGift, error, loading, refreshPortal } = usePortal();
+  const { customer, gifts, busy, redeemGift, error, loading, refreshPortal, saveLocation, lookupAddress } = usePortal();
   const [isLocationOpen, setLocationOpen] = useState(false);
   // Set while a redemption waits for an address, so it can resume once saved.
   const [pendingGiftId, setPendingGiftId] = useState<string | null>(null);
+  const [useHereBusy, setUseHereBusy] = useState(false);
+  const [addressError, setAddressError] = useState("");
+  const [pickerFix, setPickerFix] = useState<{ lat: number; lng: number } | null>(null);
   const location = customer?.location ?? null;
+
+  // "I am here": take a fix, name it if the geocoder can, and save it as the
+  // delivery address. When no address can be resolved, hand over to the picker
+  // starting at that spot so the customer can write it themselves — a courier
+  // needs words, not only coordinates.
+  const handleUseHere = async () => {
+    setUseHereBusy(true);
+    setAddressError("");
+    const fix = await getCurrentFix();
+    if (!fix) {
+      setUseHereBusy(false);
+      setAddressError(t.locationFailed);
+      return;
+    }
+    const address = await lookupAddress(fix.lat, fix.lng);
+    if (address) {
+      const result = await saveLocation({
+        lat: fix.lat,
+        lng: fix.lng,
+        address,
+        note: location?.note ?? "",
+      });
+      setUseHereBusy(false);
+      if (!result.ok) setAddressError(result.error || t.locationFailed);
+      return;
+    }
+    setUseHereBusy(false);
+    setPickerFix({ lat: fix.lat, lng: fix.lng });
+    setLocationOpen(true);
+  };
   const t = translations[language];
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
@@ -484,20 +527,36 @@ export function Rewards() {
                 {t.confirmPoints}
               </p>
 
-              <button
-                onClick={() => setLocationOpen(true)}
-                className="w-full bg-gray-50 rounded-2xl px-4 py-3 mb-3 flex items-start justify-between gap-3 text-left"
-              >
-                <div className="min-w-0">
-                  <span className="text-xs text-gray-500 font-medium">{t.deliveryTo}</span>
-                  <p className={`text-sm font-semibold truncate ${location ? "text-gray-900" : "text-[#3A7BFF]"}`}>
-                    {location?.address || t.deliveryMissing}
-                  </p>
+              <div className="bg-gray-50 rounded-2xl px-4 py-3 mb-3">
+                <span className="text-xs text-gray-500 font-medium">{t.deliveryTo}</span>
+                <p className={`text-sm font-semibold ${location ? "text-gray-900" : "text-[#3A7BFF]"}`}>
+                  {location?.address || t.deliveryMissing}
+                </p>
+                {location?.note ? (
+                  <p className="text-xs text-gray-400 mt-0.5">{location.note}</p>
+                ) : null}
+                <div className="flex gap-2 mt-2">
+                  <button
+                    onClick={() => void handleUseHere()}
+                    disabled={useHereBusy}
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-white px-3 py-1.5 text-xs font-semibold text-[#3A7BFF] shadow-sm disabled:opacity-60"
+                  >
+                    {useHereBusy ? (
+                      <LoaderCircle className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Crosshair className="w-3.5 h-3.5" />
+                    )}
+                    {useHereBusy ? t.locationBusy : t.useHere}
+                  </button>
+                  <button
+                    onClick={() => setLocationOpen(true)}
+                    className="rounded-xl bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 shadow-sm"
+                  >
+                    {location ? t.deliveryChange : t.deliveryAdd}
+                  </button>
                 </div>
-                <span className="text-xs font-semibold text-[#3A7BFF] flex-shrink-0 pt-0.5">
-                  {location ? t.deliveryChange : t.deliveryAdd}
-                </span>
-              </button>
+                {addressError ? <p className="text-xs text-red-600 mt-2">{addressError}</p> : null}
+              </div>
 
               <div className="bg-gray-50 rounded-2xl px-4 py-3 mb-5 flex items-center justify-between">
                 <span className="text-xs text-gray-500 font-medium">{t.balanceAfter}:</span>
@@ -514,10 +573,19 @@ export function Rewards() {
                   {t.confirmCancel}
                 </button>
                 <button
-                  onClick={() => void handleRedeem(confirmGift.id)}
+                  onClick={() => {
+                    // Without an address there is nothing to confirm: ask for it first.
+                    if (!location) {
+                      setPendingGiftId(confirmGift.id);
+                      setConfirmGift(null);
+                      setLocationOpen(true);
+                      return;
+                    }
+                    void handleRedeem(confirmGift.id);
+                  }}
                   className="flex-1 py-3 bg-gradient-to-r from-[#3A7BFF] via-[#6A5CFF] to-[#8A3CFF] text-white rounded-2xl font-bold"
                 >
-                  {t.confirmYes}
+                  {location ? t.deliverHere : t.deliveryAdd}
                 </button>
               </div>
             </motion.div>
@@ -528,9 +596,11 @@ export function Rewards() {
     </PullToRefresh>
     <LocationPicker
       isOpen={isLocationOpen}
+      initialFix={pickerFix}
       onClose={() => {
         setLocationOpen(false);
         setPendingGiftId(null);
+        setPickerFix(null);
       }}
       onSaved={handleLocationSaved}
     />

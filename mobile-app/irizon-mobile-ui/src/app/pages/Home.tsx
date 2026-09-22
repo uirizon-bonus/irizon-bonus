@@ -7,7 +7,7 @@ import { SettingsModal } from "../components/SettingsModal";
 import { ProfileModal } from "../components/ProfileModal";
 import { LoadingScreen } from "../components/LoadingScreen";
 import { PullToRefresh } from "../components/PullToRefresh";
-import { primeScanLocation } from "../lib/scanLocation";
+import { primeScanLocation } from "../lib/deviceLocation";
 import { usePortal } from "../context/PortalContext";
 
 type ScanResult = "idle" | "confirm" | "processing" | "success" | "already-used" | "invalid";

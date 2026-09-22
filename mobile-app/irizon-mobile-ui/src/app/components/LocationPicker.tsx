@@ -55,16 +55,19 @@ interface LocationPickerProps {
   isOpen: boolean;
   onClose: () => void;
   onSaved?: () => void;
+  // Opens centred here instead of on the saved address — used by "I am here"
+  // when the address could not be resolved automatically.
+  initialFix?: { lat: number; lng: number } | null;
 }
 
-export function LocationPicker({ isOpen, onClose, onSaved }: LocationPickerProps) {
+export function LocationPicker({ isOpen, onClose, onSaved, initialFix }: LocationPickerProps) {
   const { language } = useLanguage();
   const t = translations[language];
   const { customer, saveLocation, lookupAddress, searchPlaces, resolvePlace } = usePortal();
 
   const saved = customer?.location ?? null;
   const [center, setCenter] = useState(() =>
-    saved ? { lat: saved.lat, lng: saved.lng } : TASHKENT,
+    initialFix ?? (saved ? { lat: saved.lat, lng: saved.lng } : TASHKENT),
   );
   const [address, setAddress] = useState(saved?.address ?? "");
   const [note, setNote] = useState(saved?.note ?? "");
