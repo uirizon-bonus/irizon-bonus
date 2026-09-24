@@ -320,6 +320,8 @@ export const TRANSLATIONS = {
     delivery_address: 'Yetkazib berish manzili',
     delivery_address_missing: 'Manzil ko\'rsatilmagan',
     open_in_maps: 'Xaritada ochish',
+    delivery_phone: 'Telefon',
+    customer_comment: 'Mijoz izohi',
     available_points: 'Mavjud ballar',
     out_of_stock: 'Tugagan',
     process_timeline: 'Jarayon tarixi',

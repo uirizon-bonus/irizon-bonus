@@ -364,7 +364,10 @@ type PortalContextValue = {
     usedBySelf?: boolean;
     productName?: string;
   }>;
-  redeemGift: (giftId: string) => Promise<{ ok: boolean; message?: string; code?: string }>;
+  redeemGift: (
+    giftId: string,
+    details?: { phone?: string; comment?: string },
+  ) => Promise<{ ok: boolean; message?: string; code?: string }>;
   saveLocation: (location: {
     lat: number;
     lng: number;
@@ -937,7 +940,7 @@ export function PortalProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const redeemGift = async (giftId: string) => {
+  const redeemGift = async (giftId: string, details?: { phone?: string; comment?: string }) => {
     if (!customer?.id) {
       return { ok: false, message: i18n.redeemFailed };
     }
@@ -948,7 +951,12 @@ export function PortalProvider({ children }: { children: ReactNode }) {
       const response = await apiFetch(`/api/customers/${customer.id}/redemptions`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ gift_id: giftId }),
+        body: JSON.stringify({
+          gift_id: giftId,
+          // Empty phone falls back to the account number on the server.
+          phone: details?.phone?.trim() ?? "",
+          comment: details?.comment?.trim() ?? "",
+        }),
       });
       const payload = await parseJson(response);
       if (!response.ok) {

@@ -63,6 +63,10 @@ export interface RedemptionRequest {
   deliveryLat?: number | null;
   deliveryLng?: number | null;
   deliveryNote?: string;
+  // Contact phone for the courier, as given with the order.
+  deliveryPhone?: string;
+  // Free-text note the customer left about this order.
+  customerComment?: string;
 }
 
 export interface Activity {

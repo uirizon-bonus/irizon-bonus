@@ -25,7 +25,9 @@ import {
   Check,
   AlertTriangle,
   History,
-  MapPin
+  MapPin,
+  Phone,
+  MessageSquare
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { TRANSLATIONS } from '../constants';
@@ -1042,7 +1044,32 @@ const RequestsView: React.FC<RequestsViewProps> = ({ lang, initialSelectedId }) 
                                   ) : (
                                     <p className="text-sm font-bold text-slate-400">{t.delivery_address_missing}</p>
                                   )}
+                                  {req.deliveryPhone ? (
+                                    <div className="mt-4 pt-4 border-t border-slate-100">
+                                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-2">
+                                        <Phone className="w-3 h-3" /> {t.delivery_phone}
+                                      </p>
+                                      <a
+                                        href={`tel:${req.deliveryPhone.replace(/[^+\d]/g, '')}`}
+                                        className="text-sm font-black text-cyan-600 hover:text-cyan-700 break-words"
+                                      >
+                                        {req.deliveryPhone}
+                                      </a>
+                                    </div>
+                                  ) : null}
                                 </div>
+
+                                {/* Customer comment */}
+                                {req.customerComment ? (
+                                  <div className="p-6 rounded-3xl bg-cyan-50 border border-cyan-100 shadow-sm">
+                                    <h4 className="text-[10px] font-black text-cyan-700 uppercase tracking-widest mb-3 flex items-center gap-2">
+                                      <MessageSquare className="w-3 h-3" /> {t.customer_comment}
+                                    </h4>
+                                    <p className="text-sm font-medium text-slate-700 break-words whitespace-pre-wrap">
+                                      {req.customerComment}
+                                    </p>
+                                  </div>
+                                ) : null}
 
                                 {/* Timeline & Actions */}
                                 <div className="space-y-4">

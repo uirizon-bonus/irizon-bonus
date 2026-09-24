@@ -29,7 +29,8 @@ def _load_requests() -> List[Dict[str, Any]]:
             SELECT
                 public_id, created_at, customer_id, customer_name, gift_id, gift_name, gift_image,
                 points_used, status, operator, reject_reason, request_type,
-                delivery_address, delivery_lat, delivery_lng, delivery_note
+                delivery_address, delivery_lat, delivery_lng, delivery_note,
+                delivery_phone, customer_comment
             FROM redemption_requests
             ORDER BY datetime(created_at) DESC, id DESC
             """
@@ -61,6 +62,9 @@ def _serialize_request_row(row: Any) -> Dict[str, Any]:
         "deliveryLat": float(row["delivery_lat"]) if row["delivery_lat"] is not None else None,
         "deliveryLng": float(row["delivery_lng"]) if row["delivery_lng"] is not None else None,
         "deliveryNote": str(row["delivery_note"] or ""),
+        # Who to ring, and what the customer asked for on this order.
+        "deliveryPhone": str(row["delivery_phone"] or ""),
+        "customerComment": str(row["customer_comment"] or ""),
     }
 
 
@@ -72,7 +76,8 @@ def _load_request_by_id(public_id: str) -> Optional[Dict[str, Any]]:
             SELECT
                 public_id, created_at, customer_id, customer_name, gift_id, gift_name, gift_image,
                 points_used, status, operator, reject_reason, request_type,
-                delivery_address, delivery_lat, delivery_lng, delivery_note
+                delivery_address, delivery_lat, delivery_lng, delivery_note,
+                delivery_phone, customer_comment
             FROM redemption_requests
             WHERE public_id = ?
             """,
@@ -338,7 +343,18 @@ def _create_request(payload: RedemptionRequestCreatePayload) -> Dict[str, Any]:
         # The request carries its own copy of the address: the profile may change
         # later, and an operator must still see where this parcel was going.
         # Operators creating a request by hand are not blocked by a missing one.
-        location = customer_core._load_customer_location(connection, payload.customer_id.strip())
+        customer_id_value = payload.customer_id.strip()
+        location = customer_core._load_customer_location(connection, customer_id_value)
+
+        # A courier needs a number to ring: use what was given for this order,
+        # and fall back to the number the account is registered with.
+        contact_phone = str(payload.phone or "").strip()[:32]
+        if not contact_phone:
+            account = connection.execute(
+                "SELECT phone_raw FROM customers WHERE id = ?", (customer_id_value,)
+            ).fetchone()
+            contact_phone = str((account["phone_raw"] if account else "") or "").strip()[:32]
+        order_comment = str(payload.comment or "").strip()[:500]
         if location is None and REQUIRE_DELIVERY_ADDRESS and payload.request_type.strip() == "Customer":
             raise DeliveryAddressRequired()
 
@@ -361,8 +377,9 @@ def _create_request(payload: RedemptionRequestCreatePayload) -> Dict[str, Any]:
             INSERT INTO redemption_requests (
                 public_id, customer_id, customer_name, gift_id, gift_name, gift_image,
                 points_used, status, operator, reject_reason, request_type,
-                delivery_address, delivery_lat, delivery_lng, delivery_note
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, '', ?, ?, ?, ?, ?)
+                delivery_address, delivery_lat, delivery_lng, delivery_note,
+                delivery_phone, customer_comment
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, '', ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 public_id,
@@ -379,6 +396,8 @@ def _create_request(payload: RedemptionRequestCreatePayload) -> Dict[str, Any]:
                 (location or {}).get("lat"),
                 (location or {}).get("lng"),
                 str((location or {}).get("note") or ""),
+                contact_phone,
+                order_comment,
             ),
         )
         request_row = connection.execute(
@@ -515,7 +534,8 @@ def _update_requests_status_bulk(payload: RedemptionRequestBulkStatusPayload) ->
             SELECT
                 public_id, created_at, customer_id, customer_name, gift_id, gift_name, gift_image,
                 points_used, status, operator, reject_reason, request_type,
-                delivery_address, delivery_lat, delivery_lng, delivery_note
+                delivery_address, delivery_lat, delivery_lng, delivery_note,
+                delivery_phone, customer_comment
             FROM redemption_requests
             WHERE public_id IN ({placeholders})
             """,

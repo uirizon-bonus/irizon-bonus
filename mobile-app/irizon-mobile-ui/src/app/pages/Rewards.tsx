@@ -50,6 +50,11 @@ const translations = {
     detailsOutOfStock: "Нет в наличии",
     detailsCategory: "Категория",
     detailsPhotoOf: "из",
+    orderPhone: "Телефон для связи",
+    orderPhonePlaceholder: "+998 __ ___ __ __",
+    orderComment: "Комментарий к заказу",
+    orderCommentPlaceholder: "Например: позвоните за час, домофон не работает",
+    orderCommentOptional: "необязательно",
     deliverHere: "Доставить сюда",
     useHere: "Я здесь",
     locationBusy: "Определяем...",
@@ -94,6 +99,11 @@ const translations = {
     detailsOutOfStock: "Tugagan",
     detailsCategory: "Kategoriya",
     detailsPhotoOf: "dan",
+    orderPhone: "Bog'lanish uchun telefon",
+    orderPhonePlaceholder: "+998 __ ___ __ __",
+    orderComment: "Buyurtmaga izoh",
+    orderCommentPlaceholder: "Masalan: bir soat oldin qo'ng'iroq qiling",
+    orderCommentOptional: "ixtiyoriy",
     deliverHere: "Shu manzilga yetkazish",
     useHere: "Men shu yerdaman",
     locationBusy: "Aniqlanmoqda...",
@@ -110,6 +120,8 @@ export function Rewards() {
   const [pendingGiftId, setPendingGiftId] = useState<string | null>(null);
   const [detailGift, setDetailGift] = useState<(typeof gifts)[0] | null>(null);
   const [photoIndex, setPhotoIndex] = useState(0);
+  const [orderPhone, setOrderPhone] = useState("");
+  const [orderComment, setOrderComment] = useState("");
   const [useHereBusy, setUseHereBusy] = useState(false);
   const [addressError, setAddressError] = useState("");
   const [pickerFix, setPickerFix] = useState<{ lat: number; lng: number } | null>(null);
@@ -178,11 +190,13 @@ export function Rewards() {
   const handleRedeem = async (giftId: string) => {
     setConfirmGift(null);
     setLoadingId(giftId);
-    const result = await redeemGift(giftId);
+    const result = await redeemGift(giftId, { phone: orderPhone, comment: orderComment });
     setLoadingId(null);
     if (result.ok) {
       setRedeemedId(giftId);
       setShowRedeemSuccess(true);
+      // The next order gets a fresh comment; the phone is worth keeping.
+      setOrderComment("");
       return;
     }
     // Gifts are delivered, so a missing address is a question, not a dead end:
@@ -200,6 +214,12 @@ export function Rewards() {
   };
 
   const balance = customer?.totalPoints ?? 0;
+
+  // Opening the dialog starts from the account number; the customer can give a
+  // different one for this delivery without changing their account.
+  useEffect(() => {
+    if (confirmGift) setOrderPhone((current) => current || customer?.phone || "");
+  }, [confirmGift, customer?.phone]);
 
   const openDetail = (gift: (typeof gifts)[0]) => {
     setPhotoIndex(0);
@@ -601,6 +621,32 @@ export function Rewards() {
                   </button>
                 </div>
                 {addressError ? <p className="text-xs text-red-600 mt-2">{addressError}</p> : null}
+              </div>
+
+              <div className="mb-3">
+                <label className="text-xs text-gray-500 font-medium mb-1 block">{t.orderPhone}</label>
+                <input
+                  type="tel"
+                  inputMode="tel"
+                  value={orderPhone}
+                  onChange={(event) => setOrderPhone(event.target.value)}
+                  placeholder={t.orderPhonePlaceholder}
+                  className="w-full bg-gray-50 rounded-2xl px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 outline-none"
+                />
+              </div>
+
+              <div className="mb-3">
+                <label className="text-xs text-gray-500 font-medium mb-1 block">
+                  {t.orderComment} <span className="text-gray-400">({t.orderCommentOptional})</span>
+                </label>
+                <textarea
+                  value={orderComment}
+                  onChange={(event) => setOrderComment(event.target.value)}
+                  rows={2}
+                  maxLength={500}
+                  placeholder={t.orderCommentPlaceholder}
+                  className="w-full bg-gray-50 rounded-2xl px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 outline-none resize-none"
+                />
               </div>
 
               <div className="bg-gray-50 rounded-2xl px-4 py-3 mb-5 flex items-center justify-between">

@@ -746,6 +746,12 @@ def _init_bonus_db() -> None:
             connection.execute(f"ALTER TABLE redemption_requests ADD COLUMN delivery_lng {geo_float}")
         if "delivery_note" not in request_columns:
             connection.execute("ALTER TABLE redemption_requests ADD COLUMN delivery_note TEXT NOT NULL DEFAULT ''")
+        # Who the courier rings, and anything the customer wants to say about
+        # this particular order. Both belong to the order, not to the profile.
+        if "delivery_phone" not in request_columns:
+            connection.execute("ALTER TABLE redemption_requests ADD COLUMN delivery_phone TEXT NOT NULL DEFAULT ''")
+        if "customer_comment" not in request_columns:
+            connection.execute("ALTER TABLE redemption_requests ADD COLUMN customer_comment TEXT NOT NULL DEFAULT ''")
 
         # Reverse geocoding is billed per call, so answers are kept by rounded
         # coordinate: dragging a pin around the same block costs one lookup.

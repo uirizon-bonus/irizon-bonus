@@ -85,11 +85,17 @@ class RedemptionRequestCreatePayload(BaseModel):
     gift_id: str = Field(..., min_length=1)
     request_type: str = Field(default="Admin", max_length=50)
     operator: str = Field(default="Admin", max_length=100)
+    phone: str = Field(default="", max_length=32)
+    comment: str = Field(default="", max_length=500)
 
 
 class CustomerRedemptionPayload(BaseModel):
     # The customer comes from the session token; only the gift is chosen by the app.
     gift_id: str = Field(..., min_length=1, max_length=100)
+    # Contact number for the courier. Empty falls back to the account phone.
+    phone: str = Field(default="", max_length=32)
+    # Anything the customer wants the operator to know about this order.
+    comment: str = Field(default="", max_length=500)
 
 
 class RedemptionRequestStatusPayload(BaseModel):

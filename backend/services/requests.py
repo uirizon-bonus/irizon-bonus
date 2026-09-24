@@ -24,16 +24,17 @@ def get_requests_payload():
 def create_customer_request_payload(client_id: str, payload: CustomerRedemptionPayload, current_id: str):
     if client_id != current_id:
         raise HTTPException(status_code=403, detail="Access denied")
-    return _create_customer_request(current_id, payload.gift_id)
+    return _create_customer_request(current_id, payload.gift_id, payload.phone, payload.comment)
 
 
 def create_legacy_customer_request_payload(customer_id: str, payload: RedemptionRequestCreatePayload):
     # Older app builds post the full admin-shaped body to /api/requests. Only the
-    # gift is read from it; customer_id, request_type and operator are ignored.
-    return _create_customer_request(customer_id, payload.gift_id)
+    # gift and the delivery details are read from it; customer_id, request_type
+    # and operator are ignored.
+    return _create_customer_request(customer_id, payload.gift_id, payload.phone, payload.comment)
 
 
-def _create_customer_request(customer_id: str, gift_id: str):
+def _create_customer_request(customer_id: str, gift_id: str, phone: str = "", comment: str = ""):
     customer = customer_core._load_customer_snapshot(customer_id)
     if customer is None:
         return JSONResponse({"error": "Customer not found"}, status_code=404)
@@ -46,6 +47,8 @@ def _create_customer_request(customer_id: str, gift_id: str):
         gift_id=gift_id,
         request_type="Customer",
         operator="customer-app",
+        phone=phone,
+        comment=comment,
     )
     return create_request_payload(request_payload, actor=f"customer:{customer_id}")
 
