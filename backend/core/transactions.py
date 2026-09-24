@@ -210,6 +210,23 @@ def _load_qr_scan_events(
     return {"count": int(total_row["count"] or 0), "totalPointsSum": int(total_row["points_sum"] or 0), "events": events}
 
 
+def _normalize_contact_phone(raw: str) -> str:
+    """A number a courier can dial.
+
+    Uzbek numbers are stored as +998XXXXXXXXX however they were typed, so every
+    order shows the same shape and click-to-dial works. Anything that is not a
+    recognisable number is kept as written rather than mangled — a customer may
+    have added something the courier needs.
+    """
+    text = str(raw or "").strip()
+    digits = "".join(character for character in text if character.isdigit())
+    if len(digits) == 9:
+        return f"+998{digits}"
+    if len(digits) == 12 and digits.startswith("998"):
+        return f"+{digits}"
+    return text[:32]
+
+
 class DeliveryAddressRequired(ValueError):
     """The customer has no saved delivery location and the gift must be shipped."""
 
@@ -354,6 +371,7 @@ def _create_request(payload: RedemptionRequestCreatePayload) -> Dict[str, Any]:
                 "SELECT phone_raw FROM customers WHERE id = ?", (customer_id_value,)
             ).fetchone()
             contact_phone = str((account["phone_raw"] if account else "") or "").strip()[:32]
+        contact_phone = _normalize_contact_phone(contact_phone)
         order_comment = str(payload.comment or "").strip()[:500]
         if location is None and REQUIRE_DELIVERY_ADDRESS and payload.request_type.strip() == "Customer":
             raise DeliveryAddressRequired()

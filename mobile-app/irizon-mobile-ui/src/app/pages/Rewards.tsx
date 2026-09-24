@@ -50,6 +50,11 @@ const translations = {
     detailsOutOfStock: "Нет в наличии",
     detailsCategory: "Категория",
     detailsPhotoOf: "из",
+    checkoutTitle: "Оформление заказа",
+    checkoutSubtitle: "Проверьте данные доставки",
+    orderSummary: "Итого",
+    orderPhoneHint: "Курьер позвонит на этот номер",
+    orderPhoneInvalid: "Введите номер в формате +998 XX XXX XX XX",
     orderPhone: "Телефон для связи",
     orderPhonePlaceholder: "+998 __ ___ __ __",
     orderComment: "Комментарий к заказу",
@@ -99,6 +104,11 @@ const translations = {
     detailsOutOfStock: "Tugagan",
     detailsCategory: "Kategoriya",
     detailsPhotoOf: "dan",
+    checkoutTitle: "Buyurtmani rasmiylashtirish",
+    checkoutSubtitle: "Yetkazib berish ma'lumotlarini tekshiring",
+    orderSummary: "Jami",
+    orderPhoneHint: "Kuryer shu raqamga qo'ng'iroq qiladi",
+    orderPhoneInvalid: "Raqamni +998 XX XXX XX XX ko'rinishida kiriting",
     orderPhone: "Bog'lanish uchun telefon",
     orderPhonePlaceholder: "+998 __ ___ __ __",
     orderComment: "Buyurtmaga izoh",
@@ -121,6 +131,7 @@ export function Rewards() {
   const [detailGift, setDetailGift] = useState<(typeof gifts)[0] | null>(null);
   const [photoIndex, setPhotoIndex] = useState(0);
   const [orderPhone, setOrderPhone] = useState("");
+  const [phoneTouched, setPhoneTouched] = useState(false);
   const [orderComment, setOrderComment] = useState("");
   const [useHereBusy, setUseHereBusy] = useState(false);
   const [addressError, setAddressError] = useState("");
@@ -188,7 +199,7 @@ export function Rewards() {
   const redeemedGift = gifts.find((gift) => gift.id === redeemedId) || null;
 
   const handleRedeem = async (giftId: string) => {
-    setConfirmGift(null);
+    closeCheckout();
     setLoadingId(giftId);
     const result = await redeemGift(giftId, { phone: orderPhone, comment: orderComment });
     setLoadingId(null);
@@ -214,6 +225,30 @@ export function Rewards() {
   };
 
   const balance = customer?.totalPoints ?? 0;
+
+  // Uzbek numbers: nine digits, with or without the 998 country code. Spaces,
+  // dashes and brackets are ignored so people can type it however they like.
+  const phoneDigits = orderPhone.replace(/\D/g, "");
+  const phoneValid =
+    phoneDigits.length === 9 || (phoneDigits.length === 12 && phoneDigits.startsWith("998"));
+
+  const openCheckout = (gift: (typeof gifts)[0]) => {
+    setPhoneTouched(false);
+    setConfirmGift(gift);
+    window.history.pushState({ checkout: true }, "");
+  };
+
+  const closeCheckout = () => {
+    if (window.history.state?.checkout) window.history.back();
+    else setConfirmGift(null);
+  };
+
+  useEffect(() => {
+    if (!confirmGift) return;
+    const onPop = () => setConfirmGift(null);
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, [confirmGift]);
 
   // Opening the dialog starts from the account number; the customer can give a
   // different one for this delivery without changing their account.
@@ -357,7 +392,7 @@ export function Rewards() {
                     </div>
 
                     <button
-                      onClick={() => (canAfford ? setConfirmGift(gift) : openDetail(gift))}
+                      onClick={() => (canAfford ? openCheckout(gift) : openDetail(gift))}
                       disabled={isLoading}
                       className={`mt-auto w-full py-2.5 rounded-xl font-bold text-sm transition-all ${
                         canAfford
@@ -550,139 +585,6 @@ export function Rewards() {
         ) : null}
       </AnimatePresence>
 
-      <AnimatePresence>
-        {confirmGift ? (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-6"
-            onClick={() => setConfirmGift(null)}
-          >
-            <motion.div
-              initial={{ scale: 0.85, opacity: 0, y: 30 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.85, opacity: 0, y: 30 }}
-              transition={{ type: "spring", damping: 22, stiffness: 320 }}
-              onClick={(e) => e.stopPropagation()}
-              className="bg-white rounded-3xl p-6 max-w-sm w-full"
-            >
-              <div className="flex items-center gap-4 mb-5">
-                <img
-                  src={confirmGift.image}
-                  alt={confirmGift.name}
-                  className="w-20 h-20 rounded-2xl object-cover flex-shrink-0"
-                />
-                <div className="flex-1 min-w-0">
-                  <h3 className="font-bold text-gray-900 text-base leading-tight mb-1 line-clamp-2">
-                    {confirmGift.name}
-                  </h3>
-                  <p className="text-transparent bg-gradient-to-r from-[#3A7BFF] via-[#6A5CFF] to-[#8A3CFF] bg-clip-text font-bold text-xl">
-                    {confirmGift.pointsCost.toLocaleString()}
-                    <span className="text-gray-400 font-semibold text-sm ml-1">баллов</span>
-                  </p>
-                </div>
-              </div>
-
-              <p className="text-gray-600 text-sm text-center mb-2">
-                {t.confirmBody}{" "}
-                <span className="font-bold text-gray-900">
-                  {confirmGift.pointsCost.toLocaleString()}
-                </span>{" "}
-                {t.confirmPoints}
-              </p>
-
-              <div className="bg-gray-50 rounded-2xl px-4 py-3 mb-3">
-                <span className="text-xs text-gray-500 font-medium">{t.deliveryTo}</span>
-                <p className={`text-sm font-semibold ${location ? "text-gray-900" : "text-[#3A7BFF]"}`}>
-                  {location?.address || t.deliveryMissing}
-                </p>
-                {location?.note ? (
-                  <p className="text-xs text-gray-400 mt-0.5">{location.note}</p>
-                ) : null}
-                <div className="flex gap-2 mt-2">
-                  <button
-                    onClick={() => void handleUseHere()}
-                    disabled={useHereBusy}
-                    className="inline-flex items-center gap-1.5 rounded-xl bg-white px-3 py-1.5 text-xs font-semibold text-[#3A7BFF] shadow-sm disabled:opacity-60"
-                  >
-                    {useHereBusy ? (
-                      <LoaderCircle className="w-3.5 h-3.5 animate-spin" />
-                    ) : (
-                      <Crosshair className="w-3.5 h-3.5" />
-                    )}
-                    {useHereBusy ? t.locationBusy : t.useHere}
-                  </button>
-                  <button
-                    onClick={() => setLocationOpen(true)}
-                    className="rounded-xl bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 shadow-sm"
-                  >
-                    {location ? t.deliveryChange : t.deliveryAdd}
-                  </button>
-                </div>
-                {addressError ? <p className="text-xs text-red-600 mt-2">{addressError}</p> : null}
-              </div>
-
-              <div className="mb-3">
-                <label className="text-xs text-gray-500 font-medium mb-1 block">{t.orderPhone}</label>
-                <input
-                  type="tel"
-                  inputMode="tel"
-                  value={orderPhone}
-                  onChange={(event) => setOrderPhone(event.target.value)}
-                  placeholder={t.orderPhonePlaceholder}
-                  className="w-full bg-gray-50 rounded-2xl px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 outline-none"
-                />
-              </div>
-
-              <div className="mb-3">
-                <label className="text-xs text-gray-500 font-medium mb-1 block">
-                  {t.orderComment} <span className="text-gray-400">({t.orderCommentOptional})</span>
-                </label>
-                <textarea
-                  value={orderComment}
-                  onChange={(event) => setOrderComment(event.target.value)}
-                  rows={2}
-                  maxLength={500}
-                  placeholder={t.orderCommentPlaceholder}
-                  className="w-full bg-gray-50 rounded-2xl px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 outline-none resize-none"
-                />
-              </div>
-
-              <div className="bg-gray-50 rounded-2xl px-4 py-3 mb-5 flex items-center justify-between">
-                <span className="text-xs text-gray-500 font-medium">{t.balanceAfter}:</span>
-                <span className="font-bold text-gray-900">
-                  {(balance - confirmGift.pointsCost).toLocaleString()} баллов
-                </span>
-              </div>
-
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setConfirmGift(null)}
-                  className="flex-1 py-3 bg-gray-100 text-gray-700 rounded-2xl font-semibold"
-                >
-                  {t.confirmCancel}
-                </button>
-                <button
-                  onClick={() => {
-                    // Without an address there is nothing to confirm: ask for it first.
-                    if (!location) {
-                      setPendingGiftId(confirmGift.id);
-                      setConfirmGift(null);
-                      setLocationOpen(true);
-                      return;
-                    }
-                    void handleRedeem(confirmGift.id);
-                  }}
-                  className="flex-1 py-3 bg-gradient-to-r from-[#3A7BFF] via-[#6A5CFF] to-[#8A3CFF] text-white rounded-2xl font-bold"
-                >
-                  {location ? t.deliverHere : t.deliveryAdd}
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        ) : null}
-      </AnimatePresence>
     </div>
     </PullToRefresh>
     <AnimatePresence>
@@ -792,11 +694,7 @@ export function Rewards() {
             style={{ paddingBottom: "calc(1rem + env(safe-area-inset-bottom))" }}
           >
             <button
-              onClick={() => {
-                const gift = detailGift;
-                closeDetail();
-                setConfirmGift(gift);
-              }}
+              onClick={() => openCheckout(detailGift)}
               disabled={balance < detailGift.pointsCost || detailGift.stock <= 0 || loadingId === detailGift.id}
               className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-[#3A7BFF] via-[#6A5CFF] to-[#8A3CFF] text-white font-bold disabled:opacity-50"
             >
@@ -805,6 +703,180 @@ export function Rewards() {
                 : balance < detailGift.pointsCost
                   ? t.needMorePoints
                   : t.redeemReward}
+            </button>
+          </div>
+        </motion.div>
+      ) : null}
+    </AnimatePresence>
+
+    <AnimatePresence>
+      {confirmGift ? (
+        <motion.div
+          initial={{ opacity: 0, y: 24 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 24 }}
+          transition={{ duration: 0.18 }}
+          className="fixed inset-0 z-[70] bg-[#F5F7FB] overflow-y-auto"
+        >
+          <div
+            className="sticky top-0 z-10 bg-white/95 backdrop-blur-md px-5 pb-4 shadow-sm"
+            style={{ paddingTop: "calc(env(safe-area-inset-top) + 12px)" }}
+          >
+            <div className="flex items-center gap-3">
+              <button
+                onClick={closeCheckout}
+                aria-label={t.confirmCancel}
+                className="p-2 rounded-xl bg-gray-100 text-gray-600"
+              >
+                <ArrowLeft className="w-5 h-5" />
+              </button>
+              <div className="min-w-0">
+                <h2 className="text-lg font-bold text-gray-900 truncate">{t.checkoutTitle}</h2>
+                <p className="text-xs text-gray-500">{t.checkoutSubtitle}</p>
+              </div>
+            </div>
+          </div>
+
+          <div
+            className="px-5 py-4 space-y-3"
+            style={{ paddingBottom: "calc(9rem + env(safe-area-inset-bottom))" }}
+          >
+            {/* what is being ordered */}
+            <div className="bg-white rounded-2xl p-4 shadow-sm flex items-center gap-4">
+              <img
+                src={confirmGift.image}
+                alt={confirmGift.name}
+                className="w-20 h-20 rounded-2xl object-cover flex-shrink-0"
+              />
+              <div className="min-w-0">
+                <h3 className="font-bold text-gray-900 leading-tight line-clamp-2">{confirmGift.name}</h3>
+                <p className="text-xs text-gray-400 mt-0.5">{confirmGift.category || "-"}</p>
+                <p className="mt-1 text-xl font-bold text-transparent bg-gradient-to-r from-[#3A7BFF] via-[#6A5CFF] to-[#8A3CFF] bg-clip-text">
+                  {confirmGift.pointsCost.toLocaleString()}
+                  <span className="text-gray-400 font-semibold text-xs ml-1">баллов</span>
+                </p>
+              </div>
+            </div>
+
+            {/* where it goes */}
+            <div className="bg-white rounded-2xl p-4 shadow-sm">
+              <span className="text-xs text-gray-500 font-medium">{t.deliveryTo}</span>
+              <p className={`text-sm font-semibold ${location ? "text-gray-900" : "text-[#3A7BFF]"}`}>
+                {location?.address || t.deliveryMissing}
+              </p>
+              {location?.note ? <p className="text-xs text-gray-400 mt-0.5">{location.note}</p> : null}
+              <div className="flex gap-2 mt-3">
+                <button
+                  onClick={() => void handleUseHere()}
+                  disabled={useHereBusy}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-gray-50 px-3 py-2 text-xs font-semibold text-[#3A7BFF] disabled:opacity-60"
+                >
+                  {useHereBusy ? (
+                    <LoaderCircle className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Crosshair className="w-3.5 h-3.5" />
+                  )}
+                  {useHereBusy ? t.locationBusy : t.useHere}
+                </button>
+                <button
+                  onClick={() => setLocationOpen(true)}
+                  className="rounded-xl bg-gray-50 px-3 py-2 text-xs font-semibold text-gray-600"
+                >
+                  {location ? t.deliveryChange : t.deliveryAdd}
+                </button>
+              </div>
+              {addressError ? <p className="text-xs text-red-600 mt-2">{addressError}</p> : null}
+            </div>
+
+            {/* who to call */}
+            <div className="bg-white rounded-2xl p-4 shadow-sm">
+              <label className="text-xs text-gray-500 font-medium mb-1 block">{t.orderPhone}</label>
+              <input
+                type="tel"
+                inputMode="tel"
+                value={orderPhone}
+                onChange={(event) => setOrderPhone(event.target.value)}
+                onBlur={() => setPhoneTouched(true)}
+                placeholder={t.orderPhonePlaceholder}
+                className={`w-full rounded-2xl px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 outline-none border ${
+                  phoneTouched && !phoneValid ? "border-red-300 bg-red-50" : "border-transparent bg-gray-50"
+                }`}
+              />
+              {phoneTouched && !phoneValid ? (
+                <p className="text-xs text-red-600 mt-1">{t.orderPhoneInvalid}</p>
+              ) : (
+                <p className="text-[11px] text-gray-400 mt-1">{t.orderPhoneHint}</p>
+              )}
+            </div>
+
+            {/* anything else */}
+            <div className="bg-white rounded-2xl p-4 shadow-sm">
+              <label className="text-xs text-gray-500 font-medium mb-1 block">
+                {t.orderComment} <span className="text-gray-400">({t.orderCommentOptional})</span>
+              </label>
+              <textarea
+                value={orderComment}
+                onChange={(event) => setOrderComment(event.target.value)}
+                rows={3}
+                maxLength={500}
+                placeholder={t.orderCommentPlaceholder}
+                className="w-full bg-gray-50 rounded-2xl px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 outline-none resize-none"
+              />
+              <p className="text-[11px] text-gray-400 mt-1 text-right">{orderComment.length}/500</p>
+            </div>
+
+            {/* what it costs */}
+            <div className="bg-white rounded-2xl p-4 shadow-sm space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">{t.orderSummary}</p>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-gray-500">{t.yourBalance}</span>
+                <span className="font-semibold text-gray-900">{balance.toLocaleString()}</span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-gray-500">{confirmGift.name}</span>
+                <span className="font-semibold text-red-500">−{confirmGift.pointsCost.toLocaleString()}</span>
+              </div>
+              <div className="flex items-center justify-between border-t border-gray-100 pt-2 text-sm">
+                <span className="font-medium text-gray-600">{t.balanceAfter}</span>
+                <span className="font-bold text-gray-900">
+                  {(balance - confirmGift.pointsCost).toLocaleString()}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div
+            className="fixed inset-x-0 bottom-0 bg-white/95 backdrop-blur-md px-5 pt-3 shadow-[0_-8px_24px_rgba(15,76,129,0.08)]"
+            style={{ paddingBottom: "calc(1rem + env(safe-area-inset-bottom))" }}
+          >
+            <button
+              onClick={() => {
+                if (!location) {
+                  setPendingGiftId(confirmGift.id);
+                  closeCheckout();
+                  setLocationOpen(true);
+                  return;
+                }
+                if (!phoneValid) {
+                  setPhoneTouched(true);
+                  return;
+                }
+                void handleRedeem(confirmGift.id);
+              }}
+              disabled={loadingId === confirmGift.id}
+              className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-[#3A7BFF] via-[#6A5CFF] to-[#8A3CFF] text-white font-bold disabled:opacity-60"
+            >
+              {loadingId === confirmGift.id
+                ? t.locationBusy
+                : location
+                  ? t.deliverHere
+                  : t.deliveryAdd}
+            </button>
+            <button
+              onClick={closeCheckout}
+              className="w-full py-3 text-sm font-semibold text-gray-500"
+            >
+              {t.confirmCancel}
             </button>
           </div>
         </motion.div>
