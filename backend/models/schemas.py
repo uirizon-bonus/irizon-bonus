@@ -9,8 +9,12 @@ class BonusCreatePayload(BaseModel):
     full_name: str = Field(..., min_length=1, max_length=300)
     phone: str = Field(default="", max_length=100)
     last_updated: str = Field(default="", max_length=100)
-    current_total_points: int = Field(default=0, ge=0)
-    current_points_earned: int = Field(default=0, ge=0)
+    # The balance the panel had on screen, used only as a display fallback when
+    # the fresh snapshot cannot be loaded. It may legitimately be negative — a
+    # customer can be over-deducted — and refusing that made it impossible to
+    # add points to the very accounts that needed correcting.
+    current_total_points: int = Field(default=0)
+    current_points_earned: int = Field(default=0)
 
 
 class CustomerDeductPayload(BaseModel):
