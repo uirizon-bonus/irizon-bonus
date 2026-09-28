@@ -8,6 +8,7 @@ import {
 } from "react";
 import { Capacitor } from "@capacitor/core";
 import { takeScanLocation } from "../lib/deviceLocation";
+import { deepLinkFromData, pushDeepLink } from "../lib/deepLink";
 import { FirebaseMessaging } from "@capacitor-firebase/messaging";
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").trim();
@@ -514,6 +515,12 @@ export function PortalProvider({ children }: { children: ReactNode }) {
         if (msg) setInfo(msg);
       });
 
+      // Tapping a notification should land on what it was about.
+      await FirebaseMessaging.addListener("notificationActionPerformed", (event) => {
+        const link = deepLinkFromData(event.notification?.data);
+        if (link) pushDeepLink(link);
+      });
+
       // FCM token — works on iOS too (APNs token is exchanged by Firebase).
       const { token } = await FirebaseMessaging.getToken();
       sendToken(token);
@@ -523,6 +530,20 @@ export function PortalProvider({ children }: { children: ReactNode }) {
   };
 
   // Ask for all permissions up-front when the app opens (native only).
+  // Registered on mount as well: a tap that launches the app fires before the
+  // customer is loaded, and registerPushToken would otherwise not exist yet.
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    let remove: (() => void) | undefined;
+    void FirebaseMessaging.addListener("notificationActionPerformed", (event) => {
+      const link = deepLinkFromData(event.notification?.data);
+      if (link) pushDeepLink(link);
+    }).then((handle) => {
+      remove = () => void handle.remove();
+    });
+    return () => remove?.();
+  }, []);
+
   const requestAllPermissions = async () => {
     if (!Capacitor.isNativePlatform()) return;
     // Notifications

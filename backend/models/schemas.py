@@ -145,6 +145,8 @@ class PushNotificationPayload(BaseModel):
     audience: str = Field(default="customer", max_length=20)
     title: str = Field(..., min_length=1, max_length=120)
     body: str = Field(..., min_length=1, max_length=1000)
+    # Naming a gift makes the notification open that gift when tapped.
+    gift_id: str = Field(default="", max_length=100)
 
 
 class ProductQrGeneratePayload(BaseModel):

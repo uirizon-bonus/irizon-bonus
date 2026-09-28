@@ -1,12 +1,26 @@
-import { Outlet, useLocation, Link } from "react-router";
+import { useEffect } from "react";
+import { Outlet, useLocation, useNavigate, Link } from "react-router";
 import { AnimatePresence, motion } from "motion/react";
 import { Home, Gift, History, Package, LoaderCircle } from "lucide-react";
 import { usePortal } from "../context/PortalContext";
 import { NameGate } from "./NameGate";
+import { consumeDeepLink, onDeepLink, type DeepLink } from "../lib/deepLink";
 
 export function Layout() {
   const location = useLocation();
+  const navigate = useNavigate();
   const { i18n, refreshing } = usePortal();
+
+  // A tapped notification lands on what it was about. Anything already waiting
+  // from a cold start is picked up as soon as there is a screen to show it on.
+  useEffect(() => {
+    const go = (link: DeepLink) => {
+      if (link.screen === "gift" && link.giftId) navigate(`/app/rewards/${link.giftId}`);
+    };
+    const waiting = consumeDeepLink();
+    if (waiting) go(waiting);
+    return onDeepLink(go);
+  }, [navigate]);
   const shouldShowNav = !location.pathname.includes("/support");
 
   const navItems = [

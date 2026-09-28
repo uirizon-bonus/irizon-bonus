@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, CheckCircle2, Gift as GiftIcon, Package, Search, SlidersHorizontal, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useNavigate } from "react-router";
+import { useNavigate, useParams } from "react-router";
 import { useLanguage } from "../contexts/LanguageContext";
 import { Crosshair, LoaderCircle } from "lucide-react";
 import { LocationPicker } from "../components/LocationPicker";
@@ -130,6 +130,7 @@ export function Rewards() {
   const [pendingGiftId, setPendingGiftId] = useState<string | null>(null);
   const [detailGift, setDetailGift] = useState<(typeof gifts)[0] | null>(null);
   const [photoIndex, setPhotoIndex] = useState(0);
+  const { giftId } = useParams();
   const [orderPhone, setOrderPhone] = useState("");
   const [phoneTouched, setPhoneTouched] = useState(false);
   const [orderComment, setOrderComment] = useState("");
@@ -256,25 +257,26 @@ export function Rewards() {
     if (confirmGift) setOrderPhone((current) => current || customer?.phone || "");
   }, [confirmGift, customer?.phone]);
 
-  const openDetail = (gift: (typeof gifts)[0]) => {
-    setPhotoIndex(0);
-    setDetailGift(gift);
-    // Give the phone's back gesture something to close, so it does not leave
-    // the gifts list entirely.
-    window.history.pushState({ giftDetail: true }, "");
-  };
-
-  const closeDetail = () => {
-    if (window.history.state?.giftDetail) window.history.back();
-    else setDetailGift(null);
-  };
-
+  // A gift has its own address now, so the back gesture, a shared link and a
+  // tapped notification all arrive at the same place.
   useEffect(() => {
-    if (!detailGift) return;
-    const onPop = () => setDetailGift(null);
-    window.addEventListener("popstate", onPop);
-    return () => window.removeEventListener("popstate", onPop);
-  }, [detailGift]);
+    if (!giftId) {
+      setDetailGift(null);
+      return;
+    }
+    const gift = gifts.find((item) => item.id === giftId);
+    if (gift) {
+      setPhotoIndex(0);
+      setDetailGift(gift);
+    } else if (gifts.length) {
+      // Withdrawn, sold out of the catalogue, or a stale link: show the list.
+      navigate("/app/rewards", { replace: true });
+    }
+  }, [giftId, gifts, navigate]);
+
+  const openDetail = (gift: (typeof gifts)[0]) => navigate(`/app/rewards/${gift.id}`);
+
+  const closeDetail = () => navigate("/app/rewards", { replace: true });
 
   // Only the very first load takes over the screen; a refresh keeps the gifts visible.
   if (loading && !gifts.length) {

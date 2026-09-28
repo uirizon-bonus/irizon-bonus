@@ -45,6 +45,8 @@ const COPY = {
     customerPlaceholder: 'Example: 8517020',
     notificationTitle: 'Notification title',
     body: 'Message',
+    giftId: 'Open a gift when tapped (optional)',
+    giftIdHint: 'Gift ID, e.g. G-1042. Leave empty to just open the app.',
     send: 'Send notification',
     sending: 'Sending...',
     refresh: 'Refresh status',
@@ -65,6 +67,8 @@ const COPY = {
     customerPlaceholder: 'Например: 8517020',
     notificationTitle: 'Заголовок',
     body: 'Сообщение',
+    giftId: 'Открывать подарок при нажатии (необязательно)',
+    giftIdHint: 'ID подарка, например G-1042. Пусто — просто откроется приложение.',
     send: 'Отправить уведомление',
     sending: 'Отправка...',
     refresh: 'Обновить статус',
@@ -85,6 +89,8 @@ const COPY = {
     customerPlaceholder: 'Masalan: 8517020',
     notificationTitle: 'Sarlavha',
     body: 'Xabar',
+    giftId: 'Bosilganda sovg\'ani ochish (ixtiyoriy)',
+    giftIdHint: 'Sovg\'a ID, masalan G-1042. Bo\'sh bo\'lsa, ilova ochiladi.',
     send: 'Xabar yuborish',
     sending: 'Yuborilmoqda...',
     refresh: 'Statusni yangilash',
@@ -100,6 +106,7 @@ const PushNotificationsView: React.FC<PushNotificationsViewProps> = ({ lang }) =
   const [customerId, setCustomerId] = useState('');
   const [title, setTitle] = useState('IRIZON BONUS');
   const [body, setBody] = useState('');
+  const [giftId, setGiftId] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -144,6 +151,7 @@ const PushNotificationsView: React.FC<PushNotificationsViewProps> = ({ lang }) =
           customer_id: customerId.trim(),
           title: title.trim(),
           body: body.trim(),
+          gift_id: giftId.trim(),
         }),
       });
       const payload = await response.json() as PushSendResponse;
@@ -152,6 +160,7 @@ const PushNotificationsView: React.FC<PushNotificationsViewProps> = ({ lang }) =
       }
       setSuccess(`${t.success}: ${payload.sent ?? 0}/${payload.targeted ?? 0}`);
       setBody('');
+      setGiftId('');
       await loadStatus();
     } catch (sendError) {
       setError(sendError instanceof Error ? sendError.message : 'Failed to send notification');
@@ -270,6 +279,18 @@ const PushNotificationsView: React.FC<PushNotificationsViewProps> = ({ lang }) =
                     maxLength={1000}
                     className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:ring-2 focus:ring-cyan-500/10 focus:border-cyan-200 text-sm font-semibold text-slate-800 resize-none"
                   />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">{t.giftId}</label>
+                  <input
+                    value={giftId}
+                    onChange={(event) => setGiftId(event.target.value)}
+                    placeholder="G-1042"
+                    maxLength={100}
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:ring-2 focus:ring-cyan-500/10 focus:border-cyan-200 text-sm font-semibold text-slate-800"
+                  />
+                  <p className="mt-1 text-[11px] font-medium text-slate-400">{t.giftIdHint}</p>
                 </div>
 
                 {error ? (

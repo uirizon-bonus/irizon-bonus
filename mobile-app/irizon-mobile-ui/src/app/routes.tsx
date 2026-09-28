@@ -28,6 +28,8 @@ export const router = createBrowserRouter([
     children: [
       { index: true, Component: Home },
       { path: "rewards", Component: Rewards },
+      // A gift has its own address, so a notification can point at one.
+      { path: "rewards/:giftId", Component: Rewards },
       { path: "market", Component: Market },
       { path: "products", Component: Products },
       { path: "history", Component: History },

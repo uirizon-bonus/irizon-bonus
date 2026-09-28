@@ -56,7 +56,9 @@ def send_push_notification_payload(payload: PushNotificationPayload):
             target = "all customers" if audience == "all" else f"customer_id={customer_id}"
             return JSONResponse({"error": f"No device tokens for {target}"}, status_code=404)
 
-        results = firebase_push.send_push_to_tokens(tokens, payload.title.strip(), payload.body.strip())
+        results = firebase_push.send_push_to_tokens(
+            tokens, payload.title.strip(), payload.body.strip(), payload.gift_id.strip()
+        )
         sent_count = len([result for result in results if result["status"] == "ok"])
         legacy._audit_log(
             connection,

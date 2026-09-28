@@ -69,7 +69,7 @@ def ensure_firebase() -> bool:
         return False
 
 
-def build_push_message(token: str, title: str, body: str) -> Any:
+def build_push_message(token: str, title: str, body: str, gift_id: str = "") -> Any:
     clean_title = str(title or APP_DISPLAY_NAME).strip()[:120] or APP_DISPLAY_NAME
     clean_body = str(body or "").strip()[:1000]
     return fb_messaging.Message(
@@ -90,6 +90,13 @@ def build_push_message(token: str, title: str, body: str) -> Any:
             "title": clean_title,
             "body": clean_body,
             "source": "irizon_bonus",
+            # Read by the app when the notification is tapped. Builds that do
+            # not understand these simply open the home screen, as before.
+            **(
+                {"screen": "gift", "giftId": str(gift_id).strip()[:100]}
+                if str(gift_id or "").strip()
+                else {}
+            ),
         },
         token=token,
     )
@@ -121,7 +128,7 @@ def _drop_dead_token(token: str) -> None:
         logger.warning("FCM: could not remove dead token=%s... error=%s", token[:20], exc)
 
 
-def send_push_notification(customer_id: str, title: str, body: str) -> None:
+def send_push_notification(customer_id: str, title: str, body: str, gift_id: str = "") -> None:
     logger.info("FCM: sending to customer_id=%s title=%r", customer_id, title)
     if not ensure_firebase():
         logger.warning("FCM: firebase not ready, skipping notification")
@@ -138,7 +145,7 @@ def send_push_notification(customer_id: str, title: str, body: str) -> None:
     logger.info("FCM: found %d token(s) for customer_id=%s", len(tokens), customer_id)
     for token in tokens:
         try:
-            msg_id = fb_messaging.send(build_push_message(token, title, body))
+            msg_id = fb_messaging.send(build_push_message(token, title, body, gift_id))
             logger.info("FCM: sent OK message_id=%s", msg_id)
         except Exception as exc:
             logger.warning("FCM: send failed token=%s... error=%s", token[:20], exc)
@@ -146,11 +153,11 @@ def send_push_notification(customer_id: str, title: str, body: str) -> None:
                 _drop_dead_token(token)
 
 
-def send_push_to_tokens(tokens: List[str], title: str, body: str) -> List[Dict[str, Any]]:
+def send_push_to_tokens(tokens: List[str], title: str, body: str, gift_id: str = "") -> List[Dict[str, Any]]:
     results: List[Dict[str, Any]] = []
     for token in tokens:
         try:
-            msg_id = fb_messaging.send(build_push_message(token, title, body))
+            msg_id = fb_messaging.send(build_push_message(token, title, body, gift_id))
             results.append({"token": token[:20] + "...", "status": "ok", "messageId": msg_id})
         except Exception as exc:
             logger.warning("FCM: send failed token=%s... error=%s", token[:20], exc)
