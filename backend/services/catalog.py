@@ -270,13 +270,40 @@ def get_products_qr_batch_payload(size: int):
     )
 
 
+def _audit_price_override(connection, product_id: str, payload: ProductCreatePayload) -> None:
+    """Record a deliberate decision to price a product below its scan payout.
+
+    The guard in the core refuses this by default; when an operator overrides it
+    the reason has to survive somewhere, because the effect is that scanning the
+    product pays more than ordering it costs.
+    """
+    if not (payload.allow_price_below_earn and payload.is_orderable):
+        return
+    if payload.points_price <= 0 or payload.points_price > payload.points_value:
+        return
+    legacy._audit_log(
+        connection,
+        action="price_below_earn_override",
+        entity="product",
+        entity_id=product_id,
+        description=(
+            f"Product {product_id} priced at {payload.points_price} points while a "
+            f"scan awards {payload.points_value}"
+        ),
+        actor=admin_users.current_actor(),
+    )
+
+
 def create_product_payload(payload: ProductCreatePayload):
     if legacy.CATALOG_MANAGED_BY_XLSX:
         return JSONResponse(
             {"error": "Catalog is managed via XLSX. Update products.xlsx and restart the backend."},
             status_code=400,
         )
-    product = legacy._create_product(payload)
+    try:
+        product = legacy._create_product(payload)
+    except legacy.PriceBelowEarnError as exc:
+        return JSONResponse(exc.as_payload(), status_code=400)
     connection = bonus_db()
     try:
         legacy._audit_log(
@@ -287,6 +314,7 @@ def create_product_payload(payload: ProductCreatePayload):
             description=f"Created product {product.get('id', '')}",
             actor=admin_users.current_actor(),
         )
+        _audit_price_override(connection, str(product.get("id", "")), payload)
         connection.commit()
     finally:
         connection.close()
@@ -300,7 +328,10 @@ def update_product_payload(product_id: str, payload: ProductCreatePayload):
             {"error": "Catalog is managed via XLSX. Update products.xlsx and restart the backend."},
             status_code=400,
         )
-    product = legacy._update_product(product_id, payload)
+    try:
+        product = legacy._update_product(product_id, payload)
+    except legacy.PriceBelowEarnError as exc:
+        return JSONResponse(exc.as_payload(), status_code=400)
     if product is None:
         return JSONResponse({"error": "Product not found"}, status_code=404)
     connection = bonus_db()
@@ -313,6 +344,7 @@ def update_product_payload(product_id: str, payload: ProductCreatePayload):
             description=f"Updated product {product_id}",
             actor=admin_users.current_actor(),
         )
+        _audit_price_override(connection, str(product_id), payload)
         connection.commit()
     finally:
         connection.close()

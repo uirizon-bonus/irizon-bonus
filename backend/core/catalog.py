@@ -472,12 +472,50 @@ def _load_all_qr_codes(
     )
 
 
+class PriceBelowEarnError(ValueError):
+    """A product priced at or under what scanning it pays out.
+
+    Allowing it would let a customer order the product, scan the QR on the box
+    it arrives in, and end up with more points than they spent — points that
+    print themselves. Refused unless the operator overrides deliberately.
+    """
+
+    def __init__(self, points_price: int, points_value: int) -> None:
+        super().__init__(
+            f"Order price {points_price} is not above the {points_value} points "
+            f"a scan of this product awards"
+        )
+        self.points_price = points_price
+        self.points_value = points_value
+
+    def as_payload(self) -> Dict[str, Any]:
+        return {
+            "error": "price_below_earn",
+            "message": str(self),
+            "pointsPrice": self.points_price,
+            "pointsValue": self.points_value,
+        }
+
+
+def _check_price_above_earn(
+    *, is_orderable: bool, points_price: int, points_value: int, allow_override: bool
+) -> None:
+    """Guard the one pricing mistake that would cost real money."""
+    if not is_orderable or points_price <= 0 or allow_override:
+        return
+    if points_price <= points_value:
+        raise PriceBelowEarnError(points_price, points_value)
+
+
 def _load_products() -> List[Dict[str, Any]]:
     connection = bonus_db()
     try:
         rows = connection.execute(
             """
-            SELECT id, name_ru, points_value, category, is_active, sku
+            SELECT
+                id, name_ru, points_value, category, is_active, sku,
+                points_price, order_stock, is_orderable, description_ru,
+                image, images, smartup_product_id, smartup_code
             FROM products
             ORDER BY id
             """
@@ -499,6 +537,16 @@ def _load_products() -> List[Dict[str, Any]]:
             "sku": str(row["sku"] or ""),
             "isActive": bool(row["is_active"]),
             "qrCode": _build_product_qr_code(str(row["id"])),
+            # Ordering side. `isOrderable` is the only flag the app should read:
+            # it is false until a price, stock and photo have all been set.
+            "pointsPrice": int(row["points_price"] or 0),
+            "orderStock": int(row["order_stock"] or 0),
+            "isOrderable": bool(row["is_orderable"]),
+            "description": str(row["description_ru"] or ""),
+            "image": str(row["image"] or ""),
+            "images": _gift_gallery(row["image"], row["images"]),
+            "smartupProductId": str(row["smartup_product_id"] or ""),
+            "smartupCode": str(row["smartup_code"] or ""),
         }
         for row in rows
         if str(row["id"]) not in deleted_ids
@@ -1298,24 +1346,41 @@ def _generate_catalog_public_id(
         next_id += 1
 
 
+# Payload field -> (column, how to turn it into a stored value). Used for both
+# insert and update so the two can never drift apart.
+_PRODUCT_COLUMNS: tuple = (
+    ("name", "name_ru", lambda p: p.name.strip()),
+    ("points_value", "points_value", lambda p: int(p.points_value)),
+    ("category", "category", lambda p: p.category.strip()),
+    ("is_active", "is_active", lambda p: 1 if p.is_active else 0),
+    ("sku", "sku", lambda p: p.sku.strip()),
+    ("points_price", "points_price", lambda p: int(p.points_price)),
+    ("order_stock", "order_stock", lambda p: int(p.order_stock)),
+    ("is_orderable", "is_orderable", lambda p: 1 if p.is_orderable else 0),
+    ("description", "description_ru", lambda p: p.description.strip()),
+    ("image", "image", lambda p: p.image.strip()),
+    ("images", "images", lambda p: _clean_gift_images(p.images)),
+    ("smartup_product_id", "smartup_product_id", lambda p: p.smartup_product_id.strip()),
+    ("smartup_code", "smartup_code", lambda p: p.smartup_code.strip()),
+)
+
+
 def _create_product(payload: ProductCreatePayload) -> Dict[str, Any]:
+    _check_price_above_earn(
+        is_orderable=payload.is_orderable,
+        points_price=payload.points_price,
+        points_value=payload.points_value,
+        allow_override=payload.allow_price_below_earn,
+    )
+    columns = [column for _, column, _ in _PRODUCT_COLUMNS]
+    values = tuple(read(payload) for _, _, read in _PRODUCT_COLUMNS)
+    placeholders = ", ".join("?" for _ in columns)
     connection = bonus_db()
     try:
         product_id = _generate_catalog_public_id(connection, "products", "P", 3000)
-        default_name = payload.name.strip()
         connection.execute(
-            """
-            INSERT INTO products (id, name_ru, points_value, category, is_active, sku)
-            VALUES (?, ?, ?, ?, ?, ?)
-            """,
-            (
-                product_id,
-                default_name,
-                int(payload.points_value),
-                payload.category.strip(),
-                1 if payload.is_active else 0,
-                payload.sku.strip(),
-            ),
+            f"INSERT INTO products (id, {', '.join(columns)}) VALUES (?, {placeholders})",
+            (product_id,) + values,
         )
         connection.commit()
     finally:
@@ -1325,29 +1390,41 @@ def _create_product(payload: ProductCreatePayload) -> Dict[str, Any]:
 
 
 def _update_product(product_id: str, payload: ProductCreatePayload) -> Optional[Dict[str, Any]]:
-    connection = bonus_db()
-    try:
-        default_name = payload.name.strip()
-        cursor = connection.execute(
-            """
-            UPDATE products
-            SET name_ru = ?, points_value = ?, category = ?, is_active = ?, sku = ?
-            WHERE id = ?
-            """,
-            (
-                default_name,
-                int(payload.points_value),
-                payload.category.strip(),
-                1 if payload.is_active else 0,
-                payload.sku.strip(),
-                product_id,
-            ),
-        )
-        connection.commit()
-        if cursor.rowcount == 0:
-            return None
-    finally:
-        connection.close()
+    """Update only the fields the caller actually sent.
+
+    The admin panel's product form predates ordering and posts just the name,
+    scan value, category, sku and active flag. Writing every column on every
+    update would silently wipe the price, stock and photos each time somebody
+    edited a product's name, so anything left out of the request is left alone.
+    """
+    existing = next((p for p in _load_products() if p["id"] == product_id), None)
+    if existing is None:
+        return None
+
+    sent = payload.model_fields_set
+    updates = [(column, read(payload)) for field, column, read in _PRODUCT_COLUMNS if field in sent]
+
+    # Validate against the values the row will actually end up with, not the
+    # payload's defaults for the fields this request did not mention.
+    merged = {column: value for column, value in updates}
+    _check_price_above_earn(
+        is_orderable=bool(merged.get("is_orderable", 1 if existing["isOrderable"] else 0)),
+        points_price=int(merged.get("points_price", existing["pointsPrice"])),
+        points_value=int(merged.get("points_value", existing["pointsValue"])),
+        allow_override=payload.allow_price_below_earn,
+    )
+
+    if updates:
+        connection = bonus_db()
+        try:
+            assignments = ", ".join(f"{column} = ?" for column, _ in updates)
+            connection.execute(
+                f"UPDATE products SET {assignments} WHERE id = ?",
+                tuple(value for _, value in updates) + (product_id,),
+            )
+            connection.commit()
+        finally:
+            connection.close()
 
     return next((product for product in _load_products() if product["id"] == product_id), None)
 

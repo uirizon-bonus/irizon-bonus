@@ -77,6 +77,7 @@ from backend.core.catalog import (
     _bulk_set_product_qr_revoked,
     _create_gift,
     _create_product,
+    PriceBelowEarnError,
     _delete_gift,
     _delete_product,
     _delete_unused_product_qr_codes,
@@ -682,6 +683,40 @@ def _init_bonus_db() -> None:
             }
         if "images" not in gift_columns:
             connection.execute("ALTER TABLE gifts ADD COLUMN images TEXT NOT NULL DEFAULT ''")
+
+        # Everything a product needs to be *ordered* with points, alongside the
+        # points_value it already awards when its QR is scanned. The two numbers
+        # are unrelated: points_value is what a scan pays out, points_price is
+        # what the product costs to order. A product stays earn-only until an
+        # operator gives it a price, a stock figure and is_orderable.
+        if DB_BACKEND == "postgres":
+            product_columns = {
+                str(row["column_name"])
+                for row in connection.execute(
+                    "SELECT column_name FROM information_schema.columns "
+                    "WHERE table_schema = 'public' AND table_name = 'products'"
+                ).fetchall()
+            }
+        else:
+            product_columns = {
+                str(row["name"]) for row in connection.execute("PRAGMA table_info(products)").fetchall()
+            }
+        for column, ddl in (
+            ("points_price", "INTEGER NOT NULL DEFAULT 0"),
+            ("order_stock", "INTEGER NOT NULL DEFAULT 0"),
+            ("is_orderable", "INTEGER NOT NULL DEFAULT 0"),
+            ("description_ru", "TEXT NOT NULL DEFAULT ''"),
+            # Cover photo, then extra photos one URL per line — same convention
+            # as gifts, so the app's gallery code is reused as is.
+            ("image", "TEXT NOT NULL DEFAULT ''"),
+            ("images", "TEXT NOT NULL DEFAULT ''"),
+            # Which SmartUp product this is, so stock and, later, the ERP order
+            # can be matched without guessing at names.
+            ("smartup_product_id", "TEXT NOT NULL DEFAULT ''"),
+            ("smartup_code", "TEXT NOT NULL DEFAULT ''"),
+        ):
+            if column not in product_columns:
+                connection.execute(f"ALTER TABLE products ADD COLUMN {column} {ddl}")
 
         # Where a scan happened. Nullable: a customer may refuse location, be
         # underground, or run an older app build — none of which may block the

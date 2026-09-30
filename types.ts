@@ -36,11 +36,26 @@ export interface Gift {
 export interface Product {
   id: string;
   name: MultiLangString;
+  /** Ball awarded when this product's QR is scanned. */
   pointsValue: number;
   category?: string;
   sku?: string;
   isActive: boolean;
   qrCode?: string;
+  /**
+   * Ordering with points. `pointsPrice` is what the product costs a customer
+   * and is unrelated to `pointsValue`; the server refuses a price at or below
+   * the scan payout unless an operator overrides it on purpose.
+   */
+  pointsPrice?: number;
+  orderStock?: number;
+  /** Only `isOrderable` products appear in the app's shop. */
+  isOrderable?: boolean;
+  description?: string;
+  image?: string;
+  images?: string[];
+  smartupProductId?: string;
+  smartupCode?: string;
 }
 
 export type RequestStatus = 'Pending' | 'Approved' | 'Rejected' | 'Shipped' | 'Completed';

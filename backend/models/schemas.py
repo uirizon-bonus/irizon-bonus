@@ -69,6 +69,26 @@ class ProductCreatePayload(BaseModel):
     category: str = Field(default="", max_length=100)
     sku: str = Field(default="", max_length=100)
     is_active: bool = True
+    # --- ordering with points -------------------------------------------------
+    # What the product costs a customer to order. Unrelated to points_value,
+    # which is what scanning its QR pays out. Zero means it has no price yet.
+    points_price: int = Field(default=0, ge=0, le=1_000_000)
+    order_stock: int = Field(default=0, ge=0, le=1_000_000)
+    # A product only appears in the shop once an operator turns this on, so a
+    # half-filled row (no photo, no stock) can never leak into the app.
+    is_orderable: bool = False
+    description: str = Field(default="", max_length=2000)
+    image: str = Field(default="", max_length=2000)
+    images: List[str] = Field(default_factory=list, max_length=8)
+    # Link to the SmartUp catalogue, so stock can be reconciled by id and not
+    # by matching names that differ between the two systems.
+    smartup_product_id: str = Field(default="", max_length=40)
+    smartup_code: str = Field(default="", max_length=40)
+    # Pricing a product below what scanning it pays out lets a customer order
+    # one, scan the box it arrives in, and come out ahead — points would print
+    # themselves. The server refuses that unless an operator says so on purpose,
+    # and the override is written to the audit log.
+    allow_price_below_earn: bool = False
 
 
 class GiftCreatePayload(BaseModel):

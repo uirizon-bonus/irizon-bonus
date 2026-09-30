@@ -85,7 +85,8 @@ CLIENT_STOCKS_CACHE_PATH = BASE_DIR / "src" / "data" / "client_stocks_cache.parq
 CLIENT_STOCKS_CACHE_TTL_SEC = 60 * 60 * 3
 OFFSET_CACHE_PATH = BASE_DIR / "src" / "data" / "offset_cache.parquet"
 OFFSET_CACHE_TTL_SEC = 60 * 60 * 3
-BONUS_DB_PATH = BASE_DIR / "irizon_bonus.sqlite3"
+# Overridable so a test run cannot land on the working copy's own database.
+BONUS_DB_PATH = Path(os.getenv("BONUS_DB_PATH", str(BASE_DIR / "irizon_bonus.sqlite3")))
 DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
 DB_BACKEND = "postgres" if DATABASE_URL.startswith(("postgres://", "postgresql://")) else "sqlite"
 CLIENTS_CACHE_PATH = BASE_DIR / "src" / "data" / "clients_cache.json"
@@ -204,3 +205,14 @@ def load_cors_origins() -> list[str]:
     ]
     return origins or ["*"]
 
+
+# Where uploaded catalogue photos are written, and the origin the app should
+# use to fetch them back. The directory lives outside the repo tree on the
+# server so a deploy never wipes it; the default keeps local runs self-contained.
+UPLOADS_DIR = Path(os.getenv("UPLOADS_DIR", str(BASE_DIR / "uploads")))
+# Absolute origin for returned image URLs (e.g. https://api.irizon.uz). The
+# mobile app runs on capacitor://localhost, so a relative path would not
+# resolve there. Left empty, the request's own base URL is used.
+PUBLIC_API_BASE_URL = os.getenv("PUBLIC_API_BASE_URL", "").strip().rstrip("/")
+# Largest catalogue photo accepted, in bytes.
+UPLOAD_MAX_BYTES = int(os.getenv("UPLOAD_MAX_BYTES", str(6 * 1024 * 1024)))
