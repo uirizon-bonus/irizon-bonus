@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ImageUploadField } from './ImageUploadField';
 import {
   AlertTriangle,
   Edit3,
@@ -44,27 +43,13 @@ const ProductsView: React.FC<ProductsViewProps> = ({ lang }) => {
   const [deletingProduct, setDeletingProduct] = useState<Product | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const emptyForm = {
+  const [form, setForm] = useState({
     name: '',
     pointsValue: '',
     category: '',
     sku: '',
     isActive: true,
-    // Ordering with points. Empty strings so the inputs stay controlled and a
-    // blank field is told apart from a deliberate zero.
-    pointsPrice: '',
-    orderStock: '',
-    isOrderable: false,
-    description: '',
-    image: '',
-    smartupCode: '',
-  };
-
-  const [form, setForm] = useState(emptyForm);
-  // Set when the server refuses a price at or below the scan payout; ticking
-  // the box resends the same values with the override flag.
-  const [priceWarning, setPriceWarning] = useState<{ price: number; earn: number } | null>(null);
-  const [allowPriceBelowEarn, setAllowPriceBelowEarn] = useState(false);
+  });
 
   useEffect(() => {
     let isCancelled = false;
@@ -138,10 +123,14 @@ const ProductsView: React.FC<ProductsViewProps> = ({ lang }) => {
   const activeCount = useMemo(() => products.filter((product) => product.isActive).length, [products]);
 
   const resetForm = () => {
-    setForm(emptyForm);
+    setForm({
+      name: '',
+      pointsValue: '',
+      category: '',
+      sku: '',
+      isActive: true,
+    });
     setFormError(null);
-    setPriceWarning(null);
-    setAllowPriceBelowEarn(false);
     setEditingProduct(null);
   };
 
@@ -158,16 +147,8 @@ const ProductsView: React.FC<ProductsViewProps> = ({ lang }) => {
       category: product.category || '',
       sku: product.sku || '',
       isActive: product.isActive,
-      pointsPrice: product.pointsPrice ? String(product.pointsPrice) : '',
-      orderStock: product.orderStock ? String(product.orderStock) : '',
-      isOrderable: Boolean(product.isOrderable),
-      description: product.description || '',
-      image: product.image || '',
-      smartupCode: product.smartupCode || '',
     });
     setFormError(null);
-    setPriceWarning(null);
-    setAllowPriceBelowEarn(false);
     setIsModalOpen(true);
   };
 
@@ -176,17 +157,6 @@ const ProductsView: React.FC<ProductsViewProps> = ({ lang }) => {
     if (!form.name || !Number.isInteger(pointsValue) || pointsValue < 0) {
       setFormError('Barcha maydonlarni to‘g‘ri to‘ldiring.');
       return;
-    }
-    if (form.isOrderable) {
-      const price = Number(form.pointsPrice);
-      if (!Number.isInteger(price) || price <= 0) {
-        setFormError('Do‘konda ko‘rsatish uchun buyurtma narxini kiriting.');
-        return;
-      }
-      if (!form.image) {
-        setFormError('Do‘konda ko‘rsatish uchun mahsulot rasmini yuklang.');
-        return;
-      }
     }
 
     setIsSubmitting(true);
@@ -203,33 +173,12 @@ const ProductsView: React.FC<ProductsViewProps> = ({ lang }) => {
             category: form.category,
             sku: form.sku,
             is_active: form.isActive,
-            points_price: Number(form.pointsPrice || 0),
-            order_stock: Number(form.orderStock || 0),
-            is_orderable: form.isOrderable,
-            description: form.description,
-            image: form.image,
-            smartup_code: form.smartupCode,
-            allow_price_below_earn: allowPriceBelowEarn,
           }),
         },
       );
-      const payload = await response.json() as ProductResponse | { error?: string; message?: string; pointsPrice?: number; pointsValue?: number };
+      const payload = await response.json() as ProductResponse | { error?: string };
       if (!response.ok) {
-        // Priced at or under what a scan pays out: offer the override rather
-        // than just refusing, because sometimes it is genuinely intended.
-        if ('error' in payload && payload.error === 'price_below_earn') {
-          setPriceWarning({
-            price: Number(payload.pointsPrice ?? 0),
-            earn: Number(payload.pointsValue ?? 0),
-          });
-          setFormError(null);
-          return;
-        }
-        throw new Error(
-          ('message' in payload && payload.message) ||
-          ('error' in payload && payload.error ? payload.error : '') ||
-          `Failed to ${editingProduct ? 'update' : 'create'} product`,
-        );
+        throw new Error('error' in payload && payload.error ? payload.error : `Failed to ${editingProduct ? 'update' : 'create'} product`);
       }
       const savedProduct = (payload as ProductResponse).product;
       setProducts((current) => {
@@ -426,110 +375,6 @@ const ProductsView: React.FC<ProductsViewProps> = ({ lang }) => {
                 {t.is_active}
               </label>
             </div>
-
-            {/* Ordering with points. Separate block because the scan payout above
-                and the order price here are unrelated numbers, and mixing them
-                in one grid is how they get confused. */}
-            <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50/70 p-5">
-              <div className="mb-4 flex items-center justify-between gap-3">
-                <div>
-                  <h4 className="text-sm font-bold text-slate-800">Ballga sotish</h4>
-                  <p className="text-xs text-slate-500">
-                    Mijoz bu mahsulotni ball evaziga buyurtma qilishi uchun narx, zaxira va rasm kerak.
-                  </p>
-                </div>
-                <label className="flex shrink-0 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600">
-                  <input
-                    type="checkbox"
-                    checked={form.isOrderable}
-                    onChange={(event) => setForm((current) => ({ ...current, isOrderable: event.target.checked }))}
-                  />
-                  Do‘konda ko‘rsatilsin
-                </label>
-              </div>
-
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <div>
-                  <label className="mb-1 block text-xs font-semibold text-slate-500">Buyurtma narxi (ball)</label>
-                  <input
-                    type="number"
-                    min={0}
-                    value={form.pointsPrice}
-                    onChange={(event) => {
-                      setPriceWarning(null);
-                      setAllowPriceBelowEarn(false);
-                      setForm((current) => ({ ...current, pointsPrice: event.target.value }));
-                    }}
-                    placeholder="masalan 1350"
-                    className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none"
-                  />
-                  <p className="mt-1 text-[11px] text-slate-400">
-                    Skanerlashda beriladigan ball: {form.pointsValue || 0}
-                  </p>
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-semibold text-slate-500">Zaxira (dona)</label>
-                  <input
-                    type="number"
-                    min={0}
-                    value={form.orderStock}
-                    onChange={(event) => setForm((current) => ({ ...current, orderStock: event.target.value }))}
-                    placeholder="masalan 40"
-                    className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none"
-                  />
-                </div>
-                <div className="md:col-span-2">
-                  <ImageUploadField
-                    label="Mahsulot rasmi"
-                    value={form.image}
-                    onChange={(url) => setForm((current) => ({ ...current, image: url }))}
-                    folder="products"
-                    hint="JPG, PNG, GIF yoki WEBP. Ilovada shu rasm ko‘rinadi."
-                  />
-                </div>
-                <div className="md:col-span-2">
-                  <label className="mb-1 block text-xs font-semibold text-slate-500">Tavsif</label>
-                  <textarea
-                    rows={2}
-                    value={form.description}
-                    onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))}
-                    placeholder="Mahsulot haqida qisqacha"
-                    className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none"
-                  />
-                </div>
-                <div className="md:col-span-2">
-                  <label className="mb-1 block text-xs font-semibold text-slate-500">SmartUp kodi</label>
-                  <input
-                    value={form.smartupCode}
-                    onChange={(event) => setForm((current) => ({ ...current, smartupCode: event.target.value }))}
-                    placeholder="masalan 1572"
-                    className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none"
-                  />
-                  <p className="mt-1 text-[11px] text-slate-400">
-                    Ombordagi qoldiq shu kod orqali solishtiriladi.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {priceWarning && (
-              <div className="mt-4 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                <p className="font-semibold">Narx skanerlash balidan past</p>
-                <p className="mt-1 text-xs">
-                  Buyurtma narxi {priceWarning.price} ball, lekin bu mahsulot QR kodini skanerlaganda{' '}
-                  {priceWarning.earn} ball beriladi. Mijoz mahsulotni buyurtma qilib, qutisidagi QR kodni
-                  skanerlab, {priceWarning.earn - priceWarning.price} ball yutadi.
-                </p>
-                <label className="mt-3 flex items-center gap-2 text-xs font-semibold">
-                  <input
-                    type="checkbox"
-                    checked={allowPriceBelowEarn}
-                    onChange={(event) => setAllowPriceBelowEarn(event.target.checked)}
-                  />
-                  Baribir shu narxda saqlansin (audit jurnaliga yoziladi)
-                </label>
-              </div>
-            )}
 
             {formError && (
               <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-600">

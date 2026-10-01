@@ -13,6 +13,7 @@ import { TRANSLATIONS } from '../constants';
 import { Gift, Language } from '../types';
 import { API_CACHE_KEYS, clearApiCache } from '../utils/apiCache';
 import LoadingGlass from './LoadingGlass';
+import RewardProductsPanel from './RewardProductsPanel';
 
 interface GiftsViewProps {
   lang: Language;
@@ -37,6 +38,9 @@ const GiftsView: React.FC<GiftsViewProps> = ({ lang }) => {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
+  // Gifts and orderable products are both things points get spent on, so they
+  // live side by side here rather than in the QR catalogue.
+  const [tab, setTab] = useState<'gifts' | 'products'>('gifts');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [currentGift, setCurrentGift] = useState<Gift | null>(null);
@@ -211,22 +215,45 @@ const GiftsView: React.FC<GiftsViewProps> = ({ lang }) => {
           <h2 className="text-2xl font-bold text-slate-800">{t.gifts}</h2>
           <p className="text-sm text-slate-500">{t.track_manage_loyalty}</p>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="flex bg-white border border-slate-200 rounded-xl p-1">
-            <button onClick={() => setViewMode('grid')} className={`p-2 rounded-lg transition-all ${viewMode === 'grid' ? 'bg-cyan-50 text-cyan-600' : 'text-slate-400 hover:text-slate-600'}`}>
-              <Grid className="w-4 h-4" />
-            </button>
-            <button onClick={() => setViewMode('table')} className={`p-2 rounded-lg transition-all ${viewMode === 'table' ? 'bg-cyan-50 text-cyan-600' : 'text-slate-400 hover:text-slate-600'}`}>
-              <List className="w-4 h-4" />
+        {tab === 'gifts' && (
+          <div className="flex items-center gap-3">
+            <div className="flex bg-white border border-slate-200 rounded-xl p-1">
+              <button onClick={() => setViewMode('grid')} className={`p-2 rounded-lg transition-all ${viewMode === 'grid' ? 'bg-cyan-50 text-cyan-600' : 'text-slate-400 hover:text-slate-600'}`}>
+                <Grid className="w-4 h-4" />
+              </button>
+              <button onClick={() => setViewMode('table')} className={`p-2 rounded-lg transition-all ${viewMode === 'table' ? 'bg-cyan-50 text-cyan-600' : 'text-slate-400 hover:text-slate-600'}`}>
+                <List className="w-4 h-4" />
+              </button>
+            </div>
+            <button onClick={handleOpenCreate} className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-cyan-600 rounded-xl shadow-lg shadow-cyan-600/20 hover:bg-cyan-700 hover:-translate-y-0.5 transition-all">
+              <Plus className="w-4 h-4" />
+              {t.add_gift}
             </button>
           </div>
-          <button onClick={handleOpenCreate} className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-cyan-600 rounded-xl shadow-lg shadow-cyan-600/20 hover:bg-cyan-700 hover:-translate-y-0.5 transition-all">
-            <Plus className="w-4 h-4" />
-            {t.add_gift}
-          </button>
-        </div>
+        )}
       </div>
 
+      <div className="flex w-full gap-1 rounded-2xl border border-slate-200 bg-white p-1 md:w-auto md:self-start">
+        {([
+          { key: 'gifts', label: 'Sovg‘alar' },
+          { key: 'products', label: 'Mahsulotlar' },
+        ] as const).map((item) => (
+          <button
+            key={item.key}
+            onClick={() => setTab(item.key)}
+            className={`flex-1 rounded-xl px-5 py-2 text-sm font-semibold transition-all md:flex-none ${
+              tab === item.key ? 'bg-cyan-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'products' && <RewardProductsPanel lang={lang} />}
+
+      {tab === 'gifts' && (
+      <>
       {loadError && (
         <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-600">
           {loadError}
@@ -469,6 +496,8 @@ const GiftsView: React.FC<GiftsViewProps> = ({ lang }) => {
             </div>
           </div>
         </div>
+      )}
+      </>
       )}
     </div>
   );
