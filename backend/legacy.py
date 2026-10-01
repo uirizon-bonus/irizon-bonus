@@ -78,6 +78,7 @@ from backend.core.catalog import (
     _create_gift,
     _create_product,
     PriceBelowEarnError,
+    SmartUpLinkRequired,
     _delete_gift,
     _delete_product,
     _delete_unused_product_qr_codes,
@@ -714,9 +715,60 @@ def _init_bonus_db() -> None:
             # can be matched without guessing at names.
             ("smartup_product_id", "TEXT NOT NULL DEFAULT ''"),
             ("smartup_code", "TEXT NOT NULL DEFAULT ''"),
+            # When order_stock was last refreshed from SmartUp. Operators never
+            # type stock: a number typed by hand goes stale the moment the
+            # warehouse ships something.
+            ("stock_synced_at", "TEXT NOT NULL DEFAULT ''"),
         ):
             if column not in product_columns:
                 connection.execute(f"ALTER TABLE products ADD COLUMN {column} {ddl}")
+
+        # A local mirror of the SmartUp catalogue and its Основной склад stock.
+        # Searching and linking happen against this copy so that neither the
+        # admin panel nor a page refresh spends one of the company's 500 daily
+        # API calls.
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS smartup_inventory (
+                product_id TEXT PRIMARY KEY,
+                code TEXT NOT NULL DEFAULT '',
+                name TEXT NOT NULL DEFAULT '',
+                short_name TEXT NOT NULL DEFAULT '',
+                article_code TEXT NOT NULL DEFAULT '',
+                model TEXT NOT NULL DEFAULT '',
+                part_type TEXT NOT NULL DEFAULT '',
+                measure TEXT NOT NULL DEFAULT '',
+                state TEXT NOT NULL DEFAULT 'A',
+                stock_main INTEGER NOT NULL DEFAULT 0,
+                input_price TEXT NOT NULL DEFAULT '',
+                synced_at TEXT NOT NULL DEFAULT '',
+                -- Name, code and article pre-lowercased in Python. SQLite's own
+                -- lower() only folds ASCII, so a LIKE on lower(name) silently
+                -- finds nothing for a catalogue written in Russian.
+                search_blob TEXT NOT NULL DEFAULT ''
+            )
+            """
+        )
+        if DB_BACKEND == "postgres":
+            inventory_columns = {
+                str(row["column_name"])
+                for row in connection.execute(
+                    "SELECT column_name FROM information_schema.columns "
+                    "WHERE table_schema = 'public' AND table_name = 'smartup_inventory'"
+                ).fetchall()
+            }
+        else:
+            inventory_columns = {
+                str(row["name"])
+                for row in connection.execute("PRAGMA table_info(smartup_inventory)").fetchall()
+            }
+        if "search_blob" not in inventory_columns:
+            connection.execute(
+                "ALTER TABLE smartup_inventory ADD COLUMN search_blob TEXT NOT NULL DEFAULT ''"
+            )
+        connection.execute(
+            "CREATE INDEX IF NOT EXISTS idx_smartup_inventory_code ON smartup_inventory (code)"
+        )
 
         # Where a scan happened. Nullable: a customer may refuse location, be
         # underground, or run an older app build — none of which may block the

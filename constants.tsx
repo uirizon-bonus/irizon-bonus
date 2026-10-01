@@ -16,7 +16,8 @@ import {
   ShoppingCart,
   RefreshCw,
   BellRing,
-  FileText
+  FileText,
+  Store
 } from 'lucide-react';
 import { Customer, Gift as GiftType, Product, RedemptionRequest, Activity, Order } from './types';
 
@@ -34,6 +35,7 @@ export const MENU_ITEMS = [
   { id: 'orders', label: { UZ: 'Ballar buyurtmasi' }, icon: <ShoppingCart className="w-5 h-5" />, path: '/orders' },
   { id: 'gifts', label: { UZ: 'Sovg\'alar' }, icon: <Gift className="w-5 h-5" />, path: '/gifts' },
   { id: 'products', label: { UZ: 'Mahsulotlar' }, icon: <Package className="w-5 h-5" />, path: '/products' },
+  { id: 'marketplace', label: { UZ: 'Do\'kon' }, icon: <Store className="w-5 h-5" />, path: '/marketplace' },
   { id: 'qr-scans', label: { UZ: 'QR skanlar' }, icon: <QrCode className="w-5 h-5" />, path: '/qr-scans' },
   { id: 'qr-manage', label: { UZ: 'QR boshqaruv' }, icon: <QrCode className="w-5 h-5" />, path: '/qr-manage' },
   { id: 'requests', label: { UZ: 'Almashish so\'rovlari' }, icon: <ClipboardList className="w-5 h-5" />, path: '/requests' },
@@ -69,6 +71,7 @@ export const NAV_GROUPS = [
     items: [
       { id: 'gifts', label: { UZ: 'Sovg\'alar' }, icon: <Gift className="w-5 h-5" /> },
       { id: 'products', label: { UZ: 'Mahsulotlar' }, icon: <Package className="w-5 h-5" /> },
+      { id: 'marketplace', label: { UZ: 'Do\'kon' }, icon: <Store className="w-5 h-5" /> },
     ]
   },
   {

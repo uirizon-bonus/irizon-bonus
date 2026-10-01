@@ -25,6 +25,7 @@ import DashboardView from './components/DashboardView';
 import CustomersView from './components/CustomersView';
 import GiftsView from './components/GiftsView';
 import ProductsView from './components/ProductsView';
+import MarketplaceView from './components/MarketplaceView';
 import RequestsView from './components/RequestsView';
 import OrdersView from './components/OrdersView';
 import ReconciliationView from './components/ReconciliationView';
@@ -250,6 +251,7 @@ const App: React.FC = () => {
       case 'points-market': return <PointsMarketView lang={lang} />;
       case 'gifts': return <GiftsView lang={lang} />;
       case 'products': return <ProductsView lang={lang} />;
+      case 'marketplace': return <MarketplaceView lang={lang} />;
       case 'qr-scans': return <QrScansView lang={lang} />;
       case 'qr-manage': return <QrManageView lang={lang} />;
       case 'push-notifications': return <PushNotificationsView lang={lang} />;

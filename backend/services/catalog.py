@@ -302,7 +302,7 @@ def create_product_payload(payload: ProductCreatePayload):
         )
     try:
         product = legacy._create_product(payload)
-    except legacy.PriceBelowEarnError as exc:
+    except (legacy.PriceBelowEarnError, legacy.SmartUpLinkRequired) as exc:
         return JSONResponse(exc.as_payload(), status_code=400)
     connection = bonus_db()
     try:
@@ -330,7 +330,7 @@ def update_product_payload(product_id: str, payload: ProductCreatePayload):
         )
     try:
         product = legacy._update_product(product_id, payload)
-    except legacy.PriceBelowEarnError as exc:
+    except (legacy.PriceBelowEarnError, legacy.SmartUpLinkRequired) as exc:
         return JSONResponse(exc.as_payload(), status_code=400)
     if product is None:
         return JSONResponse({"error": "Product not found"}, status_code=404)

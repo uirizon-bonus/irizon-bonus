@@ -216,3 +216,15 @@ UPLOADS_DIR = Path(os.getenv("UPLOADS_DIR", str(BASE_DIR / "uploads")))
 PUBLIC_API_BASE_URL = os.getenv("PUBLIC_API_BASE_URL", "").strip().rstrip("/")
 # Largest catalogue photo accepted, in bytes.
 UPLOAD_MAX_BYTES = int(os.getenv("UPLOAD_MAX_BYTES", str(6 * 1024 * 1024)))
+
+# ─── SmartUp integration API (JSON), separate from the xlsx report API ───────
+# Stock for the points shop is read from here and never typed by hand.
+SMARTUP_API_BASE = os.getenv("SMARTUP_API_BASE", "https://smartup.online").rstrip("/")
+SMARTUP_PROJECT_CODE = os.getenv("SMARTUP_PROJECT_CODE", "trade")
+# Основной склад. The other warehouses are брак (defective) stores, and selling
+# from those would put damaged parts in front of customers.
+SMARTUP_WAREHOUSE_ID = os.getenv("SMARTUP_WAREHOUSE_ID", "58537")
+# The whole company shares 500 API calls a day, so a sync that just ran is
+# reused rather than repeated.
+SMARTUP_SYNC_MIN_INTERVAL_SEC = int(os.getenv("SMARTUP_SYNC_MIN_INTERVAL_SEC", str(15 * 60)))
+SMARTUP_INTEGRATION_TIMEOUT = int(os.getenv("SMARTUP_INTEGRATION_TIMEOUT", "240"))

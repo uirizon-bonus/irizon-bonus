@@ -13,6 +13,7 @@ from .routers.orders import router as orders_router
 from .routers.push import router as push_router
 from .routers.qr_scans import router as qr_scans_router
 from .routers.requests import router as requests_router
+from .routers.smartup import router as smartup_router
 from .routers.uploads import router as uploads_router
 
 app.include_router(admin_auth_router)
@@ -26,6 +27,7 @@ app.include_router(orders_router)
 app.include_router(push_router)
 app.include_router(qr_scans_router)
 app.include_router(requests_router)
+app.include_router(smartup_router)
 app.include_router(uploads_router)
 
 # Serve uploaded catalogue photos back. The directory is created up front

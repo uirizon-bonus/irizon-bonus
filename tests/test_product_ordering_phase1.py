@@ -49,10 +49,27 @@ check("created", r.status_code == 200, f"{r.status_code} {r.text[:200]}")
 product = r.json().get("product", {}) if r.status_code == 200 else {}
 pid = product.get("id", "")
 check("pointsPrice round-trips", product.get("pointsPrice") == 1350, str(product.get("pointsPrice")))
-check("orderStock round-trips", product.get("orderStock") == 40)
+# Stock is owned by the SmartUp sync. A number in the payload is ignored on
+# purpose: typed stock is wrong the moment the warehouse ships something.
+check("payload order_stock is ignored", product.get("orderStock") == 0, str(product.get("orderStock")))
 check("isOrderable round-trips", product.get("isOrderable") is True)
 check("smartupCode round-trips", product.get("smartupCode") == "1572")
+check("smartupLinked reported", product.get("smartupLinked") is True)
 check("pointsValue untouched", product.get("pointsValue") == 110)
+
+print("\n=== a shop product must be linked to SmartUp ===")
+r = client.post("/api/products", headers=H, json={
+    "name": "Bog'lanmagan mahsulot", "points_value": 10, "is_active": True,
+    "points_price": 500, "is_orderable": True,
+})
+check("unlinked product refused", r.status_code == 400, f"{r.status_code} {r.text[:160]}")
+check("names the reason", r.json().get("error") == "smartup_link_required", r.text[:160])
+
+r = client.post("/api/products", headers=H, json={
+    "name": "Katalogda qoladi", "points_value": 10, "is_active": True,
+    "points_price": 500, "is_orderable": False,
+})
+check("unlinked earn-only product is fine", r.status_code == 200, str(r.status_code))
 
 print("\n=== the guard: price at or below scan payout ===")
 r = client.post("/api/products", headers=H, json={
@@ -72,8 +89,8 @@ check("equal price also refused", r.status_code == 400, str(r.status_code))
 
 r = client.post("/api/products", headers=H, json={
     "name": "Муштук бабина IRIZON (override)", "points_value": 400, "is_active": True,
-    "points_price": 125, "order_stock": 10, "is_orderable": True,
-    "allow_price_below_earn": True,
+    "points_price": 125, "is_orderable": True, "allow_price_below_earn": True,
+    "smartup_product_id": "3438834", "smartup_code": "1399",
 })
 check("override is accepted", r.status_code == 200, f"{r.status_code} {r.text[:200]}")
 
@@ -110,17 +127,9 @@ check("legacy edit accepted", r.status_code == 200, f"{r.status_code} {r.text[:2
 after = r.json().get("product", {}) if r.status_code == 200 else {}
 check("name did change", after.get("name", {}).get("RU", "").endswith("(renamed)"), str(after.get("name")))
 check("pointsPrice survived", after.get("pointsPrice") == 1350, str(after.get("pointsPrice")))
-check("orderStock survived", after.get("orderStock") == 40, str(after.get("orderStock")))
 check("isOrderable survived", after.get("isOrderable") is True, str(after.get("isOrderable")))
 check("smartupCode survived", after.get("smartupCode") == "1572", str(after.get("smartupCode")))
-
-r = client.put(f"/api/products/{pid}", headers=H, json={
-    "name": "Свечи зажигания IRIZON PRC COBALT (renamed)", "points_value": 110,
-    "order_stock": 7,
-})
-check("partial stock edit works", r.status_code == 200 and r.json()["product"]["orderStock"] == 7,
-      r.text[:200])
-check("price still survived", r.json()["product"]["pointsPrice"] == 1350)
+check("image survived", after.get("image") == "", str(after.get("image")))
 
 # Raising the scan payout above the existing price must be caught, even though
 # the request says nothing about the price.
@@ -163,6 +172,65 @@ check("oversized refused", r.status_code == 400 and r.json().get("error") == "to
 
 r = client.post("/api/uploads/image", files={"file": ("photo.png", png(), "image/png")})
 check("upload needs admin auth", r.status_code in (401, 403), str(r.status_code))
+
+print("\n=== SmartUp mirror: search and stock ===")
+# Seed the mirror directly. The real sync fetches this from SmartUp; what is
+# under test here is everything that happens to the data afterwards.
+from backend.core import smartup_sync as _sync
+seed = [
+    ("5190844", "1572", "Свечи зажигания IRIZON PRC IZ62N199 COBALT", "COBALT", "irizon", 455),
+    ("3438834", "1399", "Муштук бабина Irizon PRC 0788B", "COBALT", "", 12092),
+    ("2127375", "51", "Муштук бабина MP PRC 0788B", "COBALT", "Муштук", 0),
+]
+con = sqlite3.connect(str(config.BONUS_DB_PATH))
+con.executemany(
+    "INSERT INTO smartup_inventory (product_id, code, name, model, part_type, state,"
+    " stock_main, synced_at, search_blob)"
+    " VALUES (?, ?, ?, ?, ?, 'A', ?, '2026-10-01T09:00:00+00:00', ?)",
+    [row + (_sync.search_blob(row[2], row[1]),) for row in seed],
+)
+con.commit(); con.close()
+
+r = client.get("/api/smartup/inventory", headers=H, params={"q": "свечи"})
+check("search finds a Cyrillic name", r.status_code == 200 and len(r.json()["items"]) == 1, r.text[:160])
+r = client.get("/api/smartup/inventory", headers=H, params={"q": "СВЕЧИ"})
+check("search folds Cyrillic case", len(r.json()["items"]) == 1, r.text[:160])
+r = client.get("/api/smartup/inventory", headers=H, params={"q": "Муштук"})
+check("search matches mid-catalogue Cyrillic", len(r.json()["items"]) == 2, str(len(r.json()["items"])))
+r = client.get("/api/smartup/inventory", headers=H, params={"q": "1399"})
+check("search finds by code", r.status_code == 200 and r.json()["items"][0]["code"] == "1399", r.text[:160])
+r = client.get("/api/smartup/inventory", headers=H, params={"in_stock": "true"})
+check("in-stock filter drops the empty one", len(r.json()["items"]) == 2, str(len(r.json()["items"])))
+check("sync state reported", r.json()["sync"]["catalogueCount"] == 3, r.text[:200])
+r = client.get("/api/smartup/inventory")
+check("search needs admin auth", r.status_code in (401, 403), str(r.status_code))
+
+print("\n=== stock flows from the mirror onto linked products ===")
+from backend.core import smartup_sync
+con = sqlite3.connect(str(config.BONUS_DB_PATH))
+con.row_factory = sqlite3.Row
+# bonus_db() is what the applier uses; call it through the same helper.
+from backend.db import bonus_db
+connection = bonus_db()
+try:
+    applied = smartup_sync._apply_stock_to_products(connection, "2026-10-01T09:05:00+00:00")
+    connection.commit()
+finally:
+    connection.close()
+con.close()
+check("applied to the linked products", applied >= 2, str(applied))
+
+r = client.get("/api/products", headers=H)
+by_id = {p["id"]: p for p in r.json()["products"]}
+check("linked by product_id got its stock", by_id[pid]["orderStock"] == 455, str(by_id[pid]["orderStock"]))
+check("stockSyncedAt recorded", bool(by_id[pid]["stockSyncedAt"]), str(by_id[pid].get("stockSyncedAt")))
+unlinked = [p for p in by_id.values() if not p["smartupLinked"]]
+check("unlinked products keep zero stock", all(p["orderStock"] == 0 for p in unlinked),
+      str([(p["id"], p["orderStock"]) for p in unlinked]))
+
+check("stock_for resolves by id", smartup_sync.stock_for(smartup_product_id="3438834") == 12092)
+check("stock_for resolves by code", smartup_sync.stock_for(smartup_code="51") == 0)
+check("stock_for is None when unlinked", smartup_sync.stock_for() is None)
 
 print("\n=== existing behaviour still intact ===")
 r = client.get("/api/products")

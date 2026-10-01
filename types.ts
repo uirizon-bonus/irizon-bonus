@@ -56,6 +56,10 @@ export interface Product {
   images?: string[];
   smartupProductId?: string;
   smartupCode?: string;
+  /** True once the product is linked to SmartUp, which is what stock needs. */
+  smartupLinked?: boolean;
+  /** When order_stock was last mirrored from SmartUp. */
+  stockSyncedAt?: string;
 }
 
 export type RequestStatus = 'Pending' | 'Approved' | 'Rejected' | 'Shipped' | 'Completed';

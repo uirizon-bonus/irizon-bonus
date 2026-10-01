@@ -497,6 +497,21 @@ class PriceBelowEarnError(ValueError):
         }
 
 
+class SmartUpLinkRequired(ValueError):
+    """A product put in the shop without being linked to SmartUp.
+
+    Stock is read from SmartUp and never typed by hand, so an unlinked product
+    has no stock figure at all — listing it would promise customers something
+    nobody can confirm is on the shelf.
+    """
+
+    def __init__(self) -> None:
+        super().__init__("Mahsulotni do'konga qo'yish uchun avval SmartUp mahsuloti bilan bog'lang")
+
+    def as_payload(self) -> Dict[str, Any]:
+        return {"error": "smartup_link_required", "message": str(self)}
+
+
 def _check_price_above_earn(
     *, is_orderable: bool, points_price: int, points_value: int, allow_override: bool
 ) -> None:
@@ -507,6 +522,11 @@ def _check_price_above_earn(
         raise PriceBelowEarnError(points_price, points_value)
 
 
+def _check_smartup_link(*, is_orderable: bool, smartup_product_id: str, smartup_code: str) -> None:
+    if is_orderable and not (smartup_product_id.strip() or smartup_code.strip()):
+        raise SmartUpLinkRequired()
+
+
 def _load_products() -> List[Dict[str, Any]]:
     connection = bonus_db()
     try:
@@ -515,7 +535,7 @@ def _load_products() -> List[Dict[str, Any]]:
             SELECT
                 id, name_ru, points_value, category, is_active, sku,
                 points_price, order_stock, is_orderable, description_ru,
-                image, images, smartup_product_id, smartup_code
+                image, images, smartup_product_id, smartup_code, stock_synced_at
             FROM products
             ORDER BY id
             """
@@ -540,13 +560,20 @@ def _load_products() -> List[Dict[str, Any]]:
             # Ordering side. `isOrderable` is the only flag the app should read:
             # it is false until a price, stock and photo have all been set.
             "pointsPrice": int(row["points_price"] or 0),
+            # Stock mirrors SmartUp's Основной склад and is never typed by an
+            # operator, so the panel shows it read-only with its sync time.
             "orderStock": int(row["order_stock"] or 0),
+            "stockSyncedAt": str(row["stock_synced_at"] or ""),
             "isOrderable": bool(row["is_orderable"]),
             "description": str(row["description_ru"] or ""),
             "image": str(row["image"] or ""),
             "images": _gift_gallery(row["image"], row["images"]),
             "smartupProductId": str(row["smartup_product_id"] or ""),
             "smartupCode": str(row["smartup_code"] or ""),
+            "smartupLinked": bool(
+                str(row["smartup_product_id"] or "").strip()
+                or str(row["smartup_code"] or "").strip()
+            ),
         }
         for row in rows
         if str(row["id"]) not in deleted_ids
@@ -1355,7 +1382,9 @@ _PRODUCT_COLUMNS: tuple = (
     ("is_active", "is_active", lambda p: 1 if p.is_active else 0),
     ("sku", "sku", lambda p: p.sku.strip()),
     ("points_price", "points_price", lambda p: int(p.points_price)),
-    ("order_stock", "order_stock", lambda p: int(p.order_stock)),
+    # `order_stock` is deliberately absent: it is written only by the SmartUp
+    # sync. A stock number typed by hand is wrong the moment the warehouse
+    # ships something, and the shop would keep selling what is already gone.
     ("is_orderable", "is_orderable", lambda p: 1 if p.is_orderable else 0),
     ("description", "description_ru", lambda p: p.description.strip()),
     ("image", "image", lambda p: p.image.strip()),
@@ -1371,6 +1400,11 @@ def _create_product(payload: ProductCreatePayload) -> Dict[str, Any]:
         points_price=payload.points_price,
         points_value=payload.points_value,
         allow_override=payload.allow_price_below_earn,
+    )
+    _check_smartup_link(
+        is_orderable=payload.is_orderable,
+        smartup_product_id=payload.smartup_product_id,
+        smartup_code=payload.smartup_code,
     )
     columns = [column for _, column, _ in _PRODUCT_COLUMNS]
     values = tuple(read(payload) for _, _, read in _PRODUCT_COLUMNS)
@@ -1407,11 +1441,17 @@ def _update_product(product_id: str, payload: ProductCreatePayload) -> Optional[
     # Validate against the values the row will actually end up with, not the
     # payload's defaults for the fields this request did not mention.
     merged = {column: value for column, value in updates}
+    will_be_orderable = bool(merged.get("is_orderable", 1 if existing["isOrderable"] else 0))
     _check_price_above_earn(
-        is_orderable=bool(merged.get("is_orderable", 1 if existing["isOrderable"] else 0)),
+        is_orderable=will_be_orderable,
         points_price=int(merged.get("points_price", existing["pointsPrice"])),
         points_value=int(merged.get("points_value", existing["pointsValue"])),
         allow_override=payload.allow_price_below_earn,
+    )
+    _check_smartup_link(
+        is_orderable=will_be_orderable,
+        smartup_product_id=str(merged.get("smartup_product_id", existing["smartupProductId"])),
+        smartup_code=str(merged.get("smartup_code", existing["smartupCode"])),
     )
 
     if updates:
