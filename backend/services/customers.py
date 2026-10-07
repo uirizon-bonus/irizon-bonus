@@ -4,7 +4,7 @@ from fastapi import HTTPException
 from fastapi.responses import JSONResponse
 
 from backend import legacy
-from backend.config import MANUAL_BONUS_MAX, ADMIN_USERNAME
+from backend.config import MANUAL_BONUS_MAX, ADMIN_USERNAME, REQUIRE_SCAN_LOCATION
 from backend.core import admin_users
 from backend.core import dashboard as dashboard_core
 from backend.core import customers as customer_core
@@ -238,6 +238,18 @@ def update_customer_location_payload(client_id: str, payload, current_id: str):
 def create_customer_qr_points_payload(client_id: str, payload: QrScanPayload, current_id: str):
     if client_id != current_id:
         raise HTTPException(status_code=403, detail="Access denied")
+    # A scan records where a product was found, so one with no coordinates is
+    # worth little. The app refuses these before the camera even opens; this is
+    # the server-side backstop, kept off until older builds have been replaced,
+    # since those send no coordinates and would otherwise stop working.
+    if REQUIRE_SCAN_LOCATION and (payload.lat is None or payload.lng is None):
+        return JSONResponse(
+            {
+                "error": "Joylashuvsiz skanerlab bo'lmaydi",
+                "code": "location_required",
+            },
+            status_code=400,
+        )
     try:
         result = legacy._apply_qr_scan(str(client_id), payload)
     except QrScanError as exc:

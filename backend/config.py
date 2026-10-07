@@ -228,3 +228,15 @@ SMARTUP_WAREHOUSE_ID = os.getenv("SMARTUP_WAREHOUSE_ID", "58537")
 # reused rather than repeated.
 SMARTUP_SYNC_MIN_INTERVAL_SEC = int(os.getenv("SMARTUP_SYNC_MIN_INTERVAL_SEC", str(15 * 60)))
 SMARTUP_INTEGRATION_TIMEOUT = int(os.getenv("SMARTUP_INTEGRATION_TIMEOUT", "240"))
+
+# Refuse a QR scan that carries no location. The app enforces this itself from
+# the build that introduced the location gate; this flag is the server-side
+# backstop and stays OFF until enough customers have updated, because older
+# installed builds send no coordinates and would lose the ability to scan.
+REQUIRE_SCAN_LOCATION = os.getenv("REQUIRE_SCAN_LOCATION", "false").strip().lower() in {
+    "1",
+    "true",
+    "yes",
+    "y",
+    "on",
+}

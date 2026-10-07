@@ -117,6 +117,16 @@ type I18n = {
   logout: string;
   scanQr: string;
   scanHint: string;
+  locTitle: string;
+  locWorking: string;
+  locWhy: string;
+  locPrompt: string;
+  locDenied: string;
+  locUnavailable: string;
+  locSettings: string;
+  locRetry: string;
+  locCancel: string;
+  locRequired: string;
   redeem: string;
   notEnough: string;
   loading: string;
@@ -193,6 +203,16 @@ const i18nMap: Record<Lang, I18n> = {
     logout: "Выйти",
     scanQr: "Сканировать QR",
     scanHint: "Наведите камеру на QR-код продукта",
+    locTitle: "Разрешите доступ к геолокации",
+    locWorking: "Определяем ваше местоположение...",
+    locWhy: "Мы отмечаем, где был найден товар — без этого сканирование недоступно.",
+    locPrompt: "Чтобы сканировать QR-код, приложению нужен доступ к вашей геолокации.",
+    locDenied: "Доступ к геолокации запрещён. Включите его в настройках телефона и вернитесь сюда.",
+    locUnavailable: "Не удалось определить местоположение. Проверьте, включена ли геолокация, и выйдите ближе к окну или на улицу.",
+    locSettings: "Настройки → IRIZON BONUS → Геопозиция → При использовании приложения",
+    locRetry: "Повторить",
+    locCancel: "Отмена",
+    locRequired: "Сканирование без геолокации недоступно",
     redeem: "Обменять",
     notEnough: "Недостаточно баллов",
     loading: "Загрузка...",
@@ -268,6 +288,16 @@ const i18nMap: Record<Lang, I18n> = {
     logout: "Chiqish",
     scanQr: "QR skanerlash",
     scanHint: "Kamerani mahsulot QR-kodiga yo'naltiring",
+    locTitle: "Joylashuvga ruxsat bering",
+    locWorking: "Joylashuvingiz aniqlanmoqda...",
+    locWhy: "Mahsulot qayerda topilganini qayd etamiz — ruxsatsiz skanerlash ishlamaydi.",
+    locPrompt: "QR kodni skanerlash uchun ilovaga joylashuvingiz kerak.",
+    locDenied: "Joylashuvga ruxsat berilmagan. Telefon sozlamalaridan yoqing va shu yerga qayting.",
+    locUnavailable: "Joylashuvni aniqlab bo'lmadi. Geolokatsiya yoqilganini tekshiring va deraza yoniga yoki tashqariga chiqing.",
+    locSettings: "Sozlamalar → IRIZON BONUS → Joylashuv → Ilovadan foydalanilganda",
+    locRetry: "Qayta urinish",
+    locCancel: "Bekor qilish",
+    locRequired: "Joylashuvsiz skanerlab bo'lmaydi",
     redeem: "Almashtirish",
     notEnough: "Ball yetarli emas",
     loading: "Yuklanmoqda...",
@@ -808,8 +838,21 @@ export function PortalProvider({ children }: { children: ReactNode }) {
 
     setBusy(true);
     clearNotice();
-    // Already primed when the scanner opened, so this normally returns at once.
+    // The gate secured a fix before the camera opened, so this normally returns
+    // the cached position at once.
     const fix = await takeScanLocation();
+    if (!fix) {
+      // Belt and braces: the gate should have caught this, but a scanner left
+      // open while location was switched off would otherwise send a blind scan.
+      setBusy(false);
+      setError(i18n.locRequired);
+      return {
+        ok: false,
+        awardedPoints: 0,
+        message: i18n.locRequired,
+        code: "location_required",
+      };
+    }
     try {
       const response = await apiFetch(`/api/customers/${customer.id}/scan-qr`, {
         method: "POST",
@@ -817,11 +860,9 @@ export function PortalProvider({ children }: { children: ReactNode }) {
         body: JSON.stringify({
           qr_code: qrCode,
           quantity: Math.max(1, quantity),
-          // Null when the customer declined location or had no fix; the scan
-          // still counts.
-          lat: fix?.lat ?? null,
-          lng: fix?.lng ?? null,
-          accuracy: fix?.accuracy ?? null,
+          lat: fix.lat,
+          lng: fix.lng,
+          accuracy: fix.accuracy ?? null,
         }),
       });
       const payload = await parseJson(response);

@@ -7,7 +7,8 @@ import { SettingsModal } from "../components/SettingsModal";
 import { ProfileModal } from "../components/ProfileModal";
 import { LoadingScreen } from "../components/LoadingScreen";
 import { PullToRefresh } from "../components/PullToRefresh";
-import { primeScanLocation } from "../lib/deviceLocation";
+import { peekPermission, primeScanLocation } from "../lib/deviceLocation";
+import { LocationGate } from "../components/LocationGate";
 import { usePortal } from "../context/PortalContext";
 
 type ScanResult = "idle" | "confirm" | "processing" | "success" | "already-used" | "invalid";
@@ -53,6 +54,8 @@ export function Home() {
 
   const [displayPoints, setDisplayPoints] = useState(0);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
+  // Shown instead of the camera until a position has been secured.
+  const [isLocationGateOpen, setIsLocationGateOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -254,10 +257,18 @@ export function Home() {
 
         <motion.button
           onClick={() => {
-            // Ask for location as the camera opens, so the fix is ready by the
-            // time a code is read.
-            primeScanLocation();
-            setIsScannerOpen(true);
+            // A scan records where a product was found, so the camera does not
+            // open until there is a position to record. When permission is
+            // already granted the fix is primed in the background and the gate
+            // never appears.
+            void (async () => {
+              if ((await peekPermission()) === "granted") {
+                primeScanLocation();
+                setIsScannerOpen(true);
+                return;
+              }
+              setIsLocationGateOpen(true);
+            })();
           }}
           whileTap={{ scale: 0.98 }}
           className="w-full relative bg-gradient-to-br from-[#0F4C81] via-[#1E6FD9] to-[#2F8DE4] rounded-3xl p-10 overflow-hidden group"
@@ -398,6 +409,26 @@ export function Home() {
         </div>
       </div>
      </PullToRefresh>
+
+      <LocationGate
+        isOpen={isLocationGateOpen}
+        copy={{
+          title: i18n.locTitle,
+          working: i18n.locWorking,
+          why: i18n.locWhy,
+          promptBody: i18n.locPrompt,
+          deniedBody: i18n.locDenied,
+          unavailableBody: i18n.locUnavailable,
+          settingsHint: i18n.locSettings,
+          retry: i18n.locRetry,
+          cancel: i18n.locCancel,
+        }}
+        onReady={() => {
+          setIsLocationGateOpen(false);
+          setIsScannerOpen(true);
+        }}
+        onCancel={() => setIsLocationGateOpen(false)}
+      />
 
       <QRScanner
         isOpen={isScannerOpen}
