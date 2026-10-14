@@ -171,6 +171,13 @@ class PushNotificationPayload(BaseModel):
     body: str = Field(..., min_length=1, max_length=1000)
     # Naming a gift makes the notification open that gift when tapped.
     gift_id: str = Field(default="", max_length=100)
+    # A picture shown inside the notification. Must be a public https URL —
+    # Firebase fetches it itself, so anything behind our admin auth is invisible
+    # to it. Uploading through /api/uploads/image gives a URL that works.
+    image_url: str = Field(default="", max_length=2000)
+    # An address to open instead of a gift: a promo page, a store listing, an
+    # update link. Ignored when gift_id is set, since a tap has one destination.
+    link_url: str = Field(default="", max_length=2000)
 
 
 class ProductQrGeneratePayload(BaseModel):

@@ -26,5 +26,22 @@
     },
     "allowImportingTsExtensions": true,
     "noEmit": true
-  }
+  },
+  "include": [
+    "App.tsx",
+    "index.tsx",
+    "constants.tsx",
+    "types.ts",
+    "vite.config.ts",
+    "components/**/*",
+    "utils/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "mobile-app",
+    "video-ad",
+    "backend",
+    "tests"
+  ]
 }

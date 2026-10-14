@@ -15,7 +15,16 @@ export function Layout() {
   // from a cold start is picked up as soon as there is a screen to show it on.
   useEffect(() => {
     const go = (link: DeepLink) => {
-      if (link.screen === "gift" && link.giftId) navigate(`/app/rewards/${link.giftId}`);
+      if (link.screen === "gift" && link.giftId) {
+        navigate(`/app/rewards/${link.giftId}`);
+        return;
+      }
+      if (link.screen === "url" && link.url) {
+        // Opens in the phone's browser rather than inside the app: the address
+        // comes from a notification, and a page we did not write has no
+        // business rendering inside the session.
+        window.open(link.url, "_blank");
+      }
     };
     const waiting = consumeDeepLink();
     if (waiting) go(waiting);

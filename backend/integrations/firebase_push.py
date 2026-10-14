@@ -69,11 +69,52 @@ def ensure_firebase() -> bool:
         return False
 
 
-def build_push_message(token: str, title: str, body: str, gift_id: str = "") -> Any:
+def _public_image_url(value: str) -> str:
+    """An image Firebase can fetch, or nothing.
+
+    Firebase downloads the picture from its own servers, so only a public
+    http(s) address works — a relative path or a file behind our admin auth
+    would make the whole notification fail to render rather than merely arrive
+    without a picture.
+    """
+    url = str(value or "").strip()
+    if not url:
+        return ""
+    if not url.startswith(("http://", "https://")):
+        logger.warning("FCM: ignoring image_url that is not http(s): %r", url[:80])
+        return ""
+    return url[:2000]
+
+
+def build_push_message(
+    token: str,
+    title: str,
+    body: str,
+    gift_id: str = "",
+    image_url: str = "",
+    link_url: str = "",
+) -> Any:
     clean_title = str(title or APP_DISPLAY_NAME).strip()[:120] or APP_DISPLAY_NAME
     clean_body = str(body or "").strip()[:1000]
+    image = _public_image_url(image_url)
+    gift = str(gift_id or "").strip()[:100]
+    link = str(link_url or "").strip()[:2000] if link_url else ""
+
+    # One tap, one destination. A gift wins over a link, because naming a gift
+    # is the more specific instruction.
+    if gift:
+        target: Dict[str, str] = {"screen": "gift", "giftId": gift}
+    elif link.startswith(("http://", "https://")):
+        target = {"screen": "url", "url": link}
+    else:
+        target = {}
+
     return fb_messaging.Message(
-        notification=fb_messaging.Notification(title=clean_title, body=clean_body),
+        notification=fb_messaging.Notification(
+            title=clean_title,
+            body=clean_body,
+            image=image or None,
+        ),
         android=fb_messaging.AndroidConfig(
             priority="high",
             notification=fb_messaging.AndroidNotification(
@@ -84,19 +125,30 @@ def build_push_message(token: str, title: str, body: str, gift_id: str = "") -> 
                 sound="default",
                 default_sound=True,
                 default_vibrate_timings=True,
+                image=image or None,
             ),
+        ),
+        # iOS only renders a picture if the app carries a Notification Service
+        # Extension, and the extension only runs when the payload is marked
+        # mutable. Setting it costs nothing today and means the image starts
+        # working the moment that extension is added.
+        apns=fb_messaging.APNSConfig(
+            payload=fb_messaging.APNSPayload(
+                aps=fb_messaging.Aps(
+                    mutable_content=True,
+                    sound="default",
+                ),
+            ),
+            fcm_options=fb_messaging.APNSFCMOptions(image=image) if image else None,
         ),
         data={
             "title": clean_title,
             "body": clean_body,
             "source": "irizon_bonus",
+            **({"image": image} if image else {}),
             # Read by the app when the notification is tapped. Builds that do
             # not understand these simply open the home screen, as before.
-            **(
-                {"screen": "gift", "giftId": str(gift_id).strip()[:100]}
-                if str(gift_id or "").strip()
-                else {}
-            ),
+            **target,
         },
         token=token,
     )
@@ -128,7 +180,14 @@ def _drop_dead_token(token: str) -> None:
         logger.warning("FCM: could not remove dead token=%s... error=%s", token[:20], exc)
 
 
-def send_push_notification(customer_id: str, title: str, body: str, gift_id: str = "") -> None:
+def send_push_notification(
+    customer_id: str,
+    title: str,
+    body: str,
+    gift_id: str = "",
+    image_url: str = "",
+    link_url: str = "",
+) -> None:
     logger.info("FCM: sending to customer_id=%s title=%r", customer_id, title)
     if not ensure_firebase():
         logger.warning("FCM: firebase not ready, skipping notification")
@@ -145,7 +204,9 @@ def send_push_notification(customer_id: str, title: str, body: str, gift_id: str
     logger.info("FCM: found %d token(s) for customer_id=%s", len(tokens), customer_id)
     for token in tokens:
         try:
-            msg_id = fb_messaging.send(build_push_message(token, title, body, gift_id))
+            msg_id = fb_messaging.send(
+                build_push_message(token, title, body, gift_id, image_url, link_url)
+            )
             logger.info("FCM: sent OK message_id=%s", msg_id)
         except Exception as exc:
             logger.warning("FCM: send failed token=%s... error=%s", token[:20], exc)
@@ -153,11 +214,20 @@ def send_push_notification(customer_id: str, title: str, body: str, gift_id: str
                 _drop_dead_token(token)
 
 
-def send_push_to_tokens(tokens: List[str], title: str, body: str, gift_id: str = "") -> List[Dict[str, Any]]:
+def send_push_to_tokens(
+    tokens: List[str],
+    title: str,
+    body: str,
+    gift_id: str = "",
+    image_url: str = "",
+    link_url: str = "",
+) -> List[Dict[str, Any]]:
     results: List[Dict[str, Any]] = []
     for token in tokens:
         try:
-            msg_id = fb_messaging.send(build_push_message(token, title, body, gift_id))
+            msg_id = fb_messaging.send(
+                build_push_message(token, title, body, gift_id, image_url, link_url)
+            )
             results.append({"token": token[:20] + "...", "status": "ok", "messageId": msg_id})
         except Exception as exc:
             logger.warning("FCM: send failed token=%s... error=%s", token[:20], exc)

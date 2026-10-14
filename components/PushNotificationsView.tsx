@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { ImageUploadField } from './ImageUploadField';
 import { AlertCircle, BellRing, CheckCircle2, RefreshCw, Send, Smartphone } from 'lucide-react';
 import { Language } from '../types';
 import LoadingGlass from './LoadingGlass';
@@ -46,7 +47,16 @@ const COPY = {
     notificationTitle: 'Notification title',
     body: 'Message',
     giftId: 'Open a gift when tapped (optional)',
-    giftIdHint: 'Gift ID, e.g. G-1042. Leave empty to just open the app.',
+    giftIdHint: 'Gift ID, e.g. G-1042.',
+    imageLabel: 'Picture (optional)',
+    imageHint: 'Shown inside the notification. Upload a file or paste a public https link.',
+    targetLabel: 'When tapped',
+    targetNone: 'Open the app',
+    targetGift: 'Open a gift',
+    targetUrl: 'Open a link',
+    linkHint: 'Must start with https:// — opens in the phone browser.',
+    previewLabel: 'Preview',
+    iosNote: 'Pictures show on Android. On iPhone they need the notification extension in the app build.',
     send: 'Send notification',
     sending: 'Sending...',
     refresh: 'Refresh status',
@@ -68,7 +78,16 @@ const COPY = {
     notificationTitle: 'Заголовок',
     body: 'Сообщение',
     giftId: 'Открывать подарок при нажатии (необязательно)',
-    giftIdHint: 'ID подарка, например G-1042. Пусто — просто откроется приложение.',
+    giftIdHint: 'ID подарка, например G-1042.',
+    imageLabel: 'Картинка (необязательно)',
+    imageHint: 'Показывается внутри уведомления. Загрузите файл или вставьте публичную https-ссылку.',
+    targetLabel: 'При нажатии',
+    targetNone: 'Открыть приложение',
+    targetGift: 'Открыть подарок',
+    targetUrl: 'Открыть ссылку',
+    linkHint: 'Должна начинаться с https:// — откроется в браузере телефона.',
+    previewLabel: 'Предпросмотр',
+    iosNote: 'Картинки видны на Android. На iPhone нужен notification extension в сборке приложения.',
     send: 'Отправить уведомление',
     sending: 'Отправка...',
     refresh: 'Обновить статус',
@@ -90,7 +109,16 @@ const COPY = {
     notificationTitle: 'Sarlavha',
     body: 'Xabar',
     giftId: 'Bosilganda sovg\'ani ochish (ixtiyoriy)',
-    giftIdHint: 'Sovg\'a ID, masalan G-1042. Bo\'sh bo\'lsa, ilova ochiladi.',
+    giftIdHint: 'Sovg\'a ID, masalan G-1042.',
+    imageLabel: 'Rasm (ixtiyoriy)',
+    imageHint: 'Bildirishnoma ichida ko\'rinadi. Fayl yuklang yoki ochiq https havolani kiriting.',
+    targetLabel: 'Bosilganda',
+    targetNone: 'Ilovani ochish',
+    targetGift: 'Sovg\'ani ochish',
+    targetUrl: 'Havolani ochish',
+    linkHint: 'https:// bilan boshlanishi kerak — telefon brauzerida ochiladi.',
+    previewLabel: 'Ko\'rinishi',
+    iosNote: 'Rasmlar Android\'da ko\'rinadi. iPhone uchun ilova buildiga notification extension kerak.',
     send: 'Xabar yuborish',
     sending: 'Yuborilmoqda...',
     refresh: 'Statusni yangilash',
@@ -107,6 +135,12 @@ const PushNotificationsView: React.FC<PushNotificationsViewProps> = ({ lang }) =
   const [title, setTitle] = useState('IRIZON BONUS');
   const [body, setBody] = useState('');
   const [giftId, setGiftId] = useState('');
+  // A picture inside the notification, and where a tap should land.
+  const [imageUrl, setImageUrl] = useState('');
+  const [linkUrl, setLinkUrl] = useState('');
+  // One tap, one destination — so the form offers a choice instead of two
+  // fields that quietly contradict each other.
+  const [target, setTarget] = useState<'none' | 'gift' | 'url'>('none');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -133,7 +167,16 @@ const PushNotificationsView: React.FC<PushNotificationsViewProps> = ({ lang }) =
     void loadStatus();
   }, []);
 
-  const canSend = Boolean(title.trim()) && Boolean(body.trim()) && (audience === 'all' || Boolean(customerId.trim()));
+  const linkLooksValid = !linkUrl.trim() || /^https?:\/\//i.test(linkUrl.trim());
+  const imageLooksValid = !imageUrl.trim() || /^https?:\/\//i.test(imageUrl.trim());
+  const canSend =
+    Boolean(title.trim()) &&
+    Boolean(body.trim()) &&
+    (audience === 'all' || Boolean(customerId.trim())) &&
+    (target !== 'gift' || Boolean(giftId.trim())) &&
+    (target !== 'url' || Boolean(linkUrl.trim())) &&
+    linkLooksValid &&
+    imageLooksValid;
 
   const handleSend = async () => {
     if (!canSend || sending) {
@@ -151,7 +194,9 @@ const PushNotificationsView: React.FC<PushNotificationsViewProps> = ({ lang }) =
           customer_id: customerId.trim(),
           title: title.trim(),
           body: body.trim(),
-          gift_id: giftId.trim(),
+          gift_id: target === 'gift' ? giftId.trim() : '',
+          link_url: target === 'url' ? linkUrl.trim() : '',
+          image_url: imageUrl.trim(),
         }),
       });
       const payload = await response.json() as PushSendResponse;
@@ -161,6 +206,9 @@ const PushNotificationsView: React.FC<PushNotificationsViewProps> = ({ lang }) =
       setSuccess(`${t.success}: ${payload.sent ?? 0}/${payload.targeted ?? 0}`);
       setBody('');
       setGiftId('');
+      setLinkUrl('');
+      setImageUrl('');
+      setTarget('none');
       await loadStatus();
     } catch (sendError) {
       setError(sendError instanceof Error ? sendError.message : 'Failed to send notification');
@@ -282,15 +330,102 @@ const PushNotificationsView: React.FC<PushNotificationsViewProps> = ({ lang }) =
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">{t.giftId}</label>
-                  <input
-                    value={giftId}
-                    onChange={(event) => setGiftId(event.target.value)}
-                    placeholder="G-1042"
-                    maxLength={100}
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:ring-2 focus:ring-cyan-500/10 focus:border-cyan-200 text-sm font-semibold text-slate-800"
+                  <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
+                    {t.imageLabel}
+                  </label>
+                  <ImageUploadField
+                    label=""
+                    value={imageUrl}
+                    onChange={setImageUrl}
+                    folder="push"
+                    hint={t.imageHint}
                   />
-                  <p className="mt-1 text-[11px] font-medium text-slate-400">{t.giftIdHint}</p>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
+                    {t.targetLabel}
+                  </label>
+                  <div className="flex gap-1 rounded-2xl bg-slate-100 p-1">
+                    {([
+                      { key: 'none', label: t.targetNone },
+                      { key: 'gift', label: t.targetGift },
+                      { key: 'url', label: t.targetUrl },
+                    ] as const).map((option) => (
+                      <button
+                        key={option.key}
+                        type="button"
+                        onClick={() => setTarget(option.key)}
+                        className={`flex-1 rounded-xl px-3 py-2 text-xs font-bold transition-all ${
+                          target === option.key ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'
+                        }`}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {target === 'gift' ? (
+                    <div className="mt-3">
+                      <input
+                        value={giftId}
+                        onChange={(event) => setGiftId(event.target.value)}
+                        placeholder="G-1042"
+                        maxLength={100}
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:ring-2 focus:ring-cyan-500/10 focus:border-cyan-200 text-sm font-semibold text-slate-800"
+                      />
+                      <p className="mt-1 text-[11px] font-medium text-slate-400">{t.giftIdHint}</p>
+                    </div>
+                  ) : null}
+
+                  {target === 'url' ? (
+                    <div className="mt-3">
+                      <input
+                        value={linkUrl}
+                        onChange={(event) => setLinkUrl(event.target.value)}
+                        placeholder="https://..."
+                        maxLength={2000}
+                        className={`w-full px-4 py-3 bg-slate-50 border rounded-2xl outline-none focus:ring-2 focus:ring-cyan-500/10 text-sm font-semibold text-slate-800 ${
+                          linkLooksValid ? 'border-slate-100 focus:border-cyan-200' : 'border-rose-300'
+                        }`}
+                      />
+                      <p className="mt-1 text-[11px] font-medium text-slate-400">{t.linkHint}</p>
+                    </div>
+                  ) : null}
+                </div>
+
+                {/* What the phone will actually show, so a mistake is visible
+                    before it reaches every customer at once. */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
+                    {t.previewLabel}
+                  </label>
+                  <div className="rounded-2xl border border-slate-200 bg-slate-900 p-3">
+                    <div className="rounded-xl bg-white/95 p-3">
+                      <div className="flex items-start gap-3">
+                        <div className="h-9 w-9 shrink-0 rounded-lg bg-gradient-to-br from-[#0F4C81] to-[#2F8DE4]" />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                            IRIZON BONUS
+                          </p>
+                          <p className="mt-0.5 truncate text-[13px] font-bold text-slate-900">
+                            {title.trim() || '—'}
+                          </p>
+                          <p className="line-clamp-2 text-[12px] leading-snug text-slate-600">
+                            {body.trim() || '—'}
+                          </p>
+                        </div>
+                      </div>
+                      {imageUrl.trim() && imageLooksValid ? (
+                        <img
+                          src={imageUrl.trim()}
+                          alt=""
+                          className="mt-2 h-32 w-full rounded-lg object-cover"
+                        />
+                      ) : null}
+                    </div>
+                  </div>
+                  <p className="mt-1 text-[11px] font-medium text-slate-400">{t.iosNote}</p>
                 </div>
 
                 {error ? (

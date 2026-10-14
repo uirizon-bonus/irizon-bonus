@@ -57,7 +57,12 @@ def send_push_notification_payload(payload: PushNotificationPayload):
             return JSONResponse({"error": f"No device tokens for {target}"}, status_code=404)
 
         results = firebase_push.send_push_to_tokens(
-            tokens, payload.title.strip(), payload.body.strip(), payload.gift_id.strip()
+            tokens,
+            payload.title.strip(),
+            payload.body.strip(),
+            payload.gift_id.strip(),
+            payload.image_url.strip(),
+            payload.link_url.strip(),
         )
         sent_count = len([result for result in results if result["status"] == "ok"])
         legacy._audit_log(

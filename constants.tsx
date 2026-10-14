@@ -135,7 +135,6 @@ export const TRANSLATIONS = {
     blocked: 'Bloklangan',
     points: 'Ballar',
     earned: 'To\'plangan',
-    all_customers: 'Barcha mijozlar',
     customer_details: 'Mijoz tafsilotlari',
     edit: 'Tahrirlash',
     block: 'Bloklash',

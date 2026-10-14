@@ -8,6 +8,8 @@
 export interface DeepLink {
   screen: string;
   giftId?: string;
+  /** Set when the notification points at a web address instead of a screen. */
+  url?: string;
 }
 
 let pending: DeepLink | null = null;
@@ -39,5 +41,12 @@ export function deepLinkFromData(data: unknown): DeepLink | null {
   const screen = String(record.screen ?? "").trim();
   const giftId = String(record.giftId ?? record.gift_id ?? "").trim();
   if (screen === "gift" && giftId) return { screen, giftId };
+  if (screen === "url") {
+    const url = String(record.url ?? "").trim();
+    // Only http(s). A notification is attacker-reachable if a token ever leaks,
+    // and javascript:, file: or intent: URLs would turn it into a way to run
+    // something inside the app.
+    if (/^https?:\/\//i.test(url)) return { screen, url };
+  }
   return null;
 }
